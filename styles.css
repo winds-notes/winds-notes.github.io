@@ -13,3 +13,174 @@
 @media(max-width:750px){.library-header{height:70px;padding:0 18px}.library-main{padding:23px 17px}.hero{height:auto;min-height:290px}.hero-copy{padding:26px 25px;max-width:86%}.hero h1{font-size:34px}.hero p{font-size:11px}.hero-graphic{right:-230px;opacity:.3}.device-chip{display:none}.notebook-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.notebook-card{padding:9px}.book-cover{height:165px;padding:21px}.cover-name{font-size:22px}.section-heading{align-items:start}.section-controls .search-wrap{display:none}.section-heading h2{font-size:20px}.library-footer{display:block;line-height:2}.library-footer span:last-child{display:block}.editor-header{height:63px;padding:0 9px}.notebook-title-wrap input{max-width:36vw;width:190px;font-size:12px}.header-divider{margin:0 3px}.editor-header-left,.editor-header-right{gap:1px}.editor-header-right .icon-button{width:32px}.brand-compact{display:none}.btn-export{padding:10px}.btn-export span:last-child{display:none}.toolbar{height:56px;padding:0 8px;gap:2px}.pages-sidebar{position:absolute;top:119px;bottom:0;left:0;z-index:10;width:210px;box-shadow:8px 0 20px #23244a1b}.pages-sidebar.collapsed{width:0}.editor-scrim{position:absolute;top:119px;bottom:0;left:0;right:0;background:#12132b45;z-index:9}.page-scroller{padding:8px 8px 20px}.stage-top{padding:0 16px}.modal{padding:27px 23px}.search-wrap input{width:90px}}
 @media(max-width:450px){.notebook-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.book-cover{height:143px}.cover-name{font-size:19px}.notebook-meta h3{font-size:11px}.notebook-meta p{font-size:9px}.hero h1{font-size:30px}.hero-copy{max-width:98%}.hero p{max-width:300px}.section-heading{flex-wrap:wrap}.notebook-title-wrap input{max-width:29vw}.save-status{font-size:8px}.header-back{width:30px}.editor-header-right .slim{display:none}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
+
+
+/* -------------------------------------------------------------
+   Folio Notes Pro — single-row tablet writing workspace
+   All editor tools live in the top command bar; page rail overlays
+   rather than shrinking the writing surface.
+   ------------------------------------------------------------- */
+:root{--purple:#5f55dc;--purple-dark:#5147c6;--ink:#252a3f;--border:#e7eaf1}
+.editor-view{background:#f4f6fa}
+.editor-header.command-bar{
+  height:60px;min-height:60px;gap:12px;padding:0 15px;
+  display:flex;align-items:center;justify-content:initial;
+  background:#fff;border-bottom:1px solid #e5e9f0;z-index:18;
+  box-shadow:0 1px 10px rgba(26,39,67,.025)
+}
+.editor-header-left,.editor-header-right{gap:5px;flex-shrink:0;min-width:0}
+.editor-header-left{max-width:240px}
+.editor-header-right{margin-left:auto}
+.editor-header .icon-button{width:34px;height:36px;border-radius:9px;flex-shrink:0}
+.editor-header .icon-button:hover,.editor-header .tool-button:hover{background:#f1f2f9}
+.editor-header .icon-button svg{width:19px;height:19px}
+.editor-header .notebook-title-wrap{width:139px;min-width:0;gap:3px}
+.editor-header .notebook-title-wrap input{max-width:100%;width:100%;min-width:0;font-size:12px;letter-spacing:-.18px;font-weight:800}
+.editor-header .save-status{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;color:#8d96a7}
+.editor-header .save-status:before{margin-right:4px}
+.editor-header .header-divider{margin:0 3px;height:23px;background:#e6e9f0}
+.editor-header .pages-toggle{width:34px;height:36px;border:0;flex-shrink:0}
+.editor-header .pages-toggle.active{background:#eeedff;color:var(--purple)}
+.toolbar-scroll-wrap{min-width:0;flex:1;position:relative;display:flex;align-items:center;height:43px;background:#f6f7fb;border:1px solid #eff0f6;border-radius:11px;overflow:hidden}
+.editor-header .toolbar{
+  flex:1;min-width:0;height:100%;padding:0 24px;gap:6px;
+  border:0;background:transparent;position:static;z-index:auto;
+  overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain;
+  scrollbar-width:none;scroll-behavior:smooth;
+  -webkit-overflow-scrolling:touch;
+}
+.editor-header .toolbar::-webkit-scrollbar{display:none}
+.editor-header .tool-group{gap:1px;flex:0 0 auto}
+.editor-header .tool-button{height:33px;width:33px;min-width:33px;display:grid;place-items:center;flex-shrink:0;border-radius:8px}
+.editor-header .tool-button svg{width:18px;height:18px}
+.editor-header .tool-button.active{background:#e8e6ff;color:#5147c6}
+.editor-header .toolbar-divider{margin:0 5px;height:19px;background:#dadee9}
+.editor-header .color-palette{gap:1px;flex:0 0 auto}
+.editor-header .color-button{width:24px;height:26px;border-width:1.5px;padding:0}
+.editor-header .color-button span{width:16px;height:16px}
+.editor-header .size-control{min-width:89px;gap:6px;flex-shrink:0}
+.editor-header .size-control input{width:60px}
+.editor-header .size-control #sizeLabel{min-width:14px;text-align:center;color:#626b7b;font-weight:700}
+.editor-header .pencil-toggle{font-size:10px;gap:5px;white-space:nowrap;flex-shrink:0;color:#70798b;padding:0 4px}
+.editor-header .pencil-toggle input{width:15px;height:15px}
+.editor-header .pencil-toggle>span:last-child{display:inline}
+.editor-header .stage-tools{gap:4px;white-space:nowrap;flex-shrink:0;color:#737d8e}
+.editor-header .stage-tools .small-icon-button{width:27px;height:30px;display:grid;place-items:center}
+.editor-header .stage-tools .small-icon-button svg{width:16px;height:16px}
+.editor-header .fit-button{margin-left:2px;padding:6px 8px;font-size:10px}
+.toolbar-arrow{position:absolute;z-index:3;top:4px;width:22px;height:32px;background:linear-gradient(90deg,#f6f7fb 75%,#f6f7fbdf);border:0;color:#5b627b;font-size:24px;line-height:24px;display:grid;place-items:center;border-radius:8px}
+.toolbar-arrow:hover{background:#edebff;color:var(--purple)}
+.toolbar-arrow-left{left:0}.toolbar-arrow-right{right:0;background:linear-gradient(270deg,#f6f7fb 75%,#f6f7fbdf)}
+.toolbar-arrow[hidden]{display:none!important}
+.editor-header .page-nav{display:flex;gap:2px;height:36px;align-items:center;border:0;background:transparent;flex-shrink:0}
+.editor-header .page-nav span{min-width:34px;font-size:10px;color:#626b7b;text-align:center;white-space:nowrap}
+.editor-header .nav-page-btn{width:25px;height:30px;border-radius:7px}
+.editor-header .nav-page-btn:hover:not(:disabled){background:#f1f2f9}
+.editor-header .add-page-top{background:#f1efff;color:#5e55d7;width:31px;height:32px}
+.editor-header .btn-export{height:35px;padding:0 12px;gap:5px;border-radius:9px;font-size:11px;flex-shrink:0;box-shadow:0 3px 9px #5f55dc20}
+.editor-header .btn-export svg{width:15px;height:15px}
+.editor-header .btn-export span:last-child{display:inline}
+.editor-header .pop-menu{position:fixed;top:58px;z-index:40;right:15px;max-height:calc(100dvh - 72px);overflow-y:auto}
+.editor-header .paper-menu{right:auto}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.editor-body{position:relative;flex:1;min-height:0;background:#f5f6fa}
+.editor-body .pages-sidebar{position:absolute;top:0;bottom:0;left:0;width:220px;max-width:82vw;z-index:12;box-shadow:8px 0 30px #23244a1b;transition:transform .18s ease,visibility .18s ease;visibility:visible}
+.editor-body .pages-sidebar.collapsed{width:220px;max-width:82vw;transform:translateX(-102%);visibility:hidden;border-right:1px solid var(--border)}
+.editor-body .editor-scrim{position:absolute;inset:0;background:rgba(22,29,51,.20);z-index:11}
+.editor-body .canvas-stage{width:100%;min-width:0;min-height:0;background:#f5f6fa}
+.editor-body .page-scroller{padding:22px 24px 40px;gap:0;flex:1;background:#f5f6fa}
+.editor-body .page-shell{border-radius:2px;box-shadow:0 7px 27px #273b6516,0 1px 3px #273b6510}
+.editor-body .floating-add-page{display:none}
+.editor-body .sidebar-tip{display:none}
+.editor-header .icon-button:focus-visible,.toolbar-scroll-wrap button:focus-visible{outline:2px solid #938aef;outline-offset:1px}
+@media (max-width:1200px){
+  .editor-header.command-bar{gap:7px;padding:0 10px}
+  .editor-header-left{max-width:200px}
+  .editor-header .notebook-title-wrap{width:117px}
+  .editor-header .toolbar{padding:0 22px}
+  .editor-header .toolbar-divider{margin:0 3px}
+}
+@media (max-width:850px){
+  .editor-header.command-bar{height:56px;min-height:56px;gap:5px;padding:0 8px}
+  .editor-header .notebook-title-wrap{width:100px}
+  .editor-header .save-status{font-size:8px}
+  .editor-header .book-divider,.editor-header .right-divider{display:none}
+  .editor-header .toolbar{height:100%}
+  .editor-header .page-nav{gap:0}
+  .editor-header .page-nav span{min-width:27px;font-size:9px}
+  .editor-header .nav-page-btn{width:22px}
+  .editor-header .icon-button{width:30px}
+  .editor-header .btn-export{height:32px;padding:0 8px}
+  .editor-header .btn-export span:last-child{display:none}
+  .editor-body .page-scroller{padding:15px 12px 30px}
+  .editor-header .pop-menu{top:55px}
+}
+@media (max-width:610px){
+  .editor-header.command-bar{gap:4px;padding:0 6px}
+  .editor-header .notebook-title-wrap{width:70px}
+  .editor-header .save-status{display:none}
+  .editor-header .header-back,.editor-header .pages-toggle{width:28px}
+  .editor-header .add-page-top{width:27px}
+  .editor-header .page-nav span{min-width:19px;font-size:8px}
+  .editor-header .nav-page-btn{width:18px}
+  .editor-header #redoBtn,.editor-header #undoBtn{width:25px}
+  .editor-header .toolbar{padding:0 21px}
+  .toolbar-arrow{width:19px}
+  .editor-body .page-scroller{padding:10px 7px 30px}
+}
+@media (max-width:390px){
+  .editor-header #undoBtn,.editor-header #redoBtn{display:none}
+  .editor-header .notebook-title-wrap{width:58px}
+  .editor-header .page-nav{gap:0}
+}
+@media (prefers-reduced-motion:reduce){.editor-body .pages-sidebar,.editor-header .toolbar{transition:none;scroll-behavior:auto}}
+
+/* Tight phone layouts retain an accessible pen strip rather than squeezing it away. */
+@media (max-width:610px){
+  .editor-header .notebook-title-wrap{display:none}
+  .editor-header .toolbar-scroll-wrap{min-width:90px}
+}
+@media (max-width:460px){
+  .editor-header .page-nav,.editor-header #redoBtn{display:none}
+  .editor-header .toolbar-scroll-wrap{min-width:115px}
+}
+
+/* WiNDS Notes refinement: deliberate iPad-sized controls and a no-jank ink layer. */
+.brand-mark{background:transparent;box-shadow:none;border-radius:13px;overflow:hidden}
+.brand-mark img{width:100%;height:100%;object-fit:contain;display:block}
+.brand-name{font-size:23px;letter-spacing:-1.0px;font-weight:830}
+.brand-name .brand-dot{color:#258ca8}
+.brand-name small{font-size:8px;letter-spacing:2.0px;margin-top:6px;color:#8b94a9}
+.page-shell #pageCanvas{z-index:1;pointer-events:none}
+.page-shell #inkCanvas{z-index:2;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+.page-shell #inkCanvas:focus{outline:none}
+.page-shell .inline-text-editor{z-index:5}
+.page-scroller,.canvas-stage{overscroll-behavior:contain}
+.editor-view,.editor-body,.page-shell{user-select:none;-webkit-user-select:none}
+.editor-view input,.editor-view textarea{user-select:text;-webkit-user-select:text}
+.editor-header .tool-button,.editor-header .icon-button,.editor-header .nav-page-btn{touch-action:manipulation}
+.editor-header .save-status{font-variant-numeric:tabular-nums}
+@media (hover:none) and (pointer:coarse){
+ .editor-header .tool-button{min-width:37px;width:37px;height:37px}
+ .editor-header .toolbar{gap:7px}
+ .editor-header .color-button{width:30px;height:34px}
+ .editor-header .color-button span{width:19px;height:19px}
+ .editor-header .toolbar-divider{margin:0 7px}
+ .editor-header .fit-button{padding:8px 12px}
+}
+@supports(padding:max(0px)){
+ .library-header{padding-top:env(safe-area-inset-top,0px)}
+ .editor-header.command-bar{padding-top:env(safe-area-inset-top,0px);height:calc(64px + env(safe-area-inset-top,0px));min-height:calc(64px + env(safe-area-inset-top,0px))}
+ .editor-body .page-scroller{padding-bottom:max(40px,env(safe-area-inset-bottom,0px))}
+}
+
+/* Editable native document: visible but restrained import affordance. */
+.section-controls .btn-open-native{height:40px;padding:0 13px;border-color:#dde2ed;color:#4a526d;white-space:nowrap}
+.section-controls .btn-open-native svg{width:16px;height:16px;color:#347eaa}
+.section-controls .btn-open-native:hover{background:#f0f8fc;border-color:#abd0e1;transform:none}
+.format-icon.native{background:#e2f4f7;color:#087fa1;font-weight:900;font-size:16px}
+@media(max-width:600px){
+  .section-heading{align-items:flex-start;flex-wrap:wrap;gap:14px}
+  .section-controls{width:100%;justify-content:space-between;gap:8px}
+  .section-controls .btn-open-native,.section-controls #newNotebook{flex:1;min-width:0;padding:9px 9px;font-size:11px}
+}

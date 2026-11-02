@@ -1,1 +1,15 @@
-{"name":"Folio Notes — Handwriting & Notebooks","short_name":"Folio Notes","start_url":"./","scope":"./","display":"standalone","background_color":"#f8f9fc","theme_color":"#f8f9fc","icons":[{"src":"./assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "WiNDS Notes — Write naturally",
+  "short_name": "WiNDS Notes",
+  "description": "Your private, beautifully simple handwritten notebooks. Made for iPad and the web.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f9fc",
+  "theme_color": "#f8f9fc",
+  "icons": [
+    {"src":"./assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"},
+    {"src":"./assets/apple-touch-icon.png","sizes":"180x180","type":"image/png","purpose":"any maskable"}
+  ]
+}

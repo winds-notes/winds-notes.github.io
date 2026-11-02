@@ -8,7 +8,7 @@
     const offsets = [0];
     const add = data => { const bytes = typeof data === 'string' ? encoder.encode(data) : data; parts.push(bytes); offset += bytes.byteLength; };
     const object = (id, body) => { offsets[id] = offset; add(`${id} 0 obj\n`); if (Array.isArray(body)) body.forEach(add); else add(body); add('\nendobj\n'); };
-    add('%PDF-1.4\n%Folio Notes PDF\n');
+    add('%PDF-1.4\n%WiNDS Notes PDF\n');
     const kids = images.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
     object(1, '<< /Type /Catalog /Pages 2 0 R >>');
     object(2, `<< /Type /Pages /Kids [ ${kids} ] /Count ${images.length} >>`);
@@ -32,5 +32,5 @@
     for (let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
     return bytes;
   }
-  window.FolioPDF = { writePdf, dataUrlToBytes };
+  window.WindsPDF = { writePdf, dataUrlToBytes };
 })();

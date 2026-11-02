@@ -1,48 +1,116 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f8f9fc" />
-  <meta name="description" content="Folio Notes — a beautiful, private notebook for iPad, Apple Pencil, and the web." />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Folio Notes" />
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="./styles.css" />
-  <title>Folio Notes — Your ideas, beautifully kept.</title>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+<meta content="#f8f9fc" name="theme-color"/>
+<meta content="WiNDS Notes — a beautiful, private notebook for iPad, Apple Pencil, and the web." name="description"/>
+<meta content="yes" name="apple-mobile-web-app-capable"/>
+<meta content="default" name="apple-mobile-web-app-status-bar-style"/>
+<meta content="WiNDS Notes" name="apple-mobile-web-app-title"/>
+<link href="./manifest.webmanifest" rel="manifest"/>
+<link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
+<link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
+<link href="./styles.css" rel="stylesheet"/>
+<title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
-  <noscript><div style="padding:2rem">Folio Notes requires JavaScript. Please enable JavaScript to continue.</div></noscript>
-  <div class="app-root">
-    <section id="libraryView" class="library-view">
-      <header class="library-header">
-        <div class="brand"><div class="brand-mark"><span class="mark-scribble">ƒ</span></div><div class="brand-name">folio<span class="brand-dot">.</span><small>NOTES</small></div></div>
-        <div class="header-actions"><span class="device-chip" id="deviceStatus">Private by design · saved on this device</span><button id="installButton" class="btn btn-quiet install-button" hidden>Install app</button><button id="backupButton" class="icon-button" title="Back up all notebooks" aria-label="Back up all notebooks"></button><button id="restoreButton" class="icon-button" title="Restore notebooks" aria-label="Restore notebooks"></button></div>
-      </header>
-      <main class="library-main">
-        <div class="hero">
-          <div class="hero-copy"><div class="eyebrow"><span class="sparkle">✦</span> YOUR CREATIVE SPACE</div><h1>Every great idea<br/>starts <em>somewhere.</em></h1><p>Beautifully simple handwritten notes, sketches, and ideas — all in one place. Made for your iPad, tablet, and laptop.</p><button id="heroCreate" class="btn btn-primary hero-cta"><span id="heroPlus"></span> Create a notebook</button></div>
-          <div class="hero-graphic" aria-hidden="true"><div class="hero-paper paper-back"></div><div class="hero-paper paper-front"><div class="hero-paper-tag">THOUGHTS / 001</div><div class="hero-hello">Make space<br/>for <i>ideas.</i></div><div class="hero-underline"></div><div class="hero-doodle">✳</div><div class="hero-lines"><span></span><span></span><span></span></div></div><div class="hero-pencil"></div><div class="hero-star">✳</div></div>
-        </div>
-        <section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span id="notebookCount" class="count-pill">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input id="searchNotebooks" type="search" placeholder="Search notebooks" aria-label="Search notebooks"></label><button id="newNotebook" class="btn btn-primary btn-small"><span id="newPlus"></span> New notebook</button></div></div><div id="notebookGrid" class="notebook-grid"></div></section>
-        <footer class="library-footer"><span>✺ Made for the moments worth keeping.</span><span>Folio Notes · Your notes stay in this browser unless you export them.</span></footer>
-      </main>
-    </section>
+<noscript><div style="padding:2rem">WiNDS Notes requires JavaScript. Please enable JavaScript to continue.</div></noscript>
+<div class="app-root">
+<section class="library-view" id="libraryView">
+<header class="library-header">
+<div class="brand"><div class="brand-mark"><img src="./assets/icon.svg" width="44" height="44" alt=""/></div><div class="brand-name">WiNDS<span class="brand-dot"> Notes</span><small>IDEAS IN MOTION</small></div></div>
+<div class="header-actions"><span class="device-chip" id="deviceStatus">Private by design · saved on this device</span><button class="btn btn-quiet install-button" hidden="" id="installButton">Install app</button><button aria-label="Back up all notebooks" class="icon-button" id="backupButton" title="Back up all notebooks"></button><button aria-label="Restore notebooks" class="icon-button" id="restoreButton" title="Restore notebooks"></button></div>
+</header>
+<main class="library-main">
+<div class="hero">
+<div class="hero-copy"><div class="eyebrow"><span class="sparkle">✦</span> YOUR CREATIVE SPACE</div><h1>Every great idea<br/>starts <em>somewhere.</em></h1><p>Beautifully simple handwritten notes, sketches, and ideas — all in one place. Made for your iPad, tablet, and laptop.</p><button class="btn btn-primary hero-cta" id="heroCreate"><span id="heroPlus"></span> Create a notebook</button></div>
+<div aria-hidden="true" class="hero-graphic"><div class="hero-paper paper-back"></div><div class="hero-paper paper-front"><div class="hero-paper-tag">THOUGHTS / 001</div><div class="hero-hello">Make space<br/>for <i>ideas.</i></div><div class="hero-underline"></div><div class="hero-doodle">✳</div><div class="hero-lines"><span></span><span></span><span></span></div></div><div class="hero-pencil"></div><div class="hero-star">✳</div></div>
+</div>
+<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
+<footer class="library-footer"><span>✺ Made for the moments worth keeping.</span><span>WiNDS Notes · Your notes stay in this browser unless you export them.</span></footer>
+</main>
+</section>
+<section class="editor-view" hidden="" id="editorView">
+<header aria-label="Notebook controls" class="editor-header command-bar">
+<div class="editor-header-left">
+<button aria-label="Back to notebooks" class="icon-button header-back" id="goLibrary" title="Back to notebooks"></button>
+<div class="notebook-title-wrap">
+<input aria-label="Notebook name" id="notebookTitle" maxlength="70" title="Rename notebook"/>
+<span class="save-status" id="saveStatus">Saved on this device</span>
+</div>
+<span aria-hidden="true" class="header-divider book-divider"></span>
+<button aria-label="Open page thumbnails" aria-pressed="false" class="tool-button pages-toggle" id="togglePages" title="Open page thumbnails"></button>
+</div>
+<div aria-label="Writing tools and settings" class="toolbar-scroll-wrap">
+<button aria-label="Scroll tools left" class="toolbar-arrow toolbar-arrow-left" hidden="" id="toolbarPrev" title="More tools to the left">‹</button>
+<div aria-label="Note-taking tools" class="toolbar" id="editorToolbar" role="toolbar" tabindex="0">
+<div class="tool-group" id="toolsGroup">
+<button aria-label="Pen" aria-pressed="true" class="tool-button active" data-tool="pen" title="Pen (P)"></button>
+<button aria-label="Highlighter" aria-pressed="false" class="tool-button" data-tool="highlighter" title="Highlighter (H)"></button>
+<button aria-label="Eraser" aria-pressed="false" class="tool-button" data-tool="eraser" title="Object eraser (E)"></button>
+<button aria-label="Select and move" aria-pressed="false" class="tool-button" data-tool="select" title="Select and move (V)"></button>
+<button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
+<button aria-label="Rectangle" aria-pressed="false" class="tool-button" data-tool="rectangle" title="Rectangle"></button>
+<button aria-label="Ellipse" aria-pressed="false" class="tool-button" data-tool="ellipse" title="Ellipse"></button>
+<button aria-label="Line" aria-pressed="false" class="tool-button" data-tool="line" title="Line"></button>
+</div>
+<span aria-hidden="true" class="toolbar-divider"></span>
+<div aria-label="Ink colors" class="color-palette" id="colorPalette"></div>
+<span aria-hidden="true" class="toolbar-divider"></span>
+<label class="size-control" title="Pen thickness">
+<span class="size-preview" id="sizePreview"></span>
+<input aria-label="Pen thickness" id="penSize" max="16" min="1" step="0.5" type="range" value="3"/>
+<span id="sizeLabel">3</span>
+</label>
+<span aria-hidden="true" class="toolbar-divider"></span>
+<button aria-label="Insert an image" class="tool-button" id="insertImageBtn" title="Insert an image"></button>
+<button aria-expanded="false" aria-label="Change paper template" class="tool-button" id="paperStyleBtn" title="Change paper template"></button>
+<label class="pencil-toggle" title="When enabled, only a stylus draws; fingers can pan and pinch">
+<input id="pencilOnly" type="checkbox"/>
+<span id="pencilOnlyIcon"></span>
+<span>Stylus only</span>
+</label>
+<span aria-hidden="true" class="toolbar-divider"></span>
+<div aria-label="Page zoom" class="stage-tools">
+<button aria-label="Zoom out" class="small-icon-button" id="zoomOut" title="Zoom out"></button>
+<span id="zoomValue">100%</span>
+<button aria-label="Zoom in" class="small-icon-button" id="zoomIn" title="Zoom in"></button>
 
-    <section id="editorView" class="editor-view" hidden>
-      <header class="editor-header"><div class="editor-header-left"><button id="goLibrary" class="icon-button header-back" aria-label="Back to notebooks" title="Back to notebooks"></button><div class="brand brand-compact"><div class="brand-mark"><span class="mark-scribble">ƒ</span></div></div><span class="header-divider"></span><div class="notebook-title-wrap"><input id="notebookTitle" aria-label="Notebook name" maxlength="70"/><span id="saveStatus" class="save-status">Saved on this device</span></div></div><div class="editor-header-right"><button id="undoBtn" class="icon-button" title="Undo (⌘Z)" aria-label="Undo"></button><button id="redoBtn" class="icon-button" title="Redo (⌘⇧Z)" aria-label="Redo"></button><span class="header-divider slim"></span><button id="moreOptionsBtn" class="icon-button" title="Notebook options" aria-label="Notebook options"></button><div id="moreMenu" class="pop-menu" hidden><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="backup">Back up all notebooks</button><button data-action="deleteNotebook" class="danger-text">Delete notebook</button></div><button id="exportBtn" class="btn btn-primary btn-export"><span id="exportIcon"></span><span>Export</span></button><div id="exportMenu" class="pop-menu export-menu" hidden><div class="menu-heading">SAVE YOUR NOTES</div><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div></div></header>
-      <div class="toolbar" role="toolbar" aria-label="Note-taking tools"><button id="togglePages" class="tool-button pages-toggle" title="Show/hide pages" aria-label="Show/hide pages"></button><span class="toolbar-divider"></span><div id="toolsGroup" class="tool-group"><button class="tool-button active" data-tool="pen" title="Pen (P)" aria-label="Pen" aria-pressed="true"></button><button class="tool-button" data-tool="highlighter" title="Highlighter (H)" aria-label="Highlighter" aria-pressed="false"></button><button class="tool-button" data-tool="eraser" title="Object eraser (E)" aria-label="Eraser" aria-pressed="false"></button><button class="tool-button" data-tool="select" title="Select and move (V)" aria-label="Select and move" aria-pressed="false"></button><button class="tool-button" data-tool="text" title="Add text (T)" aria-label="Text" aria-pressed="false"></button><button class="tool-button" data-tool="rectangle" title="Rectangle" aria-label="Rectangle" aria-pressed="false"></button><button class="tool-button" data-tool="ellipse" title="Ellipse" aria-label="Ellipse" aria-pressed="false"></button><button class="tool-button" data-tool="line" title="Line" aria-label="Line" aria-pressed="false"></button></div><span class="toolbar-divider"></span><div id="colorPalette" class="color-palette" aria-label="Ink color"></div><span class="toolbar-divider"></span><label class="size-control" title="Pen thickness"><span class="size-preview" id="sizePreview"></span><input id="penSize" type="range" min="1" max="16" step="0.5" value="3" aria-label="Pen thickness" /><span id="sizeLabel">3</span></label><div class="toolbar-spacer"></div><label class="pencil-toggle" title="When on, only stylus input draws; finger gestures can scroll"><input type="checkbox" id="pencilOnly"/><span id="pencilOnlyIcon"></span><span>Stylus only</span></label><button id="insertImageBtn" class="tool-button" title="Insert image" aria-label="Insert image"></button><button id="paperStyleBtn" class="tool-button" title="Paper style" aria-label="Paper style"></button><div id="paperMenu" class="pop-menu paper-menu" hidden><div class="menu-heading">PAPER TEMPLATE</div><button data-paper="ruled"><span class="paper-preview mini-ruled"></span> Ruled</button><button data-paper="grid"><span class="paper-preview mini-grid"></span> Grid</button><button data-paper="dots"><span class="paper-preview mini-dots"></span> Dotted</button><button data-paper="blank"><span class="paper-preview mini-blank"></span> Blank</button></div></div>
-      <div class="editor-body"><aside id="pagesSidebar" class="pages-sidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button id="addPageSidebar" class="icon-button add-small" title="Add page" aria-label="Add page"></button></div></div><div id="thumbList" class="thumb-list"></div><button id="addPageBottom" class="add-page-bottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div id="editorScrim" class="editor-scrim" hidden></div><main id="canvasStage" class="canvas-stage"><div class="stage-top"><span id="pageBreadcrumb">Page 1 of 1</span><div class="stage-tools"><button id="zoomOut" class="small-icon-button" title="Zoom out" aria-label="Zoom out"></button><span id="zoomValue">100%</span><button id="zoomIn" class="small-icon-button" title="Zoom in" aria-label="Zoom in"></button><button id="fitPage" class="fit-button" title="Fit to window">Fit</button></div></div><div class="page-scroller" id="pageScroller"><div class="page-shell" id="pageShell"><canvas id="pageCanvas" width="1680" height="2376" aria-label="Note-taking canvas. Write using finger, mouse, or stylus."></canvas><textarea id="inlineTextEditor" class="inline-text-editor" spellcheck="true" hidden placeholder="Type here…"></textarea></div><button id="addPageFloat" class="floating-add-page"><span id="floatPlus"></span> Add page</button></div><div class="page-nav"><button id="prevPage" class="nav-page-btn" title="Previous page" aria-label="Previous page"></button><span id="pageIndicator">1 / 1</span><button id="nextPage" class="nav-page-btn" title="Next page" aria-label="Next page"></button></div></main></div>
-    </section>
+</div>
+</div>
+<button aria-label="Scroll tools right" class="toolbar-arrow toolbar-arrow-right" hidden="" id="toolbarNext" title="More tools to the right">›</button>
+</div>
+<div class="editor-header-right">
+<button aria-label="Undo" class="icon-button" id="undoBtn" title="Undo (⌘Z)"></button>
+<button aria-label="Redo" class="icon-button" id="redoBtn" title="Redo (⌘⇧Z)"></button>
+<span aria-hidden="true" class="header-divider right-divider"></span>
+<div aria-label="Navigate notebook pages" class="page-nav" role="group">
+<button aria-label="Previous page" class="nav-page-btn" id="prevPage" title="Previous page"></button>
+<span aria-label="Current page" id="pageIndicator">1 / 1</span>
+<button aria-label="Next page" class="nav-page-btn" id="nextPage" title="Next page"></button>
+</div>
+<button aria-label="Add a page" class="icon-button add-page-top" id="addPageTop" title="Add a page"></button>
+<span aria-hidden="true" class="header-divider right-divider"></span>
+<button aria-expanded="false" aria-label="Notebook options" class="icon-button" id="moreOptionsBtn" title="Notebook options"></button>
+<button aria-expanded="false" aria-label="Export PDF or image" class="btn btn-primary btn-export" id="exportBtn" title="Export PDF or image"><span id="exportIcon"></span><span>Export</span></button>
+</div>
+<span class="sr-only" id="pageBreadcrumb">Page 1 of 1</span>
+<div class="pop-menu paper-menu" hidden="" id="paperMenu"><div class="menu-heading">PAPER TEMPLATE</div><button data-paper="ruled"><span class="paper-preview mini-ruled"></span> Ruled</button><button data-paper="grid"><span class="paper-preview mini-grid"></span> Grid</button><button data-paper="dots"><span class="paper-preview mini-dots"></span> Dotted</button><button data-paper="blank"><span class="paper-preview mini-blank"></span> Blank</button></div>
+<div class="pop-menu" hidden="" id="moreMenu"><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="open">Open notebook file…</button><button data-action="backup">Back up all notebooks</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
+<div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
+</header>
 
-    <div id="modalBackdrop" class="modal-backdrop" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button id="closeModal" class="modal-close" aria-label="Close dialog"></button><div class="modal-eyebrow">A FRESH START ✦</div><h2 id="modalTitle">Create a notebook</h2><p>Give your ideas a home. You can change everything later.</p><label class="field-label" for="newNotebookTitle">NOTEBOOK NAME</label><input id="newNotebookTitle" class="modal-input" maxlength="70" value="Untitled notebook"/><label class="field-label">CHOOSE A COVER</label><div id="coverChoices" class="cover-choices"></div><label class="field-label" for="newPaperStyle">PAPER STYLE</label><select id="newPaperStyle" class="modal-select"><option value="ruled">Ruled paper</option><option value="grid">Grid paper</option><option value="dots">Dotted paper</option><option value="blank">Blank paper</option></select><div class="modal-footer"><button id="cancelModal" class="btn btn-outline">Cancel</button><button id="createNotebookConfirm" class="btn btn-primary">Create notebook</button></div></div></div>
-    <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <input id="imageFileInput" type="file" accept="image/*" hidden />
-    <input id="restoreFileInput" type="file" accept=".json,application/json" hidden />
-  </div>
-  <script src="./pdf-export.js"></script>
-  <script src="./app.js" defer></script>
+<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="page-scroller" id="pageScroller"><div class="page-shell" id="pageShell"><canvas aria-hidden="true" height="2376" id="pageCanvas" width="1680"></canvas><canvas aria-label="Writing surface. Draw with Apple Pencil, stylus, finger or mouse." height="2376" id="inkCanvas" width="1680" role="img"></canvas><textarea class="inline-text-editor" hidden="" id="inlineTextEditor" placeholder="Type here…" spellcheck="true"></textarea></div><button class="floating-add-page" id="addPageFloat"><span id="floatPlus"></span> Add page</button></div></main></div>
+</section>
+<div class="modal-backdrop" hidden="" id="modalBackdrop"><div aria-labelledby="modalTitle" aria-modal="true" class="modal" role="dialog"><button aria-label="Close dialog" class="modal-close" id="closeModal"></button><div class="modal-eyebrow">A FRESH START ✦</div><h2 id="modalTitle">Create a notebook</h2><p>Give your ideas a home. You can change everything later.</p><label class="field-label" for="newNotebookTitle">NOTEBOOK NAME</label><input class="modal-input" id="newNotebookTitle" maxlength="70" value="Untitled notebook"/><label class="field-label">CHOOSE A COVER</label><div class="cover-choices" id="coverChoices"></div><label class="field-label" for="newPaperStyle">PAPER STYLE</label><select class="modal-select" id="newPaperStyle"><option value="ruled">Ruled paper</option><option value="grid">Grid paper</option><option value="dots">Dotted paper</option><option value="blank">Blank paper</option></select><div class="modal-footer"><button class="btn btn-outline" id="cancelModal">Cancel</button><button class="btn btn-primary" id="createNotebookConfirm">Create notebook</button></div></div></div>
+<div aria-live="polite" class="toast" id="toast" role="status"></div>
+<input accept="image/*" hidden="" id="imageFileInput" type="file"/>
+<input hidden="" id="restoreFileInput" type="file"/><input hidden="" id="openNotebookInput" type="file"/>
+</div>
+<script src="./pdf-export.js"></script>
+<script src="./native-file.js"></script>
+<script defer="" src="./app.js"></script>
 </body>
 </html>
