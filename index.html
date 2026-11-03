@@ -54,12 +54,16 @@
 <button aria-label="Select and move" aria-pressed="false" class="tool-button" data-tool="select" title="Select and move (V)"></button>
 <button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
 <button aria-label="Rectangle" aria-pressed="false" class="tool-button" data-tool="rectangle" title="Rectangle"></button>
+<button aria-label="Square" aria-pressed="false" class="tool-button" data-tool="square" title="Perfect square"></button>
 <button aria-label="Ellipse" aria-pressed="false" class="tool-button" data-tool="ellipse" title="Ellipse"></button>
+<button aria-label="Circle" aria-pressed="false" class="tool-button" data-tool="circle" title="Perfect circle"></button>
 <button aria-label="Line" aria-pressed="false" class="tool-button" data-tool="line" title="Line"></button>
 <button aria-label="Arrow" aria-pressed="false" class="tool-button" data-tool="arrow" title="Arrow"></button>
 <button aria-label="Triangle" aria-pressed="false" class="tool-button" data-tool="triangle" title="Triangle"></button>
 <button aria-label="Diamond" aria-pressed="false" class="tool-button" data-tool="diamond" title="Diamond"></button>
 <button aria-label="Star" aria-pressed="false" class="tool-button" data-tool="star" title="Star"></button>
+<button aria-label="Shape fill options" aria-expanded="false" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" title="Fill colors for rectangles, stars and figures"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button>
+<button aria-label="Artist pencils" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist mode — HB, 2B and 4B pencils"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Ink colors" class="color-palette" id="colorPalette"></div><button aria-label="More ink colors" aria-expanded="false" class="tool-button custom-color-button" id="customColorBtn" title="More colors and custom color">🎨</button>
@@ -108,6 +112,24 @@
 <div class="pop-menu orientation-menu" hidden="" id="orientationMenu"><div class="menu-heading">PAGE ORIENTATION</div><button data-orientation="portrait">▯ &nbsp; Portrait</button><button data-orientation="landscape">▭ &nbsp; Landscape</button></div>
 <div class="pop-menu" hidden="" id="moreMenu"><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="open">Open notebook file…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
 <div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
+<div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Shape fill settings">
+  <div class="menu-heading">SHAPE FILL</div>
+  <p class="fill-help">Draw a square, rectangle, circle, ellipse, triangle, diamond or star. To recolor an existing one, choose <b>Select</b> and tap the shape.</p>
+  <label class="fill-toggle"><input id="shapeFillEnabled" type="checkbox"/> <span>Enable solid fill</span></label>
+  <div class="fill-option-row"><span>Fill color</span><input id="shapeFillColor" type="color" value="#b9adff" aria-label="Choose shape fill color"/></div>
+  <div class="fill-swatches" id="shapeFillSwatches" aria-label="Quick fill colors"></div>
+  <label class="fill-option-row" for="shapeFillOpacity"><span>Opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
+  <button class="fill-apply-button" type="button" id="applyShapeFill">Apply to selected shape</button>
+</div>
+<div class="pop-menu artist-menu" hidden id="artistMenu" role="group" aria-label="Artist graphite pencils">
+  <div class="menu-heading">ARTIST PENCILS</div>
+  <p class="artist-help">Natural pressure-sensitive graphite for sketching. Pick a pencil grade, then draw with your stylus.</p>
+  <div class="artist-grade-list">
+    <button type="button" data-grade="HB"><b>HB</b><span>Light sketching</span><i class="graphite-sample hb"></i></button>
+    <button type="button" data-grade="2B"><b>2B</b><span>Soft drawing</span><i class="graphite-sample b2"></i></button>
+    <button type="button" data-grade="4B"><b>4B</b><span>Dark shading</span><i class="graphite-sample b4"></i></button>
+  </div>
+</div>
 <div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label></div>
 <div class="pop-menu emoji-menu" hidden id="emojiMenu"><div class="menu-heading">SMILEYS & STICKERS</div><input type="search" id="emojiSearch" placeholder="Find an emoji…" aria-label="Find a smiley or sticker" class="emoji-search"/><div id="emojiGrid" class="emoji-grid"></div><label class="sticker-size-control">Sticker size <input id="stickerSize" type="range" min="36" max="150" step="2" value="78" aria-label="Sticker size"/><span id="stickerSizeValue">78</span></label><div class="emoji-menu-tip">Tap a sticker to add it. Use Select to move it.</div></div>
 </header>
@@ -147,6 +169,7 @@
 <input accept="image/*" hidden="" id="imageFileInput" type="file"/>
 <input hidden="" id="restoreFileInput" type="file"/><input hidden="" id="openNotebookInput" type="file"/>
 </div>
+<script src="./creative-tools.js"></script>
 <script src="./pdf-export.js"></script>
 <script src="./native-file.js"></script>
 <script src="./google-config.js"></script>

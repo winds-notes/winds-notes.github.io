@@ -24,6 +24,7 @@
   const COVER_COLORS = ['purple','blue','peach','green','lilac','yellow'];
   const COLORS = ['#2b2d4c','#6457ed','#e96576','#e7a43a','#39a68c','#4777c8','#9a62b4'];
   const MORE_COLORS = ['#171717','#6b7280','#fafafa','#5735b1','#8b5cf6','#d946ef','#ec4899','#e11d48','#ef4444','#f97316','#f59e0b','#facc15','#65a30d','#22c55e','#14b8a6','#06b6d4','#0284c7','#1d4ed8','#4338ca','#9f1239','#7c2d12','#92400e','#065f46','#164e63','#1e3a8a','#4c1d95','#0f172a','#94a3b8'];
+  const CREATIVE = window.WindsCreative;
   const EMOJI_STICKERS = [
     ['😊','Smile'],['😍','Love'],['😂','Laugh'],['🥳','Celebrate'],['😎','Cool'],['🤩','Excited'],['🤔','Thinking'],['🥹','Grateful'],['😴','Sleep'],['😇','Angel'],
     ['👍','Thumbs up'],['👏','Clap'],['🙌','Hooray'],['🙏','Thanks'],['💪','Strong'],['✍️','Writing'],['🤝','Together'],['❤️','Heart'],['💜','Purple heart'],['💙','Blue heart'],
@@ -43,7 +44,9 @@
     select:'<path d="m5 3 14 9-8 1-3 7z"/>',
     text:'<path d="M4 5h16M12 5v15M7 20h10M4 5v3M20 5v3"/>',
     rectangle:'<rect x="4" y="5" width="16" height="14" rx="1"/>',
+    square:'<rect x="5" y="5" width="14" height="14" rx="1"/>',
     ellipse:'<ellipse cx="12" cy="12" rx="9" ry="7"/>',
+    circle:'<circle cx="12" cy="12" r="8"/>',
     line:'<path d="M4 20 20 4"/>',
     arrow:'<path d="M4 20 20 4M11 4h9v9"/>',
     triangle:'<path d="M12 3 2 21h20z"/>',
@@ -57,6 +60,7 @@
     paper:'<path d="M6 2h9l4 4v16H6zM14 2v5h5M9 12h7M9 16h7"/>',
     orientation:'<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M9 3h6M9 21h6"/>',
     pencil:'<path d="M15.5 5.5 18.5 8.5M4 20l5-1 11-11a2.12 2.12 0 0 0-3-3L6 16z"/>',
+    artist:'<path d="M12 19 4 21l2-8L17 2l5 5-10 12zM14 5l5 5M4 21l5-3"/>',
     zoomIn:'<circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5M7.5 10.5h6m-3-3v6"/>',
     zoomOut:'<circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5M7.5 10.5h6"/>',
     chevronLeft:'<path d="m14 18-6-6 6-6"/>',
@@ -65,7 +69,7 @@
     trash:'<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>'
   };
   const icon = (key, size=20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[key] || ICONS.plus}</svg>`;
-  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:3,zoom:1,penOnly:false,selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
+  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:3,zoom:1,penOnly:false,artistGrade:'HB',shapeFillEnabled:false,shapeFillColor:'#b9adff',shapeFillOpacity:1,selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
   const history = new Map();
   const imageCache = new Map();
   let database = null, persistence = 'indexeddb', saving = false;
@@ -139,7 +143,8 @@
   function initIcons(){
     const set = (id, name) => {const el=$(id);if(el)el.innerHTML=icon(name)};
     Object.entries({openFileIcon:'upload',heroPlus:'plus',newPlus:'plus',searchIcon:'search',goLibrary:'back',undoBtn:'undo',redoBtn:'redo',moreOptionsBtn:'more',exportIcon:'download',togglePages:'pages',pencilOnlyIcon:'pencil',insertImageBtn:'image',paperStyleBtn:'paper',pageOrientationBtn:'orientation',addPageSidebar:'plus',addPageTop:'plus',addPageBottomIcon:'plus',zoomOut:'zoomOut',zoomIn:'zoomIn',floatPlus:'plus',prevPage:'chevronLeft',nextPage:'chevronRight',closeModal:'x'}).forEach(([id,name])=>set(id,name));
-    document.querySelectorAll('[data-tool]').forEach(btn => btn.innerHTML = icon(btn.dataset.tool));
+    document.querySelectorAll('[data-tool]').forEach(btn => {if(btn.dataset.tool!=='artist')btn.innerHTML=icon(btn.dataset.tool);});
+    $('shapeFillSwatches').innerHTML=['#b9adff','#f6b4c4','#f8db8e','#a2e8d1','#a7d6fa','#f7f7f7','#2b2d4c','#f3a75f'].map(c=>`<button class="fill-swatch" type="button" data-fill-color="${c}" title="${c}" aria-label="Use fill color ${c}" style="--fill-color:${c}"></button>`).join('');
     $('colorPalette').innerHTML = COLORS.map((c,i)=>`<button class="color-button ${i===0?'selected':''}" data-color="${c}" title="Ink ${i+1}" aria-label="Choose ink color ${i+1}"><span style="background:${c}"></span></button>`).join('');
     $('extendedColors').innerHTML = MORE_COLORS.map(c=>`<button class="extended-swatch" data-more-color="${c}" aria-label="Choose color ${c}" title="${c}" style="--swatch:${c}"></button>`).join('');
     renderEmojiGrid('');
@@ -430,6 +435,46 @@
     $('inkCanvas').classList.toggle('cursor-text',tool==='text');
     renderCanvas();
   }
+  function applyFillToSelected(){
+    const item=page()?.items[state.selected];
+    if(!item || item.type!=='shape' || !CREATIVE.isFillableShape(item.kind))return false;
+    const nextColor=state.shapeFillEnabled?state.shapeFillColor:null;
+    if((item.fillColor||null)===nextColor && (item.fillOpacity??1)===state.shapeFillOpacity)return true;
+    remember();
+    item.fillColor=nextColor;item.fillOpacity=state.shapeFillOpacity;
+    renderCanvas();scheduleSave();renderThumbs();
+    return true;
+  }
+  function syncFillControls(){
+    $('shapeFillEnabled').checked=state.shapeFillEnabled;
+    $('shapeFillColor').value=state.shapeFillColor;
+    $('shapeFillOpacity').value=String(Math.round(state.shapeFillOpacity*100));
+    $('shapeFillOpacityLabel').textContent=`${Math.round(state.shapeFillOpacity*100)}%`;
+    $('shapeFillBtn').classList.toggle('has-fill',state.shapeFillEnabled);
+    $('shapeFillBtn').style.setProperty('--active-fill',state.shapeFillEnabled?state.shapeFillColor:'transparent');
+    document.querySelectorAll('[data-fill-color]').forEach(b=>b.classList.toggle('selected',b.dataset.fillColor===state.shapeFillColor));
+  }
+  function setFillOptions({enabled=state.shapeFillEnabled,color=state.shapeFillColor,opacity=state.shapeFillOpacity}={}){
+    state.shapeFillEnabled=!!enabled;
+    if(/^#[0-9a-f]{6}$/i.test(color))state.shapeFillColor=color;
+    state.shapeFillOpacity=Math.max(.05,Math.min(1,Number(opacity)||1));
+    syncFillControls();
+  }
+  function showFillMenu(e){
+    e.stopPropagation();
+    const item=page()?.items[state.selected];
+    if(item?.type==='shape' && CREATIVE.isFillableShape(item.kind)){
+      setFillOptions({enabled:!!item.fillColor,color:item.fillColor||state.shapeFillColor,opacity:item.fillOpacity??1});
+    }
+    toggleMenu('shapeFillBtn','fillMenu');
+  }
+  function setArtistGrade(grade){
+    if(!CREATIVE.PENCIL_GRADES[grade])return;
+    state.artistGrade=grade;
+    $('artistGradeBadge').textContent=grade;
+    setTool('artist');closeMenus();
+    toast(`${grade} graphite pencil selected`);
+  }
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
     state.color=c;
@@ -561,6 +606,8 @@
         for(let i=1;i<ps.length-1;i++){const m=midpoint(ps[i],ps[i+1]);ctx.quadraticCurveTo(ps[i][0],ps[i][1],m[0],m[1]);}
         const end=ps[ps.length-1];ctx.lineTo(end[0],end[1]);ctx.stroke();
       }
+    }else if(item.tool==='artist'){
+      CREATIVE.drawArtistStroke(ctx,item);
     }else{
       for(let i=0;i<ps.length;i++)smoothPenPart(ctx,item,ps,i);
       smoothPenEnd(ctx,item,ps);
@@ -575,23 +622,7 @@
       const lines=wrapText(ctx,item.text,item.w||490);const lineHeight=(item.size||20)*1.42;
       lines.forEach((line,i)=>ctx.fillText(line,item.x,item.y+i*lineHeight));
     }else if(item.type==='shape'){
-      ctx.strokeStyle=item.color;ctx.lineWidth=item.size||3;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
-      if(item.kind==='rectangle')ctx.rect(item.x,item.y,item.w,item.h);
-      else if(item.kind==='ellipse')ctx.ellipse(item.x+item.w/2,item.y+item.h/2,Math.max(.1,Math.abs(item.w/2)),Math.max(.1,Math.abs(item.h/2)),0,0,Math.PI*2);
-      else if(item.kind==='triangle'){ctx.moveTo(item.x+item.w/2,item.y);ctx.lineTo(item.x+item.w,item.y+item.h);ctx.lineTo(item.x,item.y+item.h);ctx.closePath();}
-      else if(item.kind==='diamond'){ctx.moveTo(item.x+item.w/2,item.y);ctx.lineTo(item.x+item.w,item.y+item.h/2);ctx.lineTo(item.x+item.w/2,item.y+item.h);ctx.lineTo(item.x,item.y+item.h/2);ctx.closePath();}
-      else if(item.kind==='star'){
-        const cx=item.x+item.w/2,cy=item.y+item.h/2,rOuter=Math.max(1,Math.min(Math.abs(item.w),Math.abs(item.h))/2),rInner=rOuter*.44;
-        for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?rInner:rOuter;const px=cx+Math.cos(a)*r,py=cy+Math.sin(a)*r;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();
-      }else{
-        ctx.moveTo(item.x,item.y);ctx.lineTo(item.x+item.w,item.y+item.h);
-        if(item.kind==='arrow'){
-          const ang=Math.atan2(item.h,item.w),len=Math.min(25,Math.max(12,item.size*5));
-          const ex=item.x+item.w,ey=item.y+item.h;
-          ctx.moveTo(ex-len*Math.cos(ang-.58),ey-len*Math.sin(ang-.58));ctx.lineTo(ex,ey);ctx.lineTo(ex-len*Math.cos(ang+.58),ey-len*Math.sin(ang+.58));
-        }
-      }
-      ctx.stroke();
+      CREATIVE.drawShape(ctx,item);
     }else if(item.type==='sticker'){
       ctx.textBaseline='top';ctx.textAlign='left';
       ctx.font=`${item.size||78}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
@@ -656,9 +687,14 @@
     const pts=item.points;
     ctx.save();ctx.strokeStyle=item.color;ctx.fillStyle=item.color;
     ctx.lineCap='round';ctx.lineJoin='round';
-    for(let i=drawnIndex;i<pts.length;i++)smoothPenPart(ctx,item,pts,i);
+    if(item.tool==='artist'){
+      for(let i=drawnIndex;i<pts.length;i++)CREATIVE.drawArtistPart(ctx,item,pts,i);
+      if(finalize)CREATIVE.drawArtistEnd(ctx,item,pts);
+    }else{
+      for(let i=drawnIndex;i<pts.length;i++)smoothPenPart(ctx,item,pts,i);
+      if(finalize)smoothPenEnd(ctx,item,pts);
+    }
     drawnIndex=pts.length;
-    if(finalize)smoothPenEnd(ctx,item,pts);
     ctx.restore();
   }
   function queueInk(){if(!inkRAF)inkRAF=requestAnimationFrame(paintPendingInk);}
@@ -809,18 +845,24 @@
       state.drag={kind:'select',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,startX:p.x,startY:p.y,startItems:clone(page().items),changed:false};
       renderCanvas();return;
     }
-    if(state.tool==='pen'||state.tool==='highlighter')state.draft={id:uid(),type:'stroke',tool:state.tool,color:state.color,size:state.size,points:[[p.x,p.y,p.p]]};
-    else if(['rectangle','ellipse','line','arrow','triangle','diamond','star'].includes(state.tool))state.draft={id:uid(),type:'shape',kind:state.tool,x:p.x,y:p.y,w:0,h:0,color:state.color,size:state.size};
+    if(['pen','highlighter','artist'].includes(state.tool))state.draft={id:uid(),type:'stroke',tool:state.tool,color:state.tool==='artist'?'#343b48':state.color,grade:state.tool==='artist'?state.artistGrade:undefined,size:state.size,points:[[p.x,p.y,p.p]]};
+    else if(['rectangle','square','ellipse','circle','line','arrow','triangle','diamond','star'].includes(state.tool))state.draft={id:uid(),type:'shape',kind:state.tool,x:p.x,y:p.y,w:0,h:0,color:state.color,size:state.size,fillColor:state.shapeFillEnabled&&CREATIVE.isFillableShape(state.tool)?state.shapeFillColor:null,fillOpacity:state.shapeFillOpacity};
     else return;
     // Only the pen's incremental strokes remain in the live layer across letters.
     // Highlighter/shape previews retain their full-repaint behavior.
-    if(state.tool!=='pen')composeInkNow();
+    if(!['pen','artist'].includes(state.tool))composeInkNow();
     clearTimeout(inkComposeTimer);inkComposeTimer=0;
     state.drag={kind:'draw',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,startX:p.x,startY:p.y};
     $('pageShell').classList.add('is-handdrawing');
-    if(state.tool==='pen')drawnIndex=0;
+    if(['pen','artist'].includes(state.tool))drawnIndex=0;
     else clearInk();
     queueInk();
+  }
+  function updateShapeDraft(item,dx,dy){
+    if(item.kind==='square' || item.kind==='circle'){
+      const side=Math.max(Math.abs(dx),Math.abs(dy));
+      item.w=side*(dx<0?-1:1);item.h=side*(dy<0?-1:1);
+    }else{item.w=dx;item.h=dy;}
   }
   function pointerMove(ev){
     if(ev.pointerType==='pen'){
@@ -828,7 +870,7 @@
       // Recover when a pressed stylus MOVE arrives without its DOWN event.
       // Hover has pressure 0 and is never converted into handwriting.
       if(!state.drag && !state.pinch && ev.pressure>0.01 &&
-         (ev.buttons&1) && ['pen','highlighter'].includes(state.tool) &&
+         (ev.buttons&1) && ['pen','highlighter','artist'].includes(state.tool) &&
          !state.editingText && page())pointerDown(ev);
     }
     if(ev.pointerType==='touch'&&state.pointers.has(ev.pointerId))state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
@@ -865,7 +907,7 @@
         const events=ev.getCoalescedEvents?ev.getCoalescedEvents():[ev];
         for(const co of events)appendPoint(state.draft,clampPoint(point(co)));
         appendPoint(state.draft,p);
-      }else{state.draft.w=p.x-state.drag.startX;state.draft.h=p.y-state.drag.startY;}
+      }else updateShapeDraft(state.draft,p.x-state.drag.startX,p.y-state.drag.startY);
       queueInk();
     }
   }
@@ -879,14 +921,14 @@
       if(!cancelled && Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY)){
         const p=clampPoint(point(ev));
         if(state.draft.type==='stroke')appendPoint(state.draft,p);
-        else{state.draft.w=p.x-state.drag.startX;state.draft.h=p.y-state.drag.startY;}
+        else updateShapeDraft(state.draft,p.x-state.drag.startX,p.y-state.drag.startY);
       }
       const item=state.draft;
       if(item.type==='stroke' || Math.abs(item.w)+Math.abs(item.h)>3){
         // Commit the data immediately for undo / export; do not compose an entire
         // page or write IndexedDB at the pen-up boundary.
         rememberAppend(item);page().items.push(item);
-        if(item.type==='stroke'&&item.tool==='pen'){
+        if(item.type==='stroke'&&['pen','artist'].includes(item.tool)){
           if(inkRAF){cancelAnimationFrame(inkRAF);inkRAF=0;}
           paintPendingInk(true);
           state.draft=null;
@@ -1028,8 +1070,8 @@
   }
   function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=now();state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast('Notebook deleted');}
   function closeMenus(){
-    ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu'].forEach(id=>$(id).hidden=true);
-    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
+    ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu','fillMenu','artistMenu'].forEach(id=>$(id).hidden=true);
+    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['shapeFillBtn','fillMenu'],['artistBtn','artistMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
   }
   function toggleMenu(buttonId,menuId){
     const wasClosed=$(menuId).hidden;
@@ -1070,6 +1112,16 @@
     $('pageOrientationBtn').onclick=e=>{e.stopPropagation();toggleMenu('pageOrientationBtn','orientationMenu');};
     $('emojiBtn').onclick=e=>{e.stopPropagation();toggleMenu('emojiBtn','emojiMenu');$('emojiSearch').value='';renderEmojiGrid('');};
     $('customColorBtn').onclick=e=>{e.stopPropagation();toggleMenu('customColorBtn','colorMenu');};
+    $('shapeFillBtn').onclick=showFillMenu;
+    $('shapeFillEnabled').onchange=e=>{setFillOptions({enabled:e.target.checked});applyFillToSelected();};
+    $('shapeFillColor').oninput=e=>setFillOptions({color:e.target.value,enabled:true});
+    $('shapeFillColor').onchange=()=>applyFillToSelected();
+    $('shapeFillOpacity').oninput=e=>setFillOptions({opacity:Number(e.target.value)/100});
+    $('shapeFillOpacity').onchange=()=>applyFillToSelected();
+    $('shapeFillSwatches').onclick=e=>{const b=e.target.closest('[data-fill-color]');if(!b)return;setFillOptions({enabled:true,color:b.dataset.fillColor});applyFillToSelected();};
+    $('applyShapeFill').onclick=()=>{if(applyFillToSelected())toast('Selected shape fill updated');else toast('Select a rectangle, star or other closed figure first');};
+    $('artistBtn').onclick=e=>{e.stopPropagation();if(state.tool!=='artist')setTool('artist');toggleMenu('artistBtn','artistMenu');};
+    $('artistMenu').onclick=e=>{const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
     $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
     $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};
     $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-emoji]');if(btn)addEmoji(btn.dataset.emoji);};
@@ -1080,8 +1132,8 @@
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page())return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
     document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
     $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='drive')window.WindsDrive?.open();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
-    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn'))closeMenus();});
-    document.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>setTool(btn.dataset.tool));
+    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#artistBtn'))closeMenus();});
+    document.querySelectorAll('[data-tool]').forEach(btn=>{if(btn.dataset.tool!=='artist')btn.onclick=()=>setTool(btn.dataset.tool);});
     $('colorPalette').onclick=e=>{const b=e.target.closest('[data-color]');if(b)setColor(b.dataset.color);};
     $('penSize').oninput=updateSize;
     $('toolbarPrev').onclick=()=>$('editorToolbar').scrollBy({left:-230,behavior:'smooth'});
@@ -1140,7 +1192,7 @@
     window.addEventListener('pagehide',()=>{finishActiveStroke();saveNow(true);});
   }
   async function boot(){
-    initIcons();bind();setColor(COLORS[0]);updateSize();
+    initIcons();bind();setColor(COLORS[0]);updateSize();syncFillControls();
     await storageOpen();const stored=await loadData();
     if(stored && Array.isArray(stored.notebooks)){state.notebooks=stored.notebooks;tombstones=stored.deleted||{};}
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}

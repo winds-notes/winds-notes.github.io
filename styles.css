@@ -219,3 +219,48 @@
 .cloud-entry{border-color:#d8e2f6;color:#273e68;background:#f8fbff;font-weight:800;box-shadow:0 2px 7px rgba(34,71,118,.04)}
 .cloud-entry:hover{background:#edf5ff;border-color:#bcd0f7}
 @media(max-width:400px){.brand-mark{width:37px;height:37px}.brand-name{font-size:20px}.brand-name small{font-size:7px;letter-spacing:1.5px}.cloud-entry{gap:5px;padding:8px 7px;font-size:10px}.cloud-glyph{font-size:15px}}
+
+/* ─── WiNDS Notes: compact creative controls ────────────────────────────── */
+.editor-header .shape-fill-trigger,
+.editor-header .artist-trigger {
+  width:auto;min-width:43px;display:inline-flex;align-items:center;justify-content:center;
+  gap:5px;padding:0 9px;flex-shrink:0;font-size:11px;font-weight:800;
+  letter-spacing:-.01em;color:#59637a;white-space:nowrap;
+}
+.editor-header .shape-fill-trigger.has-fill .fill-symbol {color:var(--active-fill);filter:drop-shadow(0 0 1px #50607980)}
+.editor-header .shape-fill-trigger .fill-symbol {font-size:21px;line-height:1;color:#7b7f96}
+.editor-header .artist-trigger {background:#fff;border:1px solid #e1e4ee;border-radius:8px;color:#444a65}
+.editor-header .artist-trigger.active {background:#e9e6fc;border-color:#c2bbf5;color:#5147c6}
+.editor-header .artist-current-grade {font-size:9px;border-radius:5px;padding:3px 4px;background:#e8ecf2;color:#30374b}
+.editor-header .artist-trigger.active .artist-current-grade {background:#d8d1fa;color:#5147c6}
+.editor-header .pop-menu.fill-menu,
+.editor-header .pop-menu.artist-menu {
+  width:282px;max-width:calc(100vw - 16px);box-sizing:border-box;padding:14px 15px;
+  border:1px solid #e4e5ef;border-radius:14px;box-shadow:0 14px 42px #2d334c25;
+  background:#fff;max-height:calc(100dvh - 80px);overflow:auto;
+}
+.fill-help,.artist-help {font-size:11px;line-height:1.6;color:#70788a;margin:7px 0 14px}
+.fill-toggle,.fill-option-row {display:flex;align-items:center;gap:10px;justify-content:space-between;margin:11px 0;font-size:12px;color:#39425c;font-weight:700}
+.fill-toggle {justify-content:flex-start;cursor:pointer;background:#f7f8fb;border-radius:9px;padding:10px 8px}
+.fill-toggle input {accent-color:#6658da;width:17px;height:17px}
+.fill-option-row input[type=color] {width:51px;height:35px;padding:2px;border-radius:7px;border:1px solid #e0e3ec;background:#fff;cursor:pointer}
+.fill-option-row input[type=range] {width:115px;accent-color:#6457ed;min-width:0}
+.fill-option-row strong {min-width:35px;font-size:11px;color:#737b91;text-align:right}
+.fill-swatches {display:grid;grid-template-columns:repeat(8,1fr);gap:5px;padding:4px 0 6px}
+.fill-swatch {appearance:none;width:26px;height:26px;padding:0;border-radius:7px;background:var(--fill-color);border:2px solid #e5e8ef;cursor:pointer}
+.fill-swatch.selected {outline:2px solid #6657dd;outline-offset:1px}
+.fill-apply-button {width:100%;padding:10px 9px!important;background:#f0edff!important;color:#5a4bc7!important;border-radius:8px!important;text-align:center!important;justify-content:center!important;font-weight:800!important;margin-top:8px}
+.artist-grade-list {display:grid;gap:8px}
+.editor-header .artist-grade-list button {
+  display:grid;grid-template-columns:36px 1fr 67px;align-items:center;gap:9px;
+  width:100%;padding:10px 11px;border-radius:10px;background:#f8f9fc;
+  border:1px solid #e9ebf2;text-align:left;color:#30384b;
+}
+.editor-header .artist-grade-list button:hover {border-color:#bdb4fa;background:#f2efff}
+.artist-grade-list b {font-size:15px;color:#3b4150}
+.artist-grade-list span {font-size:11px;color:#687082;font-weight:600}
+.graphite-sample {display:block;height:0;border-top:2px solid #454b57;transform:rotate(-3deg);border-radius:100%}
+.graphite-sample.hb {opacity:.44;border-width:1px}
+.graphite-sample.b2 {opacity:.69;border-width:3px}
+.graphite-sample.b4 {opacity:.9;border-width:5px}
+@media(max-width:900px){.editor-header .shape-fill-trigger,.editor-header .artist-trigger{padding:0 7px}.fill-tool-label{display:none}}

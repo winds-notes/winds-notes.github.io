@@ -8,7 +8,7 @@
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const COVERS = new Set(['purple','blue','peach','green','lilac','yellow']);
   const PAPERS = new Set(['ruled','grid','dots','blank']);
-  const SHAPES = new Set(['rectangle','ellipse','line','arrow','triangle','diamond','star']);
+  const SHAPES = new Set(['rectangle','square','ellipse','circle','line','arrow','triangle','diamond','star']);
   const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const num = (x, fallback=0) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x)<1e7 ? x : fallback;
   const str = (x, max, fallback='') => typeof x === 'string' ? x.slice(0,max) : fallback;
@@ -21,9 +21,9 @@
     check(isObject(item) && ['stroke','shape','text','image','sticker'].includes(item.type),'Unsupported or damaged page object');
     const base={id:makeId(),type:item.type};
     if(item.type==='stroke'){
-      check(['pen','highlighter'].includes(item.tool),'Invalid pen type');
+      check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
       check(Array.isArray(item.points) && item.points.length>=1 && item.points.length<=200000,'Invalid pen points');
-      return {...base,tool:item.tool,color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),points:item.points.map(p=>{
+      return {...base,tool:item.tool,grade:['HB','2B','4B'].includes(item.grade)?item.grade:'HB',color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),points:item.points.map(p=>{
         check(Array.isArray(p) && p.length>=2 && Number.isFinite(p[0]) && Number.isFinite(p[1]),'Damaged pen stroke');
         return [num(p[0]),num(p[1]),Math.max(0,Math.min(1,num(p[2],.68)))];
       })};
@@ -38,7 +38,7 @@
     }
     if(item.type==='shape'){
       check(SHAPES.has(item.kind),'Invalid shape type');
-      return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3)))};
+      return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1)))};
     }
     check(typeof item.src==='string' && item.src.length<=50*1024*1024 && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(item.src),'Invalid embedded image');
     return {...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src};

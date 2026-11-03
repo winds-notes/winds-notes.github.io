@@ -1,6 +1,6 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline. */
-const CACHE='winds-notes-shell-v11-configured-google-oauth';
-const ASSETS=['./','./index.html','./styles.css','./app.js','./pdf-export.js','./native-file.js','./google-config.js','./cloud-drive.js','./manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
+const CACHE='winds-notes-shell-v12-artist-fill-codex';
+const ASSETS=['./','./index.html','./styles.css','./creative-tools.js','./app.js','./pdf-export.js','./native-file.js','./google-config.js','./cloud-drive.js','./manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
 self.addEventListener('fetch',event=>{
