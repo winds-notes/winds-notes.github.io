@@ -23,7 +23,7 @@
     if(item.type==='stroke'){
       check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
       check(Array.isArray(item.points) && item.points.length>=1 && item.points.length<=200000,'Invalid pen points');
-      return {...base,tool:item.tool,grade:['HB','2B','4B'].includes(item.grade)?item.grade:'HB',color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),points:item.points.map(p=>{
+      return {...base,tool:item.tool,grade:['2H','H','HB','B','2B','4B','6B','Charcoal','Ink Brush','Color Pencil'].includes(item.grade)?item.grade:'HB',color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),points:item.points.map(p=>{
         check(Array.isArray(p) && p.length>=2 && Number.isFinite(p[0]) && Number.isFinite(p[1]),'Damaged pen stroke');
         return [num(p[0]),num(p[1]),Math.max(0,Math.min(1,num(p[2],.68)))];
       })};
@@ -34,11 +34,11 @@
     }
     if(item.type==='sticker'){
       check(typeof item.emoji==='string' && item.emoji.length>0 && item.emoji.length<=24,'Invalid sticker');
-      return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(240,num(item.size,78)))};
+      return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78)))};
     }
     if(item.type==='shape'){
       check(SHAPES.has(item.kind),'Invalid shape type');
-      return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1)))};
+      return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1))),strokeStyle:['solid','dashed','dotted','none'].includes(item.strokeStyle)?item.strokeStyle:'solid'};
     }
     check(typeof item.src==='string' && item.src.length<=50*1024*1024 && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(item.src),'Invalid embedded image');
     return {...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src};

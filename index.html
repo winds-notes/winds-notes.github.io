@@ -63,14 +63,14 @@
 <button aria-label="Diamond" aria-pressed="false" class="tool-button" data-tool="diamond" title="Diamond"></button>
 <button aria-label="Star" aria-pressed="false" class="tool-button" data-tool="star" title="Star"></button>
 <button aria-label="Shape fill options" aria-expanded="false" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" title="Fill colors for rectangles, stars and figures"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button>
-<button aria-label="Artist pencils" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist mode — HB, 2B and 4B pencils"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
+<button aria-label="Artist pencils" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist mode — graphite, charcoal, ink brush and color pencil"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Ink colors" class="color-palette" id="colorPalette"></div><button aria-label="More ink colors" aria-expanded="false" class="tool-button custom-color-button" id="customColorBtn" title="More colors and custom color">🎨</button>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <label class="size-control" title="Pen thickness">
 <span class="size-preview" id="sizePreview"></span>
-<input aria-label="Pen thickness" id="penSize" max="16" min="1" step="0.5" type="range" value="3"/>
+<input aria-label="Pen thickness" id="penSize" max="32" min="1" step="0.5" type="range" value="3"/>
 <span id="sizeLabel">3</span>
 </label>
 <span aria-hidden="true" class="toolbar-divider"></span>
@@ -86,9 +86,8 @@
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Page zoom" class="stage-tools">
 <button aria-label="Zoom out" class="small-icon-button" id="zoomOut" title="Zoom out"></button>
-<span id="zoomValue" title="Pinch with two fingers to zoom or move the page">100%</span>
+<button type="button" class="zoom-value" id="zoomValue" title="Choose zoom level · pinch with two fingers">100%</button>
 <button aria-label="Zoom in" class="small-icon-button" id="zoomIn" title="Zoom in"></button>
-
 </div>
 </div>
 <button aria-label="Scroll tools right" class="toolbar-arrow toolbar-arrow-right" hidden="" id="toolbarNext" title="More tools to the right">›</button>
@@ -118,23 +117,35 @@
   <label class="fill-toggle"><input id="shapeFillEnabled" type="checkbox"/> <span>Enable solid fill</span></label>
   <div class="fill-option-row"><span>Fill color</span><input id="shapeFillColor" type="color" value="#b9adff" aria-label="Choose shape fill color"/></div>
   <div class="fill-swatches" id="shapeFillSwatches" aria-label="Quick fill colors"></div>
-  <label class="fill-option-row" for="shapeFillOpacity"><span>Opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
-  <button class="fill-apply-button" type="button" id="applyShapeFill">Apply to selected shape</button>
+  <label class="fill-option-row" for="shapeFillOpacity"><span>Fill opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
+  <div class="fill-section-title">BORDER / OUTLINE</div>
+  <div class="fill-option-row"><label for="shapeOutlineColor">Line color</label><input id="shapeOutlineColor" type="color" value="#2b2d4c" aria-label="Shape outline color"/></div>
+  <label class="fill-option-row" for="shapeOutlineSize"><span>Line width</span><input id="shapeOutlineSize" type="range" min="1" max="32" step="0.5" value="3"/><strong id="shapeOutlineSizeLabel">3</strong></label>
+  <label class="fill-option-row" for="shapeOutlineStyle"><span>Line style</span><select id="shapeOutlineStyle" aria-label="Shape outline style"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="none">No border</option></select></label>
+  <button class="fill-apply-button" type="button" id="applyShapeFill">Apply fill &amp; border to selected shape</button>
 </div>
 <div class="pop-menu artist-menu" hidden id="artistMenu" role="group" aria-label="Artist graphite pencils">
   <div class="menu-heading">ARTIST PENCILS</div>
-  <p class="artist-help">Natural pressure-sensitive graphite for sketching. Pick a pencil grade, then draw with your stylus.</p>
+  <p class="artist-help">Light graphite, soft sketching, charcoal, expressive ink, and colored pencil. Pressure-sensitive where supported.</p>
   <div class="artist-grade-list">
-    <button type="button" data-grade="HB"><b>HB</b><span>Light sketching</span><i class="graphite-sample hb"></i></button>
-    <button type="button" data-grade="2B"><b>2B</b><span>Soft drawing</span><i class="graphite-sample b2"></i></button>
-    <button type="button" data-grade="4B"><b>4B</b><span>Dark shading</span><i class="graphite-sample b4"></i></button>
+    <button type="button" data-grade="2H"><b>2H</b><span>Fine construction</span><i class="graphite-sample h2"></i></button>
+    <button type="button" data-grade="H"><b>H</b><span>Precise light lines</span><i class="graphite-sample h"></i></button>
+    <button type="button" data-grade="HB"><b>HB</b><span>Everyday sketch</span><i class="graphite-sample hb"></i></button>
+    <button type="button" data-grade="B"><b>B</b><span>Soft outlines</span><i class="graphite-sample b"></i></button>
+    <button type="button" data-grade="2B"><b>2B</b><span>Sketch shading</span><i class="graphite-sample b2"></i></button>
+    <button type="button" data-grade="4B"><b>4B</b><span>Rich graphite</span><i class="graphite-sample b4"></i></button>
+    <button type="button" data-grade="6B"><b>6B</b><span>Very dark shading</span><i class="graphite-sample b6"></i></button>
+    <button type="button" data-grade="Charcoal"><b>Charcoal</b><span>Broad textured marks</span><i class="graphite-sample charcoal"></i></button>
+    <button type="button" data-grade="Ink Brush"><b>Ink Brush</b><span>Expressive colored ink</span><i class="graphite-sample ink"></i></button>
+    <button type="button" data-grade="Color Pencil"><b>Color Pencil</b><span>Soft colored sketch</span><i class="graphite-sample colored"></i></button>
   </div>
 </div>
+<div class="pop-menu zoom-menu" hidden id="zoomMenu" role="group" aria-label="Zoom presets"><div class="menu-heading">PAGE ZOOM</div><div class="zoom-preset-grid"><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button><button data-zoom="1.5">150%</button><button data-zoom="2">200%</button><button data-zoom="3">300%</button><button data-zoom="4">400%</button><button data-zoom="6">600%</button><button data-zoom="8">800%</button></div><p class="artist-help">Pinch with two fingers to zoom and pan.</p></div>
 <div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label></div>
 <div class="pop-menu emoji-menu" hidden id="emojiMenu"><div class="menu-heading">SMILEYS & STICKERS</div><input type="search" id="emojiSearch" placeholder="Find an emoji…" aria-label="Find a smiley or sticker" class="emoji-search"/><div id="emojiGrid" class="emoji-grid"></div><label class="sticker-size-control">Sticker size <input id="stickerSize" type="range" min="36" max="150" step="2" value="78" aria-label="Sticker size"/><span id="stickerSizeValue">78</span></label><div class="emoji-menu-tip">Tap a sticker to add it. Use Select to move it.</div></div>
 </header>
 
-<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="page-scroller" id="pageScroller"><div class="page-shell" id="pageShell"><canvas aria-hidden="true" height="2376" id="pageCanvas" width="1680"></canvas><canvas aria-label="Writing surface. Draw with Apple Pencil, stylus, finger or mouse." height="2376" id="inkCanvas" width="1680" role="img"></canvas><textarea class="inline-text-editor" hidden="" id="inlineTextEditor" placeholder="Type here…" spellcheck="true"></textarea></div><button class="floating-add-page" id="addPageFloat"><span id="floatPlus"></span> Add page</button></div></main></div>
+<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="selection-actions" id="selectionActions" hidden aria-label="Selected object size controls"><span id="selectedObjectType">Object</span><button type="button" id="selectedShrink" aria-label="Make selected object smaller" title="Decrease size">−</button><label class="selection-size-label">Width <input id="selectedWidth" type="number" min="16" max="2200" step="1" aria-label="Selected object width"/> <span>px</span></label><button type="button" id="selectedGrow" aria-label="Make selected object larger" title="Increase size">+</button><button type="button" id="removeSelected" aria-label="Delete selected object" title="Delete selected object">×</button></div><div class="page-scroller" id="pageScroller"><div class="page-shell" id="pageShell"><canvas aria-hidden="true" height="2376" id="pageCanvas" width="1680"></canvas><canvas aria-label="Writing surface. Draw with Apple Pencil, stylus, finger or mouse." height="2376" id="inkCanvas" width="1680" role="img"></canvas><textarea class="inline-text-editor" hidden="" id="inlineTextEditor" placeholder="Type here…" spellcheck="true"></textarea></div><button class="floating-add-page" id="addPageFloat"><span id="floatPlus"></span> Add page</button></div></main></div>
 </section>
 <aside id="pencilDiagnostics" class="pencil-diagnostics" aria-label="Apple Pencil input diagnostics" hidden>
   <div class="pencil-diag-header"><strong>Apple Pencil input test</strong><button type="button" id="closePencilDiagnostics" aria-label="Close Pencil test">×</button></div>

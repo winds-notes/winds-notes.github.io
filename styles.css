@@ -264,3 +264,68 @@
 .graphite-sample.b2 {opacity:.69;border-width:3px}
 .graphite-sample.b4 {opacity:.9;border-width:5px}
 @media(max-width:900px){.editor-header .shape-fill-trigger,.editor-header .artist-trigger{padding:0 7px}.fill-tool-label{display:none}}
+
+/* ── WiNDS Notes 1.4: shape outlines, object resizing, expanded artist studio ── */
+.editor-header .fill-section-title{
+  margin:15px 0 7px;padding:10px 0 3px;border-top:1px solid #e8eaf2;
+  font-size:10px;font-weight:850;letter-spacing:1.15px;color:#8588a2;
+}
+.editor-header .fill-option-row select{
+  border:1px solid #e0e3ed;border-radius:8px;background:#f9faff;color:#3e4764;
+  font-size:12px;font-weight:700;padding:7px 8px;min-width:125px;
+}
+.editor-header .fill-option-row label{font-size:12px;font-weight:700}
+.editor-header .artist-menu{width:324px;}
+.editor-header .artist-grade-list{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;
+}
+.editor-header .artist-grade-list button{
+  min-width:0;grid-template-columns:1fr;gap:3px;padding:9px 10px;min-height:77px;
+}
+.artist-grade-list button b{font-size:13px;white-space:nowrap}
+.artist-grade-list button span{font-size:10px;line-height:1.35}
+.artist-grade-list button .graphite-sample{width:90%;margin-top:5px}
+.graphite-sample.h2{opacity:.28;border-width:1px}
+.graphite-sample.h{opacity:.38;border-width:1px}
+.graphite-sample.b{opacity:.6;border-width:2px}
+.graphite-sample.b6{opacity:.96;border-width:6px}
+.graphite-sample.charcoal{opacity:.9;border-width:7px;border-style:dotted}
+.graphite-sample.ink{border-width:5px;border-color:#445ed3;opacity:.92}
+.graphite-sample.colored{border-width:3px;border-color:#d177a0;opacity:.67}
+.editor-header .zoom-value{
+  border:0;background:transparent;color:#676b89;font-size:11px;font-weight:850;
+  min-width:46px;padding:5px 2px;cursor:pointer;border-radius:6px;
+}
+.editor-header .zoom-value:hover{background:#f1efff;color:#6253be}
+.editor-header .zoom-menu{width:216px;max-width:calc(100vw - 16px);padding:12px}
+.zoom-preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;padding:2px}
+.editor-header .zoom-preset-grid button{
+  border:1px solid #e6e7ef;display:block;text-align:center;padding:9px 4px;
+  font-weight:800;color:#5b627a;background:#f8f9fd;
+}
+.editor-header .zoom-preset-grid button:hover{background:#e9e7fc;border-color:#c9c2f7}
+.selection-actions[hidden]{display:none!important}
+.selection-actions{
+  position:absolute;top:14px;right:15px;z-index:5;
+  display:flex;align-items:center;gap:7px;
+  padding:7px 9px;border-radius:12px;
+  background:rgba(255,255,255,.97);border:1px solid #e0e2ee;
+  box-shadow:0 6px 26px rgba(37,38,71,.12);
+  color:#575e76;font-size:11px;font-weight:800;
+  max-width:calc(100% - 30px);
+}
+.selection-actions>span{color:#5c53c3;min-width:39px}
+.selection-actions button{width:29px;height:29px;border:1px solid #e5e4f1;border-radius:8px;
+  background:#f5f4fc;color:#5b51a5;display:grid;place-items:center;font-size:19px;font-weight:600;line-height:1}
+.selection-actions button:active{background:#e8e6fc}
+.selection-actions .selection-size-label{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.selection-actions input[type=number]{font:inherit;font-size:12px;color:#40455e;text-align:right;
+  background:#fff;border:1px solid #dce0ec;border-radius:7px;padding:6px 4px;width:60px}
+.selection-actions label span{color:#a0a5b8;font-weight:600}
+#removeSelected{color:#b65d75;background:#fff6f8;border-color:#fae0e7}
+@media(max-width:620px){
+  .selection-actions{right:8px;top:8px;padding:6px;gap:4px}
+  .selection-actions button{width:27px;height:27px}
+  .selection-actions input[type=number]{width:51px}
+  .selection-actions>span{min-width:0}
+}

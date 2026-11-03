@@ -9,11 +9,21 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
   'use strict';
 
+  // Brush profiles are deliberately cheap to render on iPad. A single stroke
+  // uses deterministic texture: no bitmap allocation or storage in pen handlers.
   const PENCIL_GRADES = Object.freeze({
-    HB: Object.freeze({shade:'#46505b', opacity:0.56, width:0.89, grain:0.11}),
-    '2B': Object.freeze({shade:'#303845', opacity:0.75, width:1.18, grain:0.17}),
-    '4B': Object.freeze({shade:'#232a35', opacity:0.84, width:1.43, grain:0.23})
+    '2H': Object.freeze({shade:'#747d88', opacity:0.32, width:0.65, grain:0.06, kind:'graphite'}),
+    H: Object.freeze({shade:'#5d6673', opacity:0.42, width:0.78, grain:0.08, kind:'graphite'}),
+    HB: Object.freeze({shade:'#46505b', opacity:0.56, width:0.89, grain:0.11, kind:'graphite'}),
+    B: Object.freeze({shade:'#3b4350', opacity:0.66, width:1.06, grain:0.14, kind:'graphite'}),
+    '2B': Object.freeze({shade:'#303845', opacity:0.75, width:1.18, grain:0.17, kind:'graphite'}),
+    '4B': Object.freeze({shade:'#232a35', opacity:0.84, width:1.43, grain:0.23, kind:'graphite'}),
+    '6B': Object.freeze({shade:'#191f2b', opacity:0.93, width:1.68, grain:0.26, kind:'graphite'}),
+    Charcoal: Object.freeze({shade:'#1f242c', opacity:0.86, width:2.05, grain:0.35, kind:'charcoal'}),
+    'Ink Brush': Object.freeze({shade:'#1e2740', opacity:0.98, width:1.35, grain:0, kind:'ink', colorMode:'ink'}),
+    'Color Pencil': Object.freeze({shade:'#5a5b70', opacity:0.54, width:1.02, grain:0.17, kind:'color', colorMode:'ink'})
   });
+  const STROKE_STYLES = new Set(['solid','dashed','dotted','none']);
   const FILLABLE = new Set(['rectangle', 'square', 'ellipse', 'circle', 'triangle', 'diamond', 'star']);
   const isFillableShape = kind => FILLABLE.has(kind);
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -54,13 +64,16 @@
     ctx.lineJoin='round';ctx.lineCap='round';
     shapePath(ctx,item);
     if(isFillableShape(item.kind) && typeof item.fillColor==='string' && /^#[0-9a-fA-F]{6}$/.test(item.fillColor)) {
-      ctx.save();
-      ctx.fillStyle=item.fillColor;
+      ctx.save();ctx.fillStyle=item.fillColor;
       ctx.globalAlpha=clamp(Number.isFinite(item.fillOpacity)?item.fillOpacity:1,0,1);
-      ctx.fill();
-      ctx.restore();
+      ctx.fill();ctx.restore();
     }
-    ctx.stroke();
+    const style=STROKE_STYLES.has(item.strokeStyle)?item.strokeStyle:'solid';
+    if(style!=='none'){
+      if(style==='dashed')ctx.setLineDash([Math.max(5,ctx.lineWidth*3),Math.max(4,ctx.lineWidth*2)]);
+      else if(style==='dotted')ctx.setLineDash([Math.max(1,ctx.lineWidth*.2),Math.max(4,ctx.lineWidth*1.8)]);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -72,14 +85,15 @@
     n^=n>>>16;n=Math.imul(n,2246822519);n^=n>>>13;
     return (n>>>0)/4294967295;
   }
-  function pencilWidth(item,pressure) { return Math.max(.55,(item.size||3)*pencilGrade(item.grade).width*(.43+.75*pressure)); }
+  function pencilWidth(item,pressure) { const settings=pencilGrade(item.grade); return Math.max(.4,(item.size||3)*settings.width*(settings.kind==='ink'?.16+1.18*pressure:.43+.75*pressure)); }
 
   function drawGraphiteCurve(ctx,item,a,b,control,index) {
     const settings=pencilGrade(item.grade);
     const p=control?pressureAt(control):(.5*(pressureAt(a)+pressureAt(b)));
     ctx.save();
-    ctx.strokeStyle=settings.shade;ctx.fillStyle=settings.shade;
-    ctx.globalAlpha=clamp(settings.opacity*(.52+.48*p),.08,1);
+    const pigment=settings.colorMode==='ink' && /^#[0-9a-fA-F]{6}$/.test(item.color||'')?item.color:settings.shade;
+    ctx.strokeStyle=pigment;ctx.fillStyle=pigment;
+    ctx.globalAlpha=clamp(settings.opacity*(settings.kind==='ink'?.85+.15*p:.52+.48*p),.08,1);
     ctx.lineCap='round';ctx.lineJoin='round';
     ctx.lineWidth=pencilWidth(item,p);
     ctx.beginPath();ctx.moveTo(a[0],a[1]);
@@ -89,7 +103,7 @@
     // Soft graphite grain is deterministic, so exports and reopened notebooks
     // reproduce the original drawing. Just one speck per small segment keeps
     // the stylus drawing path light on slower iPads.
-    if(index%3===0 && Math.hypot(b[0]-a[0],b[1]-a[1])>1.5) {
+    if(settings.grain>0 && index%3===0 && Math.hypot(b[0]-a[0],b[1]-a[1])>1.5) {
       const t=.25+.5*hash(item.id,index,0);
       const jitter=(hash(item.id,index,1)-.5)*ctx.lineWidth*1.7;
       const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.max(0.01,Math.hypot(dx,dy));
@@ -103,7 +117,7 @@
   function drawArtistPart(ctx,item,points,index) {
     if(index===0) {
       const a=points[0];ctx.save();ctx.globalAlpha=pencilGrade(item.grade).opacity;
-      ctx.fillStyle=pencilGrade(item.grade).shade;
+      const settings=pencilGrade(item.grade);ctx.fillStyle=settings.colorMode==='ink' && /^#[0-9a-fA-F]{6}$/.test(item.color||'')?item.color:settings.shade;
       ctx.beginPath();ctx.arc(a[0],a[1],pencilWidth(item,pressureAt(a))*.5,0,Math.PI*2);ctx.fill();ctx.restore();
     } else if(index===1) {
       drawGraphiteCurve(ctx,item,points[0],midpoint(points[0],points[1]),null,index);
@@ -122,6 +136,6 @@
     for(let i=0;i<points.length;i++)drawArtistPart(ctx,item,points,i);
     drawArtistEnd(ctx,item,points);
   }
-  return Object.freeze({PENCIL_GRADES, isFillableShape, drawShape, shapePath,
+  return Object.freeze({PENCIL_GRADES, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade});
 });
