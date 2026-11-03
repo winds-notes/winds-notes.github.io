@@ -29,6 +29,96 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const midpoint = (a,b) => [(a[0]+b[0])*0.5, (a[1]+b[1])*0.5];
 
+  const FULL_CROP = Object.freeze({x:0,y:0,w:1,h:1});
+  function imageCrop(crop) {
+    if(!crop || !['x','y','w','h'].every(k=>Number.isFinite(crop[k])))return {...FULL_CROP};
+    const x=clamp(crop.x,0,.99),y=clamp(crop.y,0,.99);
+    return {x,y,w:clamp(crop.w,.01,1-x),h:clamp(crop.h,.01,1-y)};
+  }
+  function dragImageCrop(crop,corner,dx,dy) {
+    const next=imageCrop(crop),right=next.x+next.w,bottom=next.y+next.h;
+    if(corner==='move')return {...next,x:clamp(next.x+dx,0,1-next.w),y:clamp(next.y+dy,0,1-next.h)};
+    if(corner.includes('w')){next.x=clamp(next.x+dx,0,right-.01);next.w=right-next.x;}
+    if(corner.includes('e'))next.w=clamp(next.w+dx,.01,1-next.x);
+    if(corner.includes('n')){next.y=clamp(next.y+dy,0,bottom-.01);next.h=bottom-next.y;}
+    if(corner.includes('s'))next.h=clamp(next.h+dy,.01,1-next.y);
+    return next;
+  }
+  function cropImage(item,crop) {
+    const old=imageCrop(item.crop),next=imageCrop(crop);
+    const fullWidth=item.w/old.w,fullHeight=item.h/old.h;
+    const scale=Math.min(1,2200/(fullWidth*next.w),2200/(fullHeight*next.h));
+    const result={...item,x:item.x+(next.x-old.x)*fullWidth,y:item.y+(next.y-old.y)*fullHeight,
+      w:fullWidth*next.w*scale,h:fullHeight*next.h*scale};
+    if(next.x===0 && next.y===0 && next.w===1 && next.h===1)delete result.crop;
+    else result.crop=next;
+    return result;
+  }
+  function drawImage(ctx,item,image) {
+    const crop=imageCrop(item.crop);
+    ctx.drawImage(image,crop.x*image.naturalWidth,crop.y*image.naturalHeight,
+      crop.w*image.naturalWidth,crop.h*image.naturalHeight,item.x,item.y,item.w,item.h);
+  }
+
+  function penWidth(item,point) {
+    const pressure=clamp(Number.isFinite(point?.[2])?point[2]:.68,.1,1);
+    return Math.max(.85,(item.size||3)*(.45+.55*pressure));
+  }
+  function penMidpoint(item,a,b) {
+    return {x:(a[0]+b[0])*.5,y:(a[1]+b[1])*.5,r:(penWidth(item,a)+penWidth(item,b))*.25};
+  }
+  function penPoint(item,p) {return {x:p[0],y:p[1],r:penWidth(item,p)*.5};}
+  function penCurve(item,points,index,finish=false) {
+    if(points.length<2)return null;
+    if(finish){const a=points[points.length-2],b=points[points.length-1];return {a:penMidpoint(item,a,b),b:penPoint(item,b)};}
+    if(index===1)return {a:penPoint(item,points[0]),b:penMidpoint(item,points[0],points[1])};
+    const a=points[index-2],b=points[index-1],c=points[index];
+    return {a:penMidpoint(item,a,b),control:penPoint(item,b),b:penMidpoint(item,b,c)};
+  }
+  function drawPenCurve(ctx,curve) {
+    const {a,b}=curve,c=curve.control||{x:(a.x+b.x)*.5,y:(a.y+b.y)*.5,r:(a.r+b.r)*.5};
+    const length=Math.hypot(c.x-a.x,c.y-a.y)+Math.hypot(b.x-c.x,b.y-c.y);
+    if(length<1e-8){ctx.beginPath();ctx.arc(b.x,b.y,Math.max(a.r,b.r),0,Math.PI*2);ctx.fill();return;}
+    const vx=c.x-a.x,vy=c.y-a.y,dx=b.x-2*c.x+a.x,dy=b.y-2*c.y+a.y,den=dx*dx+dy*dy;
+    if(den>1e-12 && vx*(b.x-c.x)+vy*(b.y-c.y)<0){
+      const t=-(vx*dx+vy*dy)/den;
+      if(t>1e-6 && t<1-1e-6 && Math.hypot(vx+t*dx,vy+t*dy)<1e-7){
+        // Split an exact reversal at its stationary point so its tip gets a
+        // round cap instead of a collapsed normal or a self-crossing ribbon.
+        const mix=(p,q)=>({x:p.x+(q.x-p.x)*t,y:p.y+(q.y-p.y)*t,r:p.r+(q.r-p.r)*t});
+        const left=mix(a,c),right=mix(c,b),turn=mix(left,right);
+        drawPenCurve(ctx,{a,control:left,b:turn});drawPenCurve(ctx,{a:turn,control:right,b});return;
+      }
+    }
+    // Bounded, incremental work: only the new curve is sampled, never the page.
+    const steps=clamp(Math.ceil(length/2),2,32),left=[],right=[];
+    let startAngle=0,endAngle=0;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps,u=1-t,x=u*u*a.x+2*u*t*c.x+t*t*b.x,y=u*u*a.y+2*u*t*c.y+t*t*b.y;
+      const r=u*u*a.r+2*u*t*c.r+t*t*b.r;
+      let dx=u*(c.x-a.x)+t*(b.x-c.x),dy=u*(c.y-a.y)+t*(b.y-c.y);
+      if(Math.hypot(dx,dy)<1e-8){dx=b.x-a.x;dy=b.y-a.y;}
+      const len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;
+      left.push([x+nx*r,y+ny*r]);right.push([x-nx*r,y-ny*r]);
+      if(i===0)startAngle=Math.atan2(ny,nx);if(i===steps)endAngle=Math.atan2(ny,nx);
+    }
+    // A filled ribbon varies width continuously. Adjacent curves share the
+    // same endpoint radius, rather than stacking different-width line caps.
+    ctx.beginPath();ctx.moveTo(...left[0]);
+    for(let i=1;i<left.length;i++)ctx.lineTo(...left[i]);
+    ctx.arc(b.x,b.y,b.r,endAngle,endAngle-Math.PI,true);
+    for(let i=right.length-2;i>=0;i--)ctx.lineTo(...right[i]);
+    ctx.arc(a.x,a.y,a.r,startAngle-Math.PI,startAngle-2*Math.PI,true);
+    ctx.closePath();ctx.fill();
+  }
+  function drawPenPart(ctx,item,points,index) {
+    if(index===0){const p=points[0];ctx.beginPath();ctx.arc(p[0],p[1],penWidth(item,p)*.5,0,Math.PI*2);ctx.fill();return;}
+    drawPenCurve(ctx,penCurve(item,points,index));
+  }
+  function drawPenEnd(ctx,item,points) {
+    const curve=penCurve(item,points,0,true);if(curve)drawPenCurve(ctx,curve);
+  }
+
   function shapePath(ctx, item) {
     const {x,y,w,h} = item;
     ctx.beginPath();
@@ -137,5 +227,6 @@
     drawArtistEnd(ctx,item,points);
   }
   return Object.freeze({PENCIL_GRADES, STROKE_STYLES, isFillableShape, drawShape, shapePath,
-    drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade});
+    drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade,
+    imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd});
 });

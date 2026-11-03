@@ -7,11 +7,11 @@ This is the **complete, editable Codex development workspace**, built from the l
 
 ## What works
 
-- **Handwriting:** Apple Pencil / stylus / touch / mouse, pressure samples, low-latency ink layer, stroke smoothing, undo/redo, eraser and selection.
-- **Two-finger gestures:** pinch zoom and pan, portrait and landscape notebook pages.
-- **Shapes with fills:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond, Star. Choose a custom fill color and opacity while keeping an independent outline color; existing shapes can be recolored using Select.
-- **Artist mode:** Open **Artist** in the top toolbar and choose **HB**, **2B**, or **4B** graphite pencils. Pressure changes width and darkness; all artwork stays editable.
-- **Notebook workflow:** Multiple notebooks/pages, text, stickers, image imports, templates, local autosave and export/import in editable `.winds-notes` format.
+- **Handwriting:** Apple Pencil / stylus / touch / mouse, pressure samples, low-latency ink layer, smooth pen ribbons with rounded ends and continuous pressure widths, undo/redo, eraser and selection.
+- **Two-finger gestures:** pinch zoom and pan (**35%–800%**), preset zoom menu, portrait and landscape notebook pages.
+- **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill.
+- **Artist mode:** 10 pressure-aware tools: **2H, H, HB, B, 2B, 4B, 6B, Charcoal, Ink Brush, and Color Pencil**. Brush strokes remain editable and export with their chosen style.
+- **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
 - **Sharing:** PDF, JPEG, PNG and JSON backups.
 - **Optional Google Drive:** Google OAuth (public client ID configured in `google-config.js`), separate on-device account workspaces, and backups/sync within each authorized user's own Drive. See `docs/ARCHITECTURE.md` for limitations.
 
@@ -38,21 +38,29 @@ cd winds-notes-codex
 codex
 ```
 
-Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Apple Pencil event-handling invariants in AGENTS.md, then improve graphite pencil realism without adding any synchronous work to pointermove or pointerup. Add tests."*
+Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Apple Pencil event-handling invariants in AGENTS.md, then improve Artist brush texture and shape resize UX while keeping rapid Pencil strokes smooth. Add tests."*
 
 ## Using the new features
 
-**Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose a color, opacity and shape (e.g. Square or Star). Draw. To recolor a shape you've already drawn, tap **Select** → tap the shape → **Fill** → change settings. Line and Arrow stay outline-only.
+**Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, reopen **Fill** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
 
-**Artist pencils:** Click **Artist** and choose HB (light), 2B (soft/darker) or 4B (darkest). The pen thickness slider still applies. Click the regular Pen to return to colored handwriting.
+**Artist pencils:** Click **Artist** to choose 2H/H (fine), HB/B/2B/4B/6B (graphite), Charcoal (textured), Ink Brush (strong pressure-sensitive colored ink) or Color Pencil (softer colored marks). Use the 1–32 line-thickness control as needed. Click regular **Pen** to return to handwriting.
+
+**Resize images and smileys:** Import an image or insert an emoji, then choose **Select** and tap the object. Drag one of its four corner handles to resize, or use the floating **Width** control / ± buttons for exact sizing. Images preserve their aspect ratio, while smileys stay square. Shapes also support corner resizing.
+
+**Crop images:** Choose **Select**, tap an added image and choose **Crop** in its floating controls. Drag the crop corners or enter percentages; drag inside the selection to move it. **Apply crop** updates the image; **Cancel** leaves it unchanged. **Reset → Apply crop** restores the full image. Crops support undo/redo, resizing, native files, backups, Drive workspace data and every export format. The original image is retained so you can adjust the crop later.
+
+**Zoom:** Pinch with two fingers, tap ±, or tap the **zoom percentage** for presets from 50% through 800%. Zoom is only a viewing setting and does not change the saved page dimensions.
 
 **Open/edit later:** Export → **WiNDS Notes notebook** downloads `.winds-notes`. Use **Open notebook** from the dashboard to reopen an editable copy.
+
+**Recover notes:** **Open notebook** and **Notebook options → Restore notebook backup…** both validate the entire file before adding editable copies with fresh IDs. Existing notebooks are never replaced, even when a backup contains matching IDs. Older WiNDS and Folio JSON backups remain supported. A fresh workspace starts with one blank **Untitled notebook**; the original app design is preserved.
 
 ## Deploy on GitHub Pages
 
 The repository root itself is the **deployable website**. Commit or upload `index.html`, all `.js`/`.css` files, `manifest.webmanifest`, `.nojekyll`, and `assets/` to the root of the website repository. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
-If you publish by replacing GitHub files, ensure the new `creative-tools.js` is included. `sw.js` has an updated cache version so returning visitors can receive the new app shell. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+If you publish by replacing GitHub files, ensure the updated `creative-tools.js` is included. `sw.js` has an updated cache version so returning visitors can receive the new app shell. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 
 ## Google Drive configuration and privacy
 
@@ -86,4 +94,4 @@ Licensed under MIT. The previous UI, Pencil event-recovery logic and designer cr
 
 ## Try an example notebook
 
-The file `examples/creative-demo.winds-notes` is an editable sample containing filled shapes and HB/2B/4B strokes. Open it with **Open notebook** to try every new feature immediately.
+The file `examples/creative-demo.winds-notes` is an editable sample containing styled filled figures and several Artist brush strokes. Open it with **Open notebook** to try every new feature immediately.

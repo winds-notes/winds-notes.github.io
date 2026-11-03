@@ -72,6 +72,7 @@
   const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:3,zoom:1,penOnly:false,artistGrade:'HB',shapeFillEnabled:false,shapeFillColor:'#b9adff',shapeFillOpacity:1,shapeOutlineColor:'#2b2d4c',shapeOutlineSize:3,shapeOutlineStyle:'solid',selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
   const history = new Map();
   const imageCache = new Map();
+  let imageCropSession = null;
   let database = null, persistence = 'indexeddb', saving = false;
   let workspaceId='guest';
   let tombstones={};
@@ -324,13 +325,7 @@
     return hasChanges;
   }
   function seed(){
-    const n=makeNotebook('Welcome to WiNDS Notes','purple','dots');const p=n.pages[0];
-    p.items.push({id:uid(),type:'text',x:75,y:104,w:700,size:40,color:'#454063',text:'Hello, creative mind. ✳'});
-    p.items.push({id:uid(),type:'text',x:79,y:192,w:680,size:18,color:'#74768d',text:'Your digital notebook is ready.\nHere are a few things you can try:'});
-    p.items.push({id:uid(),type:'text',x:82,y:305,w:665,size:20,color:'#56536b',text:'01  Pick up a stylus and start writing.\n\n02  Choose a pen, highlighter, color, or paper.\n\n03  Add pages or create more notebooks.\n\n04  Export your work as a PDF or image.\n\n05  Back up your notebooks to move devices.'});
-    p.items.push({id:uid(),type:'text',x:80,y:790,w:660,size:24,color:'#6557ed',text:'An idea deserves a beautiful place to live.'});
-    p.items.push({id:uid(),type:'stroke',tool:'pen',color:'#e6a25a',size:5,points:[[82,837,0.7],[160,831,0.7],[240,833,0.7],[325,829,0.7],[412,834,0.7],[540,828,0.7],[680,832,0.7]]});
-    state.notebooks=[n];
+    state.notebooks=[makeNotebook('Untitled notebook','purple','ruled')];
   }
 
   function view(which){$('libraryView').hidden=which!=='library';$('editorView').hidden=which!=='editor';}
@@ -576,42 +571,13 @@
     const lines=wrapText(temp,item.text,item.w||480);
     return {lines,h:Math.max(1,lines.length)*(item.size||20)*1.42};
   }
-  // Quadratic midpoint ink: continuous rounded curves instead of visibly
-  // angular joins. The same routine is used by the live Pencil layer, local
-  // pages and exported files. Pressure is blended to prevent sudden spikes.
-  function inkWidth(item,point){
-    const pressure=Number.isFinite(point?.[2])?point[2]:.68;
-    return Math.max(.85,item.size*(.35+.65*Math.max(.1,Math.min(1,pressure))));
-  }
+  // Rendering is shared by live ink, saved pages, thumbnails and exports.
   function midpoint(a,b){return [(a[0]+b[0])*.5,(a[1]+b[1])*.5];}
-  function inkLine(ctx,item,a,b,control){
-    if(control){
-      ctx.beginPath();ctx.moveTo(a[0],a[1]);
-      ctx.quadraticCurveTo(control[0],control[1],b[0],b[1]);
-    }else{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
-    ctx.stroke();
-  }
   function smoothPenPart(ctx,item,points,index){
-    const n=points.length;
-    if(index===0){
-      const pt=points[0];ctx.beginPath();ctx.arc(pt[0],pt[1],inkWidth(item,pt)*.5,0,Math.PI*2);ctx.fill();return;
-    }
-    if(index===1){
-      const a=points[0],b=points[1];
-      ctx.lineWidth=(inkWidth(item,a)+inkWidth(item,b))*.5;
-      inkLine(ctx,item,a,midpoint(a,b));return;
-    }
-    const a=points[index-2],b=points[index-1],c=points[index];
-    const wa=inkWidth(item,a),wb=inkWidth(item,b),wc=inkWidth(item,c);
-    // Blend adjacent pressure samples to avoid sharp thick/thin jumps.
-    ctx.lineWidth=(wa+2*wb+wc)*.25;
-    inkLine(ctx,item,midpoint(a,b),midpoint(b,c),b);
+    CREATIVE.drawPenPart(ctx,item,points,index);
   }
   function smoothPenEnd(ctx,item,points){
-    if(points.length<2)return;
-    const a=points[points.length-2],b=points[points.length-1];
-    ctx.lineWidth=(inkWidth(item,a)+inkWidth(item,b))*.5;
-    inkLine(ctx,item,midpoint(a,b),b);
+    CREATIVE.drawPenEnd(ctx,item,points);
   }
   function drawStroke(ctx,item){
     const ps=item.points;if(!ps?.length)return;
@@ -650,7 +616,7 @@
       if(!imageCache.has(item.src)){
         const img=new Image();imageCache.set(item.src,img);img.onload=()=>{if(!document.hidden)renderCanvas();};img.src=item.src;
       }
-      const img=imageCache.get(item.src);if(img?.complete&&img.naturalWidth)ctx.drawImage(img,item.x,item.y,item.w,item.h);
+      const img=imageCache.get(item.src);if(img?.complete&&img.naturalWidth)CREATIVE.drawImage(ctx,item,img);
     }
     ctx.restore();
   }
@@ -778,9 +744,78 @@
   function updateSelectionActions(){
     const item=page()?.items[state.selected];const show=resizable(item)&&state.tool==='select';
     $('selectionActions').hidden=!show;
+    $('cropSelectedImage').hidden=!show||item.type!=='image';
     if(!show)return;
     $('selectedObjectType').textContent=item.type==='image'?'Image':item.type==='sticker'?'Sticker':'Shape';
     $('selectedWidth').value=String(Math.round(itemBounds(item).w));
+  }
+  function updateImageCropPreview(){
+    if(!imageCropSession)return;
+    const c=imageCropSession.crop,box=$('imageCropBox');
+    Object.assign(box.style,{left:`${c.x*100}%`,top:`${c.y*100}%`,width:`${c.w*100}%`,height:`${c.h*100}%`});
+    for(const [id,key] of [['cropLeft','x'],['cropTop','y'],['cropWidth','w'],['cropHeight','h']]){
+      $(id).value=String(Math.round(c[key]*1000)/10);
+    }
+  }
+  async function openImageCrop(){
+    const item=page()?.items[state.selected];if(item?.type!=='image')return;
+    finishActiveStroke();commitText();composeInkNow();closeMenus();
+    const bookId=notebook().id,pageId=page().id,account=workspaceId;
+    try{
+      let img=imageCache.get(item.src);
+      if(!img){img=new Image();img.src=item.src;imageCache.set(item.src,img);}
+      if(!img.complete||!img.naturalWidth)await img.decode();
+      if(workspaceId!==account||notebook()?.id!==bookId||page()?.id!==pageId||page().items[state.selected]?.id!==item.id)return;
+      imageCropSession={bookId,pageId,account,itemId:item.id,crop:CREATIVE.imageCrop(item.crop),drag:null};
+      $('imageCropSource').src=item.src;
+      $('imageCropPreview').style.setProperty('--crop-ratio',String(img.naturalWidth/img.naturalHeight));
+      $('imageCropBackdrop').hidden=false;updateImageCropPreview();$('imageCropDialog').focus();
+    }catch(err){console.error(err);toast('Could not open this image for cropping');}
+  }
+  function closeImageCrop(){
+    const drag=imageCropSession?.drag;
+    if(drag&&$('imageCropPreview').hasPointerCapture(drag.pointerId))$('imageCropPreview').releasePointerCapture(drag.pointerId);
+    imageCropSession=null;$('imageCropBackdrop').hidden=true;
+    if(!$('cropSelectedImage').hidden)$('cropSelectedImage').focus();
+  }
+  function applyImageCrop(){
+    const session=imageCropSession;
+    if(!session||workspaceId!==session.account||notebook()?.id!==session.bookId||page()?.id!==session.pageId){closeImageCrop();return;}
+    const item=page().items.find(it=>it.id===session.itemId);if(item?.type!=='image'){closeImageCrop();return;}
+    const old=CREATIVE.imageCrop(item.crop),next=CREATIVE.imageCrop(session.crop);
+    if(['x','y','w','h'].some(k=>Math.abs(old[k]-next[k])>1e-8)){
+      remember();const cropped=CREATIVE.cropImage(item,next);Object.assign(item,cropped);
+      if(!cropped.crop)delete item.crop;
+      renderCanvas();renderThumbs();scheduleSave();toast('Image cropped · Undo to restore');
+    }
+    closeImageCrop();
+  }
+  function imageCropPoint(ev){
+    const rect=$('imageCropPreview').getBoundingClientRect();
+    return {x:Math.max(0,Math.min(1,(ev.clientX-rect.left)/rect.width)),y:Math.max(0,Math.min(1,(ev.clientY-rect.top)/rect.height))};
+  }
+  function beginImageCropDrag(ev){
+    if(!imageCropSession||imageCropSession.drag||ev.button>0)return;
+    ev.preventDefault();const p=imageCropPoint(ev),c=imageCropSession.crop;
+    let corner=ev.target.closest('[data-crop-corner]')?.dataset.cropCorner;
+    if(!corner){
+      if(p.x>=c.x&&p.x<=c.x+c.w&&p.y>=c.y&&p.y<=c.y+c.h)corner='move';
+      else{corner='se';imageCropSession.crop=CREATIVE.imageCrop({x:p.x,y:p.y,w:.01,h:.01});}
+    }
+    imageCropSession.drag={pointerId:ev.pointerId,start:p,corner,crop:{...imageCropSession.crop}};
+    $('imageCropPreview').setPointerCapture(ev.pointerId);updateImageCropPreview();
+  }
+  function moveImageCropDrag(ev){
+    const drag=imageCropSession?.drag;if(!drag||ev.pointerId!==drag.pointerId)return;
+    ev.preventDefault();const p=imageCropPoint(ev);
+    imageCropSession.crop=CREATIVE.dragImageCrop(drag.crop,drag.corner,p.x-drag.start.x,p.y-drag.start.y);
+    updateImageCropPreview();
+  }
+  function endImageCropDrag(ev){
+    if(imageCropSession?.drag?.pointerId!==ev.pointerId)return;
+    if(ev.type==='pointerup')moveImageCropDrag(ev);
+    imageCropSession.drag=null;
+    if($('imageCropPreview').hasPointerCapture(ev.pointerId))$('imageCropPreview').releasePointerCapture(ev.pointerId);
   }
   function resizeObject(item,newWidth,newHeight,corner='se',bounds=itemBounds(item)){
     // Preserve aspect ratio for imported photos and emoji stickers.
@@ -1119,24 +1154,11 @@
       if(dirtyAll){toast('Notebook opened, but device storage could not save it. Export another copy.');}
       $('searchNotebooks').value='';
       if(data.single){openNotebook(data.notebooks[0].id);if(!dirtyAll)toast('Notebook opened · all pages remain editable');}
-      else{state.activeId=null;view('library');renderLibrary();if(!dirtyAll)toast(`${data.notebooks.length} notebooks imported without replacing existing notes`);}
+      else{state.activeId=null;view('library');renderLibrary();if(!dirtyAll)toast(`${data.notebooks.length} notebook${data.notebooks.length===1?'':'s'} imported without replacing existing notes`);}
     }catch(err){
       console.error('WiNDS Notes import:',err);
       toast(err?.message?.slice(0,110)||'Unable to open this notebook file');
     }
-  }
-  async function restore(file){
-    if(!file)return;
-    try{
-      const data=JSON.parse(await file.text());
-      if(data.format==='winds-notes'){await openEditableFile(file);return;}
-      if(!['winds-notes-backup','folio-notes-backup'].includes(data.format)||!Array.isArray(data.notebooks)||data.notebooks.length>500)throw Error('Invalid notebook backup');
-      const valid=data.notebooks.every(n=>typeof n.title==='string'&&Array.isArray(n.pages)&&n.pages.length>0&&n.pages.every(p=>Array.isArray(p.items)&&['ruled','grid','dots','blank'].includes(p.template)));
-      if(!valid)throw Error('Invalid notebook structure');
-      if(!confirm(`Import ${data.notebooks.length} notebook(s)? Notebooks with matching IDs will be replaced.`))return;
-      for(const incoming of data.notebooks){const index=state.notebooks.findIndex(n=>n.id===incoming.id);if(index>=0)state.notebooks[index]=incoming;else state.notebooks.push(incoming);}
-      dirtyAll=true;saveVersion++;await saveNow(true);goLibrary();renderLibrary();toast('Notebooks restored successfully');
-    }catch(err){console.error(err);toast('Not a valid WiNDS Notes backup');}
   }
   async function exportCurrent(format){
     const n=notebook();if(!n)return;
@@ -1271,6 +1293,17 @@
     $('selectedShrink').onclick=()=>{const item=page()?.items[state.selected];if(item)resizeSelectedToWidth(itemBounds(item).w*.85);};
     $('selectedGrow').onclick=()=>{const item=page()?.items[state.selected];if(item)resizeSelectedToWidth(itemBounds(item).w*1.15);};
     $('selectedWidth').onchange=e=>resizeSelectedToWidth(Number(e.target.value));
+    $('cropSelectedImage').onclick=openImageCrop;
+    $('closeImageCrop').onclick=$('cancelImageCrop').onclick=closeImageCrop;
+    $('applyImageCrop').onclick=applyImageCrop;
+    $('resetImageCrop').onclick=()=>{if(imageCropSession){imageCropSession.crop=CREATIVE.imageCrop();updateImageCropPreview();}};
+    $('imageCropBackdrop').onclick=e=>{if(e.target===$('imageCropBackdrop'))closeImageCrop();};
+    for(const [id,key] of [['cropLeft','x'],['cropTop','y'],['cropWidth','w'],['cropHeight','h']]){
+      $(id).onchange=e=>{if(!imageCropSession)return;const value=Number(e.target.value);if(Number.isFinite(value))imageCropSession.crop=CREATIVE.imageCrop({...imageCropSession.crop,[key]:value/100});updateImageCropPreview();};
+    }
+    $('imageCropPreview').addEventListener('pointerdown',beginImageCropDrag);
+    $('imageCropPreview').addEventListener('pointermove',moveImageCropDrag);
+    for(const event of ['pointerup','pointercancel','lostpointercapture'])$('imageCropPreview').addEventListener(event,endImageCropDrag);
     $('removeSelected').onclick=()=>{if(state.selected<0)return;remember();page().items.splice(state.selected,1);state.selected=-1;renderCanvas();renderThumbs();scheduleSave();};
     // Critical iPadOS guard: the canvas must cancel its single-contact Touch
     // Events, not just PointerEvents. Without this, consecutive Apple Pencil
@@ -1293,9 +1326,19 @@
     $('imageFileInput').onchange=e=>{const f=e.target.files[0];if(f)importImage(f);e.target.value='';};
     $('openNotebookFile').onclick=()=>$('openNotebookInput').click();
     $('openNotebookInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)openEditableFile(file);};
-    $('restoreFileInput').onchange=e=>{restore(e.target.files[0]);e.target.value='';};
+    // Backups use the same complete validation and fresh IDs as native imports.
+    $('restoreFileInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)openEditableFile(file);};
     let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(state.drag?.kind==='draw')return;updateSidebar();resizePage();updateToolbarArrows();},160);});
     document.addEventListener('keydown',e=>{
+      if(!$('imageCropBackdrop').hidden){
+        if(e.key==='Escape'){e.preventDefault();closeImageCrop();}
+        else if(e.key==='Tab'){
+          const controls=[...$('imageCropDialog').querySelectorAll('button,input')],first=controls[0],last=controls[controls.length-1];
+          if(e.shiftKey&&(document.activeElement===first||document.activeElement===$('imageCropDialog'))){e.preventDefault();last.focus();}
+          else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+        }else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'&&!e.target.matches('input'))e.preventDefault();
+        return;
+      }
       if(!$('modalBackdrop').hidden && e.key==='Escape'){hideModal();return;}
       if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){if(['TEXTAREA','INPUT'].includes(document.activeElement?.tagName))return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}
       if(e.target.matches('input,textarea,select,[contenteditable]'))return;
