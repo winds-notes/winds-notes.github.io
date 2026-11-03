@@ -8,7 +8,7 @@
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const COVERS = new Set(['purple','blue','peach','green','lilac','yellow']);
   const PAPERS = new Set(['ruled','grid','dots','blank']);
-  const SHAPES = new Set(['rectangle','ellipse','line']);
+  const SHAPES = new Set(['rectangle','ellipse','line','arrow','triangle','diamond','star']);
   const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const num = (x, fallback=0) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x)<1e7 ? x : fallback;
   const str = (x, max, fallback='') => typeof x === 'string' ? x.slice(0,max) : fallback;
@@ -18,7 +18,7 @@
   const time = x => typeof x === 'string' && !Number.isNaN(Date.parse(x)) ? x : new Date().toISOString();
   function check(test, message){if(!test)throw new Error(message);}
   function normalizeItem(item){
-    check(isObject(item) && ['stroke','shape','text','image'].includes(item.type),'Unsupported or damaged page object');
+    check(isObject(item) && ['stroke','shape','text','image','sticker'].includes(item.type),'Unsupported or damaged page object');
     const base={id:makeId(),type:item.type};
     if(item.type==='stroke'){
       check(['pen','highlighter'].includes(item.tool),'Invalid pen type');
@@ -31,6 +31,10 @@
     if(item.type==='text'){
       check(typeof item.text==='string' && item.text.length<=1000000,'Invalid text object');
       return {...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,480)),size:Math.max(1,Math.min(300,num(item.size,20))),color:color(item.color),text:item.text};
+    }
+    if(item.type==='sticker'){
+      check(typeof item.emoji==='string' && item.emoji.length>0 && item.emoji.length<=24,'Invalid sticker');
+      return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(240,num(item.size,78)))};
     }
     if(item.type==='shape'){
       check(SHAPES.has(item.kind),'Invalid shape type');

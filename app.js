@@ -1,5 +1,5 @@
 /* WiNDS Notes — GitHub Pages-friendly handwriting web app.
-   No server, account, tracking, or third-party JavaScript required. */
+   Writing works completely offline. Optional Google Drive backup uses Google Identity Services. */
 (() => {
   'use strict';
   let W = 840, H = 1188;
@@ -22,6 +22,14 @@
   const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const COVER_COLORS = ['purple','blue','peach','green','lilac','yellow'];
   const COLORS = ['#2b2d4c','#6457ed','#e96576','#e7a43a','#39a68c','#4777c8','#9a62b4'];
+  const MORE_COLORS = ['#171717','#6b7280','#fafafa','#5735b1','#8b5cf6','#d946ef','#ec4899','#e11d48','#ef4444','#f97316','#f59e0b','#facc15','#65a30d','#22c55e','#14b8a6','#06b6d4','#0284c7','#1d4ed8','#4338ca','#9f1239','#7c2d12','#92400e','#065f46','#164e63','#1e3a8a','#4c1d95','#0f172a','#94a3b8'];
+  const EMOJI_STICKERS = [
+    ['😊','Smile'],['😍','Love'],['😂','Laugh'],['🥳','Celebrate'],['😎','Cool'],['🤩','Excited'],['🤔','Thinking'],['🥹','Grateful'],['😴','Sleep'],['😇','Angel'],
+    ['👍','Thumbs up'],['👏','Clap'],['🙌','Hooray'],['🙏','Thanks'],['💪','Strong'],['✍️','Writing'],['🤝','Together'],['❤️','Heart'],['💜','Purple heart'],['💙','Blue heart'],
+    ['⭐','Star'],['✨','Sparkles'],['🔥','Fire'],['💡','Idea'],['🎯','Target'],['✅','Check'],['❌','Cross'],['⚠️','Warning'],['📌','Pin'],['📍','Location'],
+    ['📚','Books'],['📖','Reading'],['📝','Notes'],['🎓','Graduate'],['🔬','Science'],['🧪','Chemistry'],['💻','Computer'],['📈','Chart'],['📊','Statistics'],['🚀','Rocket'],
+    ['🌻','Flower'],['🌈','Rainbow'],['☀️','Sun'],['🌙','Moon'],['☁️','Cloud'],['🌍','Earth'],['🍀','Clover'],['🌸','Bloom'],['🎨','Art'],['🎵','Music']
+  ];
   const ICONS = {
     plus:'<path d="M12 5v14M5 12h14"/>',
     back:'<path d="M19 12H5m7-7-7 7 7 7"/>',
@@ -36,6 +44,10 @@
     rectangle:'<rect x="4" y="5" width="16" height="14" rx="1"/>',
     ellipse:'<ellipse cx="12" cy="12" rx="9" ry="7"/>',
     line:'<path d="M4 20 20 4"/>',
+    arrow:'<path d="M4 20 20 4M11 4h9v9"/>',
+    triangle:'<path d="M12 3 2 21h20z"/>',
+    diamond:'<path d="m12 2 10 10-10 10L2 12z"/>',
+    star:'<path d="m12 2 3 7 7.5.5-5.7 5 1.8 7.5L12 18l-6.6 4 1.8-7.5-5.7-5L9 9z"/>',
     image:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 16-5-5L5 20"/>',
     pages:'<path d="M8 5h11a2 2 0 0 1 2 2v12H8zM5 2h10M3 5v15"/>',
     undo:'<path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-2"/>',
@@ -124,6 +136,8 @@
     Object.entries({openFileIcon:'upload',heroPlus:'plus',newPlus:'plus',searchIcon:'search',goLibrary:'back',undoBtn:'undo',redoBtn:'redo',moreOptionsBtn:'more',exportIcon:'download',togglePages:'pages',pencilOnlyIcon:'pencil',insertImageBtn:'image',paperStyleBtn:'paper',pageOrientationBtn:'orientation',addPageSidebar:'plus',addPageTop:'plus',addPageBottomIcon:'plus',zoomOut:'zoomOut',zoomIn:'zoomIn',floatPlus:'plus',prevPage:'chevronLeft',nextPage:'chevronRight',closeModal:'x'}).forEach(([id,name])=>set(id,name));
     document.querySelectorAll('[data-tool]').forEach(btn => btn.innerHTML = icon(btn.dataset.tool));
     $('colorPalette').innerHTML = COLORS.map((c,i)=>`<button class="color-button ${i===0?'selected':''}" data-color="${c}" title="Ink ${i+1}" aria-label="Choose ink color ${i+1}"><span style="background:${c}"></span></button>`).join('');
+    $('extendedColors').innerHTML = MORE_COLORS.map(c=>`<button class="extended-swatch" data-more-color="${c}" aria-label="Choose color ${c}" title="${c}" style="--swatch:${c}"></button>`).join('');
+    renderEmojiGrid('');
     $('coverChoices').innerHTML = COVER_COLORS.map((c,i)=>`<button class="cover-choice cover-${c} ${i===0?'active':''}" data-cover="${c}" aria-label="${c} cover" title="${c} cover"></button>`).join('');
   }
   // v2 stores notebook metadata and individual pages separately. A stroke saves only
@@ -244,6 +258,7 @@
       else await writeChanged(bookIds,pageIds);
       if(version===saveVersion)statusText('Saved');
       else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
+      window.WindsDrive?.onLocalSave?.();
     }catch(err){
       dirtyAll=true;statusText('Not saved — back up your notes',true);
       toast('Saving failed. Export an editable backup to protect your notes.');
@@ -362,7 +377,31 @@
     $('inkCanvas').classList.toggle('cursor-text',tool==='text');
     renderCanvas();
   }
-  function setColor(c){state.color=c;document.querySelectorAll('[data-color]').forEach(b=>b.classList.toggle('selected',b.dataset.color===c));$('sizePreview').style.background=c;}
+  function setColor(c){
+    if(!/^#[0-9a-f]{6}$/i.test(c))return;
+    state.color=c;
+    document.querySelectorAll('[data-color],[data-more-color]').forEach(b=>b.classList.toggle('selected',(b.dataset.color||b.dataset.moreColor)?.toLowerCase()===c.toLowerCase()));
+    $('sizePreview').style.background=c;
+    $('customColorInput').value=c;
+    $('customColorBtn').style.setProperty('--chosen-color',c);
+  }
+  function renderEmojiGrid(query){
+    const q=String(query||'').trim().toLowerCase();
+    const chosen=EMOJI_STICKERS.filter(([emoji,name])=>name.toLowerCase().includes(q)||emoji.includes(q));
+    $('emojiGrid').innerHTML=chosen.map(([emoji,name])=>`<button class="emoji-cell" data-emoji="${emoji}" title="${name}" aria-label="Insert ${name}">${emoji}</button>`).join('')||'<p class="emoji-empty">No stickers found</p>';
+  }
+  function addEmoji(emoji){
+    if(!page() || !EMOJI_STICKERS.some(e=>e[0]===emoji))return;
+    finishActiveStroke();commitText();composeInkNow();
+    const scroller=$('pageScroller'),rect=$('pageCanvas').getBoundingClientRect();
+    const viewport=scroller.getBoundingClientRect();
+    const x=Math.max(56,Math.min(W-120,(viewport.left+viewport.width*.5-rect.left)/rect.width*W-44));
+    const y=Math.max(58,Math.min(H-110,(viewport.top+viewport.height*.35-rect.top)/rect.height*H-44));
+    const item={id:uid(),type:'sticker',emoji,x,y,size:Number($('stickerSize').value)||78};
+    rememberAppend(item);page().items.push(item);
+    setTool('select');state.selected=page().items.length-1;
+    closeMenus();renderCanvas();renderThumbs();scheduleSave();toast('Sticker added · drag to move');
+  }
   function updateSize(){state.size=Number($('penSize').value);$('sizeLabel').textContent=String(state.size);const diameter=Math.max(4,Math.min(state.size,14));$('sizePreview').style.width=`${diameter}px`;$('sizePreview').style.height=`${diameter}px`;}
   function historyForPage(){const key=page()?.id;if(!key)return null;if(!history.has(key))history.set(key,{undo:[],redo:[]});return history.get(key);}
   function recordHistory(action){
@@ -445,8 +484,24 @@
       ctx.strokeStyle=item.color;ctx.lineWidth=item.size||3;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();
       if(item.kind==='rectangle')ctx.rect(item.x,item.y,item.w,item.h);
       else if(item.kind==='ellipse')ctx.ellipse(item.x+item.w/2,item.y+item.h/2,Math.max(.1,Math.abs(item.w/2)),Math.max(.1,Math.abs(item.h/2)),0,0,Math.PI*2);
-      else {ctx.moveTo(item.x,item.y);ctx.lineTo(item.x+item.w,item.y+item.h);}
+      else if(item.kind==='triangle'){ctx.moveTo(item.x+item.w/2,item.y);ctx.lineTo(item.x+item.w,item.y+item.h);ctx.lineTo(item.x,item.y+item.h);ctx.closePath();}
+      else if(item.kind==='diamond'){ctx.moveTo(item.x+item.w/2,item.y);ctx.lineTo(item.x+item.w,item.y+item.h/2);ctx.lineTo(item.x+item.w/2,item.y+item.h);ctx.lineTo(item.x,item.y+item.h/2);ctx.closePath();}
+      else if(item.kind==='star'){
+        const cx=item.x+item.w/2,cy=item.y+item.h/2,rOuter=Math.max(1,Math.min(Math.abs(item.w),Math.abs(item.h))/2),rInner=rOuter*.44;
+        for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?rInner:rOuter;const px=cx+Math.cos(a)*r,py=cy+Math.sin(a)*r;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.closePath();
+      }else{
+        ctx.moveTo(item.x,item.y);ctx.lineTo(item.x+item.w,item.y+item.h);
+        if(item.kind==='arrow'){
+          const ang=Math.atan2(item.h,item.w),len=Math.min(25,Math.max(12,item.size*5));
+          const ex=item.x+item.w,ey=item.y+item.h;
+          ctx.moveTo(ex-len*Math.cos(ang-.58),ey-len*Math.sin(ang-.58));ctx.lineTo(ex,ey);ctx.lineTo(ex-len*Math.cos(ang+.58),ey-len*Math.sin(ang+.58));
+        }
+      }
       ctx.stroke();
+    }else if(item.type==='sticker'){
+      ctx.textBaseline='top';ctx.textAlign='left';
+      ctx.font=`${item.size||78}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
+      ctx.fillText(item.emoji,item.x,item.y);
     }else if(item.type==='image'){
       if(!imageCache.has(item.src)){
         const img=new Image();imageCache.set(item.src,img);img.onload=()=>{if(!document.hidden)renderCanvas();};img.src=item.src;
@@ -537,6 +592,7 @@
       return {x:minX-pad,y:minY-pad,w:maxX-minX+2*pad,h:maxY-minY+2*pad};
     }
     if(item.type==='text')return{x:item.x,y:item.y,w:item.w||480,h:textGeometry(item).h};
+    if(item.type==='sticker')return{x:item.x,y:item.y,w:item.size||78,h:item.size||78};
     const x=Math.min(item.x,item.x+item.w),y=Math.min(item.y,item.y+item.h);return{x,y,w:Math.abs(item.w),h:Math.abs(item.h)};
   }
   const distToSegment=(px,py,ax,ay,bx,by)=>{const dx=bx-ax,dy=by-ay;const t=dx*dx+dy*dy?Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy))):0;return Math.hypot(px-ax-dx*t,py-ay-dy*t);};
@@ -621,7 +677,7 @@
       renderCanvas();return;
     }
     if(state.tool==='pen'||state.tool==='highlighter')state.draft={id:uid(),type:'stroke',tool:state.tool,color:state.color,size:state.size,points:[[p.x,p.y,p.p]]};
-    else if(['rectangle','ellipse','line'].includes(state.tool))state.draft={id:uid(),type:'shape',kind:state.tool,x:p.x,y:p.y,w:0,h:0,color:state.color,size:state.size};
+    else if(['rectangle','ellipse','line','arrow','triangle','diamond','star'].includes(state.tool))state.draft={id:uid(),type:'shape',kind:state.tool,x:p.x,y:p.y,w:0,h:0,color:state.color,size:state.size};
     else return;
     // Only the pen's incremental strokes remain in the live layer across letters.
     // Highlighter/shape previews retain their full-repaint behavior.
@@ -837,8 +893,8 @@
   }
   function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast('Notebook deleted');}
   function closeMenus(){
-    ['exportMenu','paperMenu','orientationMenu','moreMenu'].forEach(id=>$(id).hidden=true);
-    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
+    ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu'].forEach(id=>$(id).hidden=true);
+    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
   }
   function toggleMenu(buttonId,menuId){
     const wasClosed=$(menuId).hidden;
@@ -877,11 +933,19 @@
     $('moreOptionsBtn').onclick=e=>{e.stopPropagation();toggleMenu('moreOptionsBtn','moreMenu');};
     $('paperStyleBtn').onclick=e=>{e.stopPropagation();toggleMenu('paperStyleBtn','paperMenu');};
     $('pageOrientationBtn').onclick=e=>{e.stopPropagation();toggleMenu('pageOrientationBtn','orientationMenu');};
+    $('emojiBtn').onclick=e=>{e.stopPropagation();toggleMenu('emojiBtn','emojiMenu');$('emojiSearch').value='';renderEmojiGrid('');};
+    $('customColorBtn').onclick=e=>{e.stopPropagation();toggleMenu('customColorBtn','colorMenu');};
+    $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
+    $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};
+    $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-emoji]');if(btn)addEmoji(btn.dataset.emoji);};
+    $('extendedColors').onclick=e=>{const btn=e.target.closest('[data-more-color]');if(btn){setColor(btn.dataset.moreColor);closeMenus();}};
+    $('customColorInput').oninput=e=>setColor(e.target.value);
+    $('customColorInput').onchange=()=>closeMenus();
     document.querySelectorAll('[data-export]').forEach(el=>el.onclick=()=>exportCurrent(el.dataset.export));
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page())return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
     document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
-    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
-    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn'))closeMenus();});
+    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='drive')window.WindsDrive?.open();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
+    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>setTool(btn.dataset.tool));
     $('colorPalette').onclick=e=>{const b=e.target.closest('[data-color]');if(b)setColor(b.dataset.color);};
     $('penSize').oninput=updateSize;
@@ -945,6 +1009,20 @@
     if(stored && Array.isArray(stored.notebooks))state.notebooks=stored.notebooks;
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
     renderLibrary();view('library');
+    window.WindsDrive?.init({
+      getData:()=>({format:'winds-notes-backup',version:1,exportedAt:now(),notebooks:clone(state.notebooks)}),
+      isWriting:()=>Boolean(state.drag || Date.now()-lastInkAt<45000),
+      importData:async text=>{
+        if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
+        const parsed=window.WindsFile.parse(text);
+        finishActiveStroke();commitText();
+        state.notebooks.push(...parsed.notebooks);
+        dirtyAll=true;saveVersion++;
+        await saveNow(true);
+        $('searchNotebooks').value='';view('library');state.activeId=null;renderLibrary();
+        return parsed.notebooks.length;
+      },toast
+    });
     if('serviceWorker'in navigator&&location.protocol.startsWith('http')){
       window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
     }

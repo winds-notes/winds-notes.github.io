@@ -1,3 +1,40 @@
+# WiNDS Notes Studio — Apple Pencil-first note taking
+
+**Designed by [Alakesh Kalita](https://alakesh-kalita.github.io/).**
+
+This edition adds a searchable emoji/sticker picker, arrows, triangles, diamonds, stars, a custom ink-color picker, and optional Google Drive backup. **The tested Pencil gesture-prevention code from the previous release is kept intact.** The notebook library, page types, PDF/JPEG/PNG export, and native `.winds-notes` editing are preserved.
+
+## Google Drive setup (required for public Google sign-in)
+
+The static GitHub Pages application cannot sign into Google until its website owner configures an OAuth client. A Google OAuth **Web application client ID is public**, not a client secret. Do not insert a private Google API key or client secret in HTML/JavaScript.
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create or select a project.
+2. Enable **Google Drive API** for that project.
+3. Configure **Google Auth Platform → Branding / Audience / Data Access** (the OAuth consent screen). Use your real site name and privacy details. For an app in Testing, add your Google account under test users. To allow arbitrary public Google users, publish the OAuth app and complete any required Google review/verification.
+4. Under **Google Auth Platform → Clients**, create an **OAuth client ID → Web application**. Under **Authorized JavaScript origins**, enter your *origin*, without a project path, e.g. `https://alakesh-kalita.github.io`. For local development you can also add `http://localhost:8000` if needed. Use HTTPS on GitHub Pages.
+5. Copy the client ID (ends with `.apps.googleusercontent.com`) and set it in `google-config.js`:
+
+   ```js
+   window.WINDS_GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID.apps.googleusercontent.com';
+   ```
+
+6. Commit that public configuration to your GitHub repository, allow GitHub Pages to deploy, and refresh the website. Use **Google Drive → Connect Google Drive** and consent to the `drive.file` permission. The user must initiate Google authorization; it is not forced during handwriting.
+
+Once connected, **Back up notebooks now** uploads a new dated `WiNDS Notes Backup ....json` file to the user's *My Drive*. **Browse Drive backups** lets the user import any app-created backup **as new copies**, avoiding silent overwrites. If the user enables **Back up automatically when idle**, the app attempts a backup after local save, another two-minute pause, and no more than once every ten minutes. Automatic backup needs the app open, the internet, and a valid Google session; it **cannot run in the background when the app is closed**. On a second device sign in again and select **Browse Drive backups** to import. Signing out or token expiry does not affect local writing.
+
+Google authorization uses [Google Identity Services](https://developers.google.com/identity/oauth2/web/guides/use-token-model) and the narrow [Drive `drive.file` scope](https://developers.google.com/workspace/drive/api/guides/api-specific-auth). It is optional and loads only from Google's official origin. Cloud functionality cannot be fully tested without a configured Google Cloud project and user consent. Third-party sign-in may require opening the site in Safari instead of a standalone iPad home-screen app, depending on Safari authentication restrictions.
+
+**Privacy:** Backups are editable JSON, *not end-to-end encrypted*. They contain the handwriting and embedded images, and are visible to the user in Google Drive. The app does not retain passwords, store refresh tokens or run an external sync server.
+
+## What changed in drawing
+
+- Emoji/stickers can be inserted through the smiley icon, selected, moved, erased and included in native exports.
+- New figures are drawn using the top toolbar: arrow, triangle, diamond and star (in addition to rectangle, ellipse and line).
+- The 🎨 control offers curated colors and the native iPad color picker for any six-digit RGB color.
+- No Google requests are dispatched on pen-down, pen-move or pen-up. The working Apple Pencil gesture listeners remain unchanged.
+
+---
+
 ## Apple Pencil missing-letter fix (November 2026)
 
 **Root-cause research:** Safari/WebKit on iPad may absorb rapid successive Pencil contacts as a double-tap gesture before delivering `pointerdown` to the page. This exact symptom and a targeted fix are documented at https://github.com/shravanngoswamii/DrawShare/issues/6 . Apple's Scribble recognition has also caused similar missing events: https://bugs.webkit.org/show_bug.cgi?id=217430 . No JavaScript can reconstruct a stroke for which the browser delivers no events.
@@ -10,17 +47,17 @@ The app no longer automatically forces Stylus-only mode when a Pencil is first d
 2. Each new Pencil down closes a stale previous stroke if its `pointerup` never arrived. The previous stroke is committed rather than discarded.
 3. If Safari delivers a pressed Pencil move but misses the down, the app recovers the stroke from that move.
 4. **Notebook options → Apple Pencil input test** opens an optional event monitor. Write successive letters and check that the number of `pointerdown` events increases. The panel logs only while open and does not upload data. If entire Pencil strokes still produce zero events, that is a WebKit/iPadOS input suppression problem, not canvas rendering or storage.
-5. The offline shell cache is bumped to v7 so GitHub Pages updates are picked up more reliably.
+5. The offline shell cache is bumped to v8 so GitHub Pages updates are picked up more reliably.
 
 **Verification note:** Automated tests simulate Pencil pointer events and browser touch cancellation, but physical Apple Pencil validation has not been completed. A web app cannot guarantee all physical-Pencil behavior that a native drawing app can, because the native app receives lower-level Pencil events.
 
 ---
 
-# WiNDS Notes — Apple Pencil Gesture Recovery Update
+# WiNDS Notes — Studio Edition
 
 **A refined, private handwriting notebook for iPad, Apple Pencil, Android tablets, and desktop browsers.**
 
-WiNDS Notes is a static, deployable, Goodnotes-inspired web app. It runs on GitHub Pages and requires **no build step, API key, account, backend, or external JavaScript library**. Its home dashboard retains the original notebook gallery and introductory design.
+WiNDS Notes is a static, deployable, Goodnotes-inspired web app. It runs on GitHub Pages and requires **no build step or backend** for local note-taking. Google Drive backup is optional and needs a one-time Google Cloud OAuth setup by the website owner. Its home dashboard retains the original notebook gallery and introductory design.
 
 ## What's new in the WiNDS Notes tablet edition
 
@@ -45,9 +82,10 @@ Previously, lifting the pen triggered a large canvas commit and queued a storage
 ## Features
 
 - Apple Pencil, active stylus, finger, and mouse input (pressure when supported)
-- Pen, highlighter, whole-stroke eraser, selection and movement, text boxes, and basic geometric shapes
+- Pen, highlighter, whole-stroke eraser, selection and movement, text boxes, and shapes (rectangle, ellipse, line, arrow, triangle, diamond, star)
 - Notebook covers, rename, search, multiple pages, templates (ruled/grid/dots/blank), **portrait and landscape per page**
-- Undo/redo, seven pen colors, stroke thickness, zoom, stylus-only mode, page thumbnails
+- Undo/redo, 35 curated ink colors plus any custom color, stroke thickness, zoom, stylus-only mode, page thumbnails
+- Insert searchable smileys and stickers as editable, movable notebook objects
 - Import images and annotate them
 - Export complete notebook as **PDF**, or the current page as **JPEG** or **PNG**
 - **Save the current notebook as `.winds-notes`**, the app's native, editable document format
@@ -56,14 +94,16 @@ Previously, lifting the pen triggered a large canvas commit and queued a storage
 - Open an older `.winds-notes` file or a compatible Folio/WiNDS JSON backup without replacing existing notebooks
 - Backup/restore all editable notebooks as a **JSON** file
 - Private on-device autosaving in IndexedDB, with a localStorage fallback
+- Optional Google Drive sign-in, manual dated backups, backup browser, restore-as-copies, idle-only automatic backups
+- Designer credit linked to https://alakesh-kalita.github.io/
 - Installable, offline-capable progressive web app (PWA)
 
-**Storage and privacy:** Notes reside in the browser on the current device, not on GitHub. There is no cloud synchronization or account system in this version. Browser data can be deleted by Safari/site-data cleanup or device storage management; export editable JSON backups regularly.
+**Storage and privacy:** Notes stay on the device and are not saved to GitHub. Google Drive backup is **opt-in** and sends notebook content to the connected user's own Drive; there is no WiNDS Notes hosted account database. This is **backup and import**, not automatic bidirectional conflict-aware synchronization across devices. Browser data can still be lost by clearing website data, so retain independent `.winds-notes` backups. The app never stores the Google access token persistently.
 
 ## Deploy to GitHub Pages
 
 1. Create a GitHub repository named, for example, `winds-notes`.
-2. Upload the **contents** of this folder to the root of its `main` branch: `index.html`, `styles.css`, `app.js`, `native-file.js`, `pdf-export.js`, `sw.js`, `manifest.webmanifest`, `.nojekyll`, and the complete `assets` folder.
+2. Upload the **contents** of this folder to the root of its `main` branch: `index.html`, `styles.css`, `app.js`, `native-file.js`, `pdf-export.js`, `cloud-drive.js`, `google-config.js`, `sw.js`, `manifest.webmanifest`, `.nojekyll`, and the complete `assets` folder.
 3. On GitHub go to **Settings → Pages → Build and deployment**.
 4. Choose **Deploy from a branch**, `main`, `/(root)`, then save.
 5. Open `https://YOUR-USERNAME.github.io/winds-notes/` when Pages has published.
@@ -102,7 +142,7 @@ Open `http://localhost:8000/` on your computer. Deploy to GitHub Pages for the p
 
 ## Limitations
 
-WiNDS Notes is **not Goodnotes itself**. This release does not include cloud sync, PDF import and annotation, handwriting recognition, searchable handwritten notes, real-time collaboration, or audio recording. The eraser removes whole strokes/objects. Switching an existing page orientation scales its content proportionally to keep it visible. The PDF export uses flattened images of pages, so handwriting is not editable in the exported PDF; retain the JSON backup to keep notes editable.
+WiNDS Notes is **not Goodnotes itself**. This release does not include automatic bidirectional cloud synchronization, PDF import and annotation, handwriting recognition, searchable handwritten notes, real-time collaboration, or audio recording. The eraser removes whole strokes/objects. Switching an existing page orientation scales its content proportionally to keep it visible. The PDF export uses flattened images of pages, so handwriting is not editable in the exported PDF; retain the JSON backup to keep notes editable.
 
 For best results, use a recent iPadOS version and avoid writing on extremely large pages containing thousands of imported objects. Test with a new blank notebook first to confirm input behavior on your device.
 
@@ -115,6 +155,8 @@ For best results, use a recent iPadOS version and avoid writing on extremely lar
 | `app.js` | Input, drawing, pages, notebooks, on-device storage, export |
 | `pdf-export.js` | Offline PDF writer |
 | `native-file.js` | Native `.winds-notes` document encoding and validation |
+| `cloud-drive.js` | Optional Google OAuth and Drive backups |
+| `google-config.js` | Public Google OAuth Web Client ID to configure |
 | `sw.js` | Offline app-shell cache |
 | `manifest.webmanifest` | Installable web app metadata |
 | `assets/icon.svg` | WiNDS Notes icon / favicon |
