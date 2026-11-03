@@ -9,21 +9,26 @@ WiNDS Notes is a static, deployable, Goodnotes-inspired web app. It runs on GitH
 The handwriting engine was revised to address interruptions and slow writing on iPad:
 
 - **Separate drawing surfaces.** The paper and already-written notes are rendered on the base canvas; the live pen is drawn on a transparent layer. Moving a pen does not cause a full, high-resolution page redraw.
-- **Incremental Apple Pencil drawing.** Consecutive pen segments are drawn on the next animation frame; supported browsers' coalesced pointer samples preserve finer movement and pressure.
-- **Stroke-friendly saving.** The editor does not save during a pen stroke. It waits until there is a short pause, then writes only changed pages and notebook metadata to IndexedDB.
+- **Apple Pencil optimized.** Coalesced pen samples use cached page geometry; finishing a letter does not save or re-render the entire page. Palm touches cannot prevent the next Pencil contact.
+- **Continuous across pen lifts.** Every letter is displayed on a lightweight ink layer; only the newly drawn strokes are merged into the high-resolution page **after the writing burst ends**. Supported browsers' coalesced pointer samples preserve finer movement and pressure.
+- **Save only after finishing writing.** The app buffers edits in memory, writes after **30 seconds without writing**, and also attempts to save when you return to the notebook gallery or leave the app. Export `.winds-notes` regularly as a separate editable copy. No IndexedDB writes are scheduled between letters. **Important:** an app or tab force-quit during the idle interval may lose the last few seconds of work; use the native editable export as a separate backup.
 - **Lighter undo.** A normal new stroke is tracked as a single undoable action, without duplicating the full page history after every letter.
 - **Lazy thumbnails.** The page thumbnail panel remains hidden while writing; its previews update after a pause if the panel is open.
-- **Safer iPad interaction.** Pointer capture, `touch-action: none` on the writing layer, palm-contact filtering during Pencil use, and preservation of interrupted strokes reduce the chance of missing input.
+- **Safer iPad interaction.** The first detected Apple Pencil contact automatically enables stylus-only mode (you may turn it off). A palm touch cannot block a new pen stroke; Pencil contact preempts lingering one-finger pan gestures. Pointer capture and `touch-action: none` protect the drawing surface.
 - **Fit moved to the notebook options menu.** The writing surface no longer has a prominent Fit button adjacent to pen settings. Zoom controls remain in the horizontal top toolbar.
 - **Branded as WiNDS Notes**, with a custom scalable logo and iPad home-screen icon.
 
 These changes substantially reduce unnecessary work during handwriting, but actual latency varies by iPad model, iPadOS, browser, and the complexity of each page. **The app has not been physically tested on an iPad.**
 
+## Why the missing-letter issue was addressed
+
+Previously, lifting the pen triggered a large canvas commit and queued a storage write after a short timeout; palm contacts could also retain touch-drag state and prevent the next pen-down event. This release keeps completed pen marks on the live-ink layer until you pause for 2.4 seconds and merges just those new marks, without repainting the whole page and delays persistence until you stop writing for 30 seconds, or navigate away. Notes appear on the page immediately and are editable before they are saved to storage. iPad hardware validation is still required.
+
 ## Features
 
 - Apple Pencil, active stylus, finger, and mouse input (pressure when supported)
 - Pen, highlighter, whole-stroke eraser, selection and movement, text boxes, and basic geometric shapes
-- Notebook covers, rename, search, multiple pages, templates (ruled/grid/dots/blank)
+- Notebook covers, rename, search, multiple pages, templates (ruled/grid/dots/blank), **portrait and landscape per page**
 - Undo/redo, seven pen colors, stroke thickness, zoom, stylus-only mode, page thumbnails
 - Import images and annotate them
 - Export complete notebook as **PDF**, or the current page as **JPEG** or **PNG**
@@ -57,7 +62,7 @@ Official GitHub guide: https://docs.github.com/en/pages/getting-started-with-git
 4. If you want fingers to pan instead of drawing, enable **Stylus only** in the horizontal toolbar.
 5. Write on the page, not on the toolbar; tap the notebook options (**•••**) to find **Fit page to width**.
 
-To move **one notebook** to another device, open it and select **Export → WiNDS Notes notebook**. Save the `.winds-notes` file to Files, iCloud Drive or another location using Safari's download controls. On another device, tap **Open notebook** on the WiNDS Notes home screen, choose that file, and continue editing. Import creates a new notebook and does not replace existing notes. To transfer **all notebooks**, use the editable JSON backup / Restore icons. PDFs and JPEGs are for sharing, not for reopening as editable notes.
+To move **one notebook** to another device, open it and select **Export → WiNDS Notes notebook**. Save the `.winds-notes` file to Files, iCloud Drive or another location using Safari's download controls. On another device, tap **Open notebook** on the WiNDS Notes home screen, choose that file, and continue editing. Import creates a new notebook and does not replace existing notes. To transfer **all notebooks**, use **Notebook options → Back up all notebooks** and **Notebook options → Restore notebook backup…** from an open notebook. PDFs and JPEGs are for sharing, not for reopening as editable notes.
 
 ## Update from earlier Folio Notes builds
 
@@ -79,7 +84,7 @@ Open `http://localhost:8000/` on your computer. Deploy to GitHub Pages for the p
 
 ## Limitations
 
-WiNDS Notes is **not Goodnotes itself**. This release does not include cloud sync, PDF import and annotation, handwriting recognition, searchable handwritten notes, real-time collaboration, or audio recording. The eraser removes whole strokes/objects. The PDF export uses flattened images of pages, so handwriting is not editable in the exported PDF; retain the JSON backup to keep notes editable.
+WiNDS Notes is **not Goodnotes itself**. This release does not include cloud sync, PDF import and annotation, handwriting recognition, searchable handwritten notes, real-time collaboration, or audio recording. The eraser removes whole strokes/objects. Switching an existing page orientation scales its content proportionally to keep it visible. The PDF export uses flattened images of pages, so handwriting is not editable in the exported PDF; retain the JSON backup to keep notes editable.
 
 For best results, use a recent iPadOS version and avoid writing on extremely large pages containing thousands of imported objects. Test with a new blank notebook first to confirm input behavior on your device.
 
@@ -106,8 +111,20 @@ MIT licensed. WiNDS Notes is an independent notebook app, not affiliated with Go
 
 **Open:** On the home page, select **Open notebook** and choose an existing `.winds-notes` file from Files (or from a computer folder). There is an equivalent **Notebook options → Open notebook file…** command in the editor. The notebook is added to the library with a new internal ID to avoid overwriting local work. Its pages and content remain editable. Existing `.json` full-library backups from WiNDS Notes and Folio Notes can also be imported with the Open notebook option.
 
-**All-notebook backup:** The download icon in the library header produces `WiNDS-Notes-backup.json`. The restore icon reads legacy `.json` backups and may replace notebooks that have the same internal ID (confirmation is requested); use **Open notebook** instead if you prefer to keep both copies.
+**All-notebook backup:** In any open notebook, choose **Notebook options (•••) → Back up all notebooks** to download `WiNDS-Notes-backup.json`. Choose **Notebook options (•••) → Restore notebook backup…** to restore a previously saved backup; this may replace notebooks with matching internal IDs after confirmation. Use **Open notebook** on the home page to import without replacing existing notebooks.
 
 **File specification:** `.winds-notes` is UTF-8 JSON with `format: "winds-notes"`, `version: 1`, `exportedAt`, `pageSize`, and one `notebook` object. The contents are directly inspectable, including per-stroke points, text, templates, and embedded images. It is not encrypted; keep sensitive documents in a secure location. Maximum opened file size: 100 MB. Older file versions may require a future compatibility update.
 
 On iPadOS, `.winds-notes` is not automatically associated with the PWA. Use the **Open notebook** button inside WiNDS Notes and choose the file through the system picker. Do not expect double-tapping the file in the Files app to launch the website.
+
+## Clean home-page header update
+
+The home screen header is now intentionally minimal: only the WiNDS Notes brand is displayed. The old device-status/privacy message, download/upload shortcuts, and informational footer were removed. Notebook opening remains available as **Open notebook** on the home page. PDF/image/native export is in **Export** inside a notebook. Back up and restore commands remain available under **Notebook options (•••)**. The editor continues to show a short **Saved** status.
+
+## Portrait and landscape
+
+Choose the page orientation when creating a notebook, or open **Page orientation** (horizontal/vertical sheet icon) in the top writing toolbar. Each page can have its own orientation. Newly added pages inherit the current page orientation. Editable `.winds-notes` files preserve the orientation, and a PDF can have portrait and landscape pages in the same document. Switching an already-filled page scales existing content uniformly and centers it to avoid clipping.
+
+## Test the Pencil fix
+
+Open a new blank notebook on iPad and write `Hello Apple Pencil 123` repeatedly while lifting the Pencil after every letter. Try quick letter-to-letter movements, then write with a palm resting on the screen. The app should keep the pen tool selected and render every stroke without a noticeable pause at pen-up. Also verify that after writing and 30 seconds idle the status changes to Saved. Reopen your notebook and confirm content persists. This build has not been measured on physical iPad hardware; real-device confirmation is essential.

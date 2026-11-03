@@ -2,7 +2,20 @@
    No server, account, tracking, or third-party JavaScript required. */
 (() => {
   'use strict';
-  const W = 840, H = 1188, RENDER_SCALE = 2;
+  let W = 840, H = 1188;
+  const RENDER_SCALE = 2;
+  const ORIENTATIONS = Object.freeze({portrait:{width:840,height:1188},landscape:{width:1188,height:840}});
+  const pageDimensions = p => ORIENTATIONS[p?.orientation==='landscape'?'landscape':'portrait'];
+  function syncPageGeometry(){
+    const {width,height}=pageDimensions(page());W=width;H=height;
+    const shell=$('pageShell');shell.style.aspectRatio=`${W}/${H}`;
+    for(const id of ['pageCanvas','inkCanvas']){
+      const c=$(id);if(c.width!==W*RENDER_SCALE)c.width=W*RENDER_SCALE;
+      if(c.height!==H*RENDER_SCALE)c.height=H*RENDER_SCALE;
+    }
+  }
+  // Keep expensive storage and page composition out of rapid pen-up/pen-down cycles.
+  const SAVE_IDLE_MS = 30000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
   const $ = id => document.getElementById(id);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -29,6 +42,7 @@
     redo:'<path d="m15 14 5-5-5-5m5 5H10a6 6 0 0 0 0 12h2"/>',
     more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
     paper:'<path d="M6 2h9l4 4v16H6zM14 2v5h5M9 12h7M9 16h7"/>',
+    orientation:'<rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M9 3h6M9 21h6"/>',
     pencil:'<path d="M15.5 5.5 18.5 8.5M4 20l5-1 11-11a2.12 2.12 0 0 0-3-3L6 16z"/>',
     zoomIn:'<circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5M7.5 10.5h6m-3-3v6"/>',
     zoomOut:'<circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5M7.5 10.5h6"/>',
@@ -38,15 +52,16 @@
     trash:'<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>'
   };
   const icon = (key, size=20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[key] || ICONS.plus}</svg>`;
-  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:3,zoom:1,penOnly:false,selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0};
+  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:3,zoom:1,penOnly:false,selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
   const history = new Map();
   const imageCache = new Map();
-  let database = null, persistence = 'indexeddb', installPrompt = null, saving = false;
+  let database = null, persistence = 'indexeddb', saving = false;
   let dirtyAll = false, saveVersion = 0, lastInkAt = 0, thumbnailsDirty = true, thumbnailTimer = 0, inkRAF = 0, drawnIndex = 0;
+  let inkComposeTimer = 0, bufferedPenInk = false, bufferedPenItems = [];
   const dirtyBooks = new Set(), dirtyPages = new Set();
   const now = () => new Date().toISOString();
-  const makePage = template => ({id:uid(),template:template || 'ruled',items:[]});
-  const makeNotebook = (title,cover,template) => ({id:uid(),title:title.trim() || 'Untitled notebook',cover,createdAt:now(),updatedAt:now(),pages:[makePage(template)]});
+  const makePage = (template,orientation='portrait') => ({id:uid(),template:template || 'ruled',orientation,items:[]});
+  const makeNotebook = (title,cover,template,orientation='portrait') => ({id:uid(),title:title.trim() || 'Untitled notebook',cover,createdAt:now(),updatedAt:now(),pages:[makePage(template,orientation)]});
   const notebook = () => state.notebooks.find(n => n.id === state.activeId);
   const page = () => notebook()?.pages[state.pageIndex];
   const filename = title => String(title || 'WiNDS-Notes').replace(/[\\/:*?"<>|\x00-\x1f]/g,'-').trim().slice(0,90) || 'WiNDS-Notes';
@@ -54,7 +69,7 @@
 
   function initIcons(){
     const set = (id, name) => {const el=$(id);if(el)el.innerHTML=icon(name)};
-    Object.entries({backupButton:'download',restoreButton:'upload',openFileIcon:'upload',heroPlus:'plus',newPlus:'plus',searchIcon:'search',goLibrary:'back',undoBtn:'undo',redoBtn:'redo',moreOptionsBtn:'more',exportIcon:'download',togglePages:'pages',pencilOnlyIcon:'pencil',insertImageBtn:'image',paperStyleBtn:'paper',addPageSidebar:'plus',addPageTop:'plus',addPageBottomIcon:'plus',zoomOut:'zoomOut',zoomIn:'zoomIn',floatPlus:'plus',prevPage:'chevronLeft',nextPage:'chevronRight',closeModal:'x'}).forEach(([id,name])=>set(id,name));
+    Object.entries({openFileIcon:'upload',heroPlus:'plus',newPlus:'plus',searchIcon:'search',goLibrary:'back',undoBtn:'undo',redoBtn:'redo',moreOptionsBtn:'more',exportIcon:'download',togglePages:'pages',pencilOnlyIcon:'pencil',insertImageBtn:'image',paperStyleBtn:'paper',pageOrientationBtn:'orientation',addPageSidebar:'plus',addPageTop:'plus',addPageBottomIcon:'plus',zoomOut:'zoomOut',zoomIn:'zoomIn',floatPlus:'plus',prevPage:'chevronLeft',nextPage:'chevronRight',closeModal:'x'}).forEach(([id,name])=>set(id,name));
     document.querySelectorAll('[data-tool]').forEach(btn => btn.innerHTML = icon(btn.dataset.tool));
     $('colorPalette').innerHTML = COLORS.map((c,i)=>`<button class="color-button ${i===0?'selected':''}" data-color="${c}" title="Ink ${i+1}" aria-label="Choose ink color ${i+1}"><span style="background:${c}"></span></button>`).join('');
     $('coverChoices').innerHTML = COVER_COLORS.map((c,i)=>`<button class="cover-choice cover-${c} ${i===0?'active':''}" data-cover="${c}" aria-label="${c} cover" title="${c} cover"></button>`).join('');
@@ -115,7 +130,7 @@
       }catch(err){resolve(null);}
     });
   }
-  function metadata(n){return {...n,pages:n.pages.map(p=>({id:p.id,template:p.template}))};}
+  function metadata(n){return {...n,pages:n.pages.map(p=>({id:p.id,template:p.template,orientation:p.orientation||'portrait'}))};}
   function writeData(payload){
     if(persistence==='localstorage'){
       localStorage.setItem('winds-notes-data-v2',JSON.stringify(payload));return Promise.resolve();
@@ -154,15 +169,18 @@
   function scheduleSave(structural=false){
     const n=notebook();if(n){n.updatedAt=now();dirtyBooks.add(n.id);if(page())dirtyPages.add(page().id);}
     if(structural)dirtyAll=true;
-    saveVersion++;lastInkAt=Date.now();statusText('Changes pending',true);
+    saveVersion++;lastInkAt=Date.now();
+    // A writing burst has a single pending state; there are NO writes between letters.
+    if($('saveStatus').textContent!=='Unsaved changes')statusText('Unsaved changes',true);
     clearTimeout(state.saveTimer);
-    state.saveTimer=setTimeout(()=>saveNow(),2100);
+    state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);
   }
   async function saveNow(force=false){
     clearTimeout(state.saveTimer);
     if(saving){state.saveTimer=setTimeout(()=>saveNow(force),600);return;}
-    if(!force && (state.drag || Date.now()-lastInkAt<1700)){
-      state.saveTimer=setTimeout(()=>saveNow(),650);return;
+    if(!force && (state.drag || Date.now()-lastInkAt<SAVE_IDLE_MS-100)){
+      const remaining=Math.max(1000,SAVE_IDLE_MS-(Date.now()-lastInkAt));
+      state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
     }
     if(!dirtyAll && !dirtyBooks.size && !dirtyPages.size)return;
     const version=saveVersion,full=dirtyAll;
@@ -172,8 +190,8 @@
     try{
       if(full)await writeData({version:2,notebooks:state.notebooks});
       else await writeChanged(bookIds,pageIds);
-      if(version===saveVersion)statusText('Saved on this device');
-      else{statusText('Changes pending',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),1000);}
+      if(version===saveVersion)statusText('Saved');
+      else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
     }catch(err){
       dirtyAll=true;statusText('Not saved — back up your notes',true);
       toast('Saving failed. Export an editable backup to protect your notes.');
@@ -204,9 +222,9 @@
     state.activeId=id;state.pageIndex=0;state.selected=-1;state.zoom=1;state.draft=null;
     state.sidebarOpen=false;thumbnailsDirty=true;
     view('editor');$('notebookTitle').value=n.title;
-    updateSidebar();setTool('pen');renderEditor();resizePage();requestAnimationFrame(updateToolbarArrows);
+    syncPageGeometry();updateSidebar();setTool('pen');renderEditor();resizePage();requestAnimationFrame(updateToolbarArrows);
   }
-  function goLibrary(){finishActiveStroke();commitText();state.draft=null;saveNow(true);state.activeId=null;view('library');renderLibrary();}
+  function goLibrary(){finishActiveStroke();commitText();state.draft=null;composeInkNow();saveNow(true);state.activeId=null;view('library');renderLibrary();}
   function renderEditor(){
     const n=notebook();if(!n)return;
     $('notebookTitle').value=n.title;
@@ -226,22 +244,22 @@
   }
   function switchPage(index){
     finishActiveStroke();const n=notebook();if(!n||index<0||index>=n.pages.length)return;
-    commitText();state.pageIndex=index;state.selected=-1;state.draft=null;renderEditor();
+    composeInkNow();commitText();state.pageIndex=index;state.selected=-1;state.draft=null;syncPageGeometry();resizePage();renderEditor();
     $('pageScroller').scrollTop=0;
     if(state.sidebarOpen){state.sidebarOpen=false;updateSidebar();}
   }
   function addPage(){
     finishActiveStroke();const n=notebook();if(!n)return;
-    commitText();n.pages.splice(state.pageIndex+1,0,makePage(page()?.template||'ruled'));
-    state.pageIndex++;state.selected=-1;renderEditor();scheduleSave(true);
+    composeInkNow();commitText();n.pages.splice(state.pageIndex+1,0,makePage(page()?.template||'ruled',page()?.orientation||'portrait'));
+    state.pageIndex++;state.selected=-1;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);
     $('pageScroller').scrollTop=0;toast('New page added');
   }
-  function duplicatePage(){const n=notebook();if(!n)return;commitText();const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;renderEditor();scheduleSave(true);toast('Page duplicated');}
+  function duplicatePage(){const n=notebook();if(!n)return;finishActiveStroke();composeInkNow();commitText();const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page duplicated');}
   function deletePage(index){
     const n=notebook();if(!n)return;
     if(n.pages.length===1){toast('A notebook needs at least one page');return;}
     if(!confirm(`Delete page ${index+1}? This cannot be undone.`))return;
-    commitText();n.pages.splice(index,1);state.pageIndex=Math.min(state.pageIndex,n.pages.length-1);state.selected=-1;renderEditor();scheduleSave(true);toast('Page removed');
+    finishActiveStroke();composeInkNow();commitText();n.pages.splice(index,1);state.pageIndex=Math.min(state.pageIndex,n.pages.length-1);state.selected=-1;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page removed');
   }
   function renderThumbs(force=false){
     thumbnailsDirty=true;
@@ -250,14 +268,42 @@
     if(!force){thumbnailTimer=setTimeout(()=>renderThumbs(true),720);return;}
     const n=notebook();if(!n)return;
     thumbnailsDirty=false;
-    $('thumbList').innerHTML=n.pages.map((p,i)=>`<div class="page-thumb ${i===state.pageIndex?'active':''}" data-page="${i}"><div class="thumb-canvas-wrap"><canvas width="250" height="354" data-preview="${i}" aria-hidden="true"></canvas></div><div class="thumb-meta">Page ${i+1}<button data-remove-page="${i}" class="thumb-actions" title="Delete page ${i+1}" aria-label="Delete page ${i+1}">${icon('trash')}</button></div></div>`).join('');
-    document.querySelectorAll('[data-preview]').forEach(el=>{const i=Number(el.dataset.preview);const ctx=el.getContext('2d');ctx.setTransform(250/W,0,0,354/H,0,0);drawPage(ctx,n.pages[i]);});
+    $('thumbList').innerHTML=n.pages.map((p,i)=>{
+      const d=pageDimensions(p),th=Math.round(250*d.height/d.width);
+      return `<div class="page-thumb ${i===state.pageIndex?'active':''}" data-page="${i}"><div class="thumb-canvas-wrap" style="height:${Math.round(125*d.height/d.width)}px"><canvas width="250" height="${th}" data-preview="${i}" aria-hidden="true"></canvas></div><div class="thumb-meta">Page ${i+1}<button data-remove-page="${i}" class="thumb-actions" title="Delete page ${i+1}" aria-label="Delete page ${i+1}">${icon('trash')}</button></div></div>`;
+    }).join('');
+    document.querySelectorAll('[data-preview]').forEach(el=>{const i=Number(el.dataset.preview),d=pageDimensions(n.pages[i]);const ctx=el.getContext('2d');ctx.setTransform(el.width/d.width,0,0,el.height/d.height,0,0);drawPage(ctx,n.pages[i]);});
   }
   function pageBaseWidth(){const scroller=$('pageScroller');return Math.min(W,Math.max(250,scroller.clientWidth-32));}
-  function resizePage(){if($('editorView').hidden)return;const width=Math.round(pageBaseWidth()*state.zoom);$('pageShell').style.width=`${width}px`;$('zoomValue').textContent=`${Math.round(state.zoom*100)}%`;renderCanvas();}
+  function resizePage(){if($('editorView').hidden)return;syncPageGeometry();const width=Math.round(pageBaseWidth()*state.zoom);$('pageShell').style.width=`${width}px`;$('zoomValue').textContent=`${Math.round(state.zoom*100)}%`;renderCanvas();}
   function changeZoom(amount){finishActiveStroke();state.zoom=Math.min(2.5,Math.max(.5,Math.round((state.zoom+amount)*100)/100));resizePage();}
+  function setOrientation(orientation){
+    if(!page() || !ORIENTATIONS[orientation])return;
+    finishActiveStroke();composeInkNow();commitText();
+    const p=page(),previous=pageDimensions(p),next=ORIENTATIONS[orientation];
+    if(previous.width===next.width&&previous.height===next.height)return;
+    const factor=Math.min(next.width/previous.width,next.height/previous.height);
+    const ox=(next.width-previous.width*factor)/2,oy=(next.height-previous.height*factor)/2;
+    if(p.items.length)remember();
+    for(const item of p.items){
+      if(item.type==='stroke'){
+        item.points=item.points.map(([x,y,pressure])=>[x*factor+ox,y*factor+oy,pressure]);
+        item.size*=factor;
+      }else{
+        item.x=item.x*factor+ox;item.y=item.y*factor+oy;
+        if(item.w!=null)item.w*=factor;
+        if(item.h!=null)item.h*=factor;
+        if(item.size!=null)item.size*=factor;
+      }
+    }
+    p.orientation=orientation;state.selected=-1;
+    syncPageGeometry();resizePage();renderEditor();renderThumbs();
+    scheduleSave();closeMenus();
+    requestAnimationFrame(()=>{$('editorToolbar').scrollLeft=0;updateToolbarArrows();});
+    toast(orientation==='landscape'?'Landscape page selected':'Portrait page selected');
+  }
   function setTool(tool){
-    finishActiveStroke();commitText();state.tool=tool;state.selected=-1;state.draft=null;
+    finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
     document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
     $('inkCanvas').classList.toggle('cursor-eraser',tool==='eraser');
     $('inkCanvas').classList.toggle('cursor-select',tool==='select');
@@ -291,16 +337,17 @@
     state.selected=-1;renderEditor();scheduleSave();
   }
   function updateHistoryButtons(){const h=historyForPage();$('undoBtn').disabled=!h?.undo.length;$('redoBtn').disabled=!h?.redo.length;}
-  function drawTemplate(ctx,kind){
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  function drawTemplate(ctx,kind,dimensions){
+    const {width:PW,height:PH}=dimensions;
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,PW,PH);
     ctx.lineWidth=1;
     if(kind==='ruled'){
-      ctx.strokeStyle='#e1e7f3';ctx.beginPath();for(let y=122;y<H-55;y+=36){ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);}ctx.stroke();
-      ctx.strokeStyle='#f2d8dd';ctx.beginPath();ctx.moveTo(73,0);ctx.lineTo(73,H);ctx.stroke();
+      ctx.strokeStyle='#e1e7f3';ctx.beginPath();for(let y=122;y<PH-55;y+=36){ctx.moveTo(0,y+.5);ctx.lineTo(PW,y+.5);}ctx.stroke();
+      ctx.strokeStyle='#f2d8dd';ctx.beginPath();ctx.moveTo(73,0);ctx.lineTo(73,PH);ctx.stroke();
     }else if(kind==='grid'){
-      ctx.strokeStyle='#e7eaf4';ctx.beginPath();for(let y=0;y<H;y+=32){ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);}for(let x=0;x<W;x+=32){ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,H);}ctx.stroke();
+      ctx.strokeStyle='#e7eaf4';ctx.beginPath();for(let y=0;y<PH;y+=32){ctx.moveTo(0,y+.5);ctx.lineTo(PW,y+.5);}for(let x=0;x<PW;x+=32){ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,PH);}ctx.stroke();
     }else if(kind==='dots'){
-      ctx.fillStyle='#d7def0';for(let y=33;y<H;y+=30)for(let x=33;x<W;x+=30){ctx.beginPath();ctx.arc(x,y,1.15,0,Math.PI*2);ctx.fill();}
+      ctx.fillStyle='#d7def0';for(let y=33;y<PH;y+=30)for(let x=33;x<PW;x+=30){ctx.beginPath();ctx.arc(x,y,1.15,0,Math.PI*2);ctx.fill();}
     }
   }
   function wrapText(ctx,text,maxWidth){
@@ -357,7 +404,7 @@
     ctx.restore();
   }
   function drawPage(ctx,p,withoutSelection=true){
-    if(!p)return;drawTemplate(ctx,p.template||'ruled');
+    if(!p)return;drawTemplate(ctx,p.template||'ruled',pageDimensions(p));
     for(const item of p.items)drawItem(ctx,item);
     if(!withoutSelection){
       if(state.draft)drawItem(ctx,state.draft);
@@ -369,6 +416,27 @@
   // The committed page is redrawn only after a completed edit, never on every
   // Apple Pencil movement. The transparent ink layer renders new segments only.
   function inkContext(){const ctx=$('inkCanvas').getContext('2d');ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);return ctx;}
+  function scheduleInkComposition(){
+    // New letters stay on the transparent live-ink canvas until writing pauses.
+    // The idle merge is incremental: never repaint all earlier strokes.
+    bufferedPenInk=true;
+    clearTimeout(inkComposeTimer);
+    inkComposeTimer=setTimeout(()=>{
+      inkComposeTimer=0;
+      if(state.drag?.kind==='draw'||state.draft){scheduleInkComposition();return;}
+      composeInkNow();
+    },INK_COMPOSE_IDLE_MS);
+  }
+  function composeInkNow(){
+    clearTimeout(inkComposeTimer);inkComposeTimer=0;
+    if(!bufferedPenInk)return;
+    const ctx=$('pageCanvas').getContext('2d',{alpha:false});
+    ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
+    for(const item of bufferedPenItems)drawItem(ctx,item);
+    bufferedPenItems=[];bufferedPenInk=false;
+    clearInk();
+    if(state.selected>=0)drawSelection(inkContext());
+  }
   function clearInk(){
     if(inkRAF){cancelAnimationFrame(inkRAF);inkRAF=0;}
     const ctx=inkContext();ctx.clearRect(0,0,W,H);drawnIndex=0;
@@ -391,6 +459,8 @@
   function queueInk(){if(!inkRAF)inkRAF=requestAnimationFrame(paintPendingInk);}
   function renderCanvas(){
     const p=page();if(!p)return;
+    syncPageGeometry();
+    clearTimeout(inkComposeTimer);inkComposeTimer=0;bufferedPenInk=false;bufferedPenItems=[];
     const canvas=$('pageCanvas'),ctx=canvas.getContext('2d',{alpha:false});
     ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
     drawPage(ctx,p,true);clearInk();
@@ -402,7 +472,7 @@
     if(state.selected>=0)drawSelection(inkContext());
   }
   function renderExportCanvas(p){
-    const canvas=document.createElement('canvas');canvas.width=W*RENDER_SCALE;canvas.height=H*RENDER_SCALE;
+    const canvas=document.createElement('canvas');const dims=pageDimensions(p);canvas.width=dims.width*RENDER_SCALE;canvas.height=dims.height*RENDER_SCALE;
     const ctx=canvas.getContext('2d',{alpha:false});ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);drawPage(ctx,p,true);return canvas;
   }
   function itemBounds(item){
@@ -427,33 +497,54 @@
     return false;
   }
   function hitTest(x,y,eraser=false){const items=page()?.items||[];for(let i=items.length-1;i>=0;i--)if(nearItem(items[i],x,y,eraser))return i;return -1;}
-  function point(ev){const rect=$('inkCanvas').getBoundingClientRect();return{x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H,p:ev.pointerType==='pen'&&ev.pressure>0?ev.pressure:.68};}
+  function point(ev,rect=state.drag?.rect){rect=rect||$('inkCanvas').getBoundingClientRect();return{x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H,p:ev.pointerType==='pen'&&ev.pressure>0?ev.pressure:.68};}
   function clampPoint(p){return{x:Math.max(0,Math.min(W,p.x)),y:Math.max(0,Math.min(H,p.y)),p:p.p};}
   function appendPoint(stroke,p){const arr=stroke.points;const prev=arr[arr.length-1];if(!prev||Math.hypot(prev[0]-p.x,prev[1]-p.y)>1)arr.push([p.x,p.y,p.p]);}
   function pointerDown(ev){
     if(!page()||state.editingText)return;
-    if(ev.button!=null && ev.button!==0)return;
-    if(ev.pointerType==='pen')state.lastPenAt=Date.now();
-    // Reject palm contacts arriving beside an active/recent Apple Pencil stroke.
-    if(ev.pointerType==='touch' && Date.now()-state.lastPenAt<900)return;
-    const p=clampPoint(point(ev));
+    if(ev.pointerType==='mouse' && ev.button!==0)return;
+    if(ev.pointerType==='pen'){
+      state.lastPenAt=Date.now();
+      if(!state.stylusSeen){
+        state.stylusSeen=true;
+        // On first Pencil contact default to palm-safe input. The user can
+        // explicitly turn this off using the existing Stylus only switch.
+        if(!state.stylusPreferenceChanged){state.penOnly=true;$('pencilOnly').checked=true;}
+      }
+      // A resting finger/palm must NEVER lock out the next Apple Pencil stroke.
+      if(state.drag?.pointerId!==undefined && state.drag.pointerId!==ev.pointerId && state.drag.pointerType==='touch'){
+        const previous=state.drag.pointerId;
+        finishPointer({pointerId:previous},true);
+      }
+      if(state.drag?.kind==='pan' || state.pinch){state.drag=null;state.pinch=null;}
+      state.pointers.clear();
+    }
+    const sincePencil=Date.now()-state.lastPenAt;
+    // Palm rejection does not create gesture state or capture the ignored touch.
+    if(ev.pointerType==='touch' && sincePencil<PALM_GUARD_MS)return;
+    const rect=$('inkCanvas').getBoundingClientRect();
+    const p=clampPoint(point(ev,rect));
     if(ev.pointerType==='touch'){
-      state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
       if(state.penOnly){
+        // A finger can pan after the Pencil has been lifted for a while. Any
+        // subsequent Pencil down preempts the pan immediately.
+        state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
         if(state.pointers.size===2){
-          state.drag=null;
           const values=[...state.pointers.values()];
           state.pinch={distance:Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y),zoom:state.zoom};
-        }else if(state.pointers.size===1){state.drag={kind:'pan',pointerId:ev.pointerId,lastX:ev.clientX,lastY:ev.clientY};}
+          state.drag=null;
+        }else if(state.pointers.size===1 && !state.drag){
+          state.drag={kind:'pan',pointerId:ev.pointerId,pointerType:'touch',lastX:ev.clientX,lastY:ev.clientY};
+        }
         try{ev.currentTarget.setPointerCapture(ev.pointerId);}catch(err){}
         if(ev.cancelable)ev.preventDefault();return;
       }
-      // Two-finger contacts do not interrupt a stroke mid-letter. In standard
-      // writing mode, touch gestures are intentionally not interpreted as zoom.
-      if(state.pointers.size>1)return;
+      // Finger drawing is available for devices without a stylus.
+      // Reject secondary contacts so a palm cannot replace a live stroke.
+      if(state.drag||state.pointers.size)return;
+      state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
     }
     if(state.drag || state.pinch || (state.penOnly && ev.pointerType!=='pen'))return;
-    if(ev.pointerType==='pen'&&ev.isPrimary===false)return;
     if(ev.cancelable)ev.preventDefault();
     if(state.tool==='text'){
       const at=hitTest(p.x,p.y);
@@ -462,18 +553,25 @@
     }
     try{ev.currentTarget.setPointerCapture(ev.pointerId);}catch(err){}
     if(state.tool==='eraser'){
-      state.drag={kind:'erase',pointerId:ev.pointerId,changed:false};eraseAt(p.x,p.y);return;
+      composeInkNow();state.drag={kind:'erase',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,changed:false};eraseAt(p.x,p.y);return;
     }
     if(state.tool==='select'){
-      const idx=hitTest(p.x,p.y);state.selected=idx;
-      state.drag={kind:'select',pointerId:ev.pointerId,startX:p.x,startY:p.y,startItems:clone(page().items),changed:false};
+      composeInkNow();const idx=hitTest(p.x,p.y);state.selected=idx;
+      state.drag={kind:'select',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,startX:p.x,startY:p.y,startItems:clone(page().items),changed:false};
       renderCanvas();return;
     }
     if(state.tool==='pen'||state.tool==='highlighter')state.draft={id:uid(),type:'stroke',tool:state.tool,color:state.color,size:state.size,points:[[p.x,p.y,p.p]]};
     else if(['rectangle','ellipse','line'].includes(state.tool))state.draft={id:uid(),type:'shape',kind:state.tool,x:p.x,y:p.y,w:0,h:0,color:state.color,size:state.size};
     else return;
-    state.drag={kind:'draw',pointerId:ev.pointerId,startX:p.x,startY:p.y};
-    $('pageShell').classList.add('is-handdrawing');clearInk();queueInk();
+    // Only the pen's incremental strokes remain in the live layer across letters.
+    // Highlighter/shape previews retain their full-repaint behavior.
+    if(state.tool!=='pen')composeInkNow();
+    clearTimeout(inkComposeTimer);inkComposeTimer=0;
+    state.drag={kind:'draw',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,startX:p.x,startY:p.y};
+    $('pageShell').classList.add('is-handdrawing');
+    if(state.tool==='pen')drawnIndex=0;
+    else clearInk();
+    queueInk();
   }
   function pointerMove(ev){
     if(ev.pointerType==='pen')state.lastPenAt=Date.now();
@@ -520,10 +618,26 @@
     if(state.pinch){if(state.pointers.size<2){state.pinch=null;state.drag=null;}return;}
     if(!state.drag||state.drag.pointerId!==ev.pointerId)return;
     if(state.drag.kind==='draw'&&state.draft){
-      if(!cancelled){const p=clampPoint(point(ev));if(state.draft.type==='stroke')appendPoint(state.draft,p);else{state.draft.w=p.x-state.drag.startX;state.draft.h=p.y-state.drag.startY;}}
+      if(!cancelled && Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY)){
+        const p=clampPoint(point(ev));
+        if(state.draft.type==='stroke')appendPoint(state.draft,p);
+        else{state.draft.w=p.x-state.drag.startX;state.draft.h=p.y-state.drag.startY;}
+      }
       const item=state.draft;
-      if(item.type==='stroke' || Math.abs(item.w)+Math.abs(item.h)>3){rememberAppend(item);page().items.push(item);scheduleSave();renderThumbs();state.draft=null;commitInkToPage(item);}
-      else{state.draft=null;renderCanvas();}
+      if(item.type==='stroke' || Math.abs(item.w)+Math.abs(item.h)>3){
+        // Commit the data immediately for undo / export; do not compose an entire
+        // page or write IndexedDB at the pen-up boundary.
+        rememberAppend(item);page().items.push(item);
+        if(item.type==='stroke'&&item.tool==='pen'){
+          if(inkRAF){cancelAnimationFrame(inkRAF);inkRAF=0;}
+          paintPendingInk();
+          state.draft=null;
+          bufferedPenItems.push(item);scheduleInkComposition();
+        }else{
+          state.draft=null;renderCanvas();
+        }
+        scheduleSave();renderThumbs();
+      }else{state.draft=null;renderCanvas();}
     }else if(state.drag.kind==='erase'&&state.drag.changed){scheduleSave();renderThumbs();renderCanvas();}
     else if(state.drag.kind==='select'&&state.drag.changed){scheduleSave();renderThumbs();renderCanvas();}
     state.drag=null;$('pageShell').classList.remove('is-handdrawing');
@@ -645,19 +759,19 @@
     finally{button.disabled=false;button.querySelector('span:last-child').textContent='Export';}
   }
   function showModal(){
-    $('modalBackdrop').hidden=false;$('newNotebookTitle').value='Untitled notebook';$('newPaperStyle').value='ruled';
+    $('modalBackdrop').hidden=false;$('newNotebookTitle').value='Untitled notebook';$('newPaperStyle').value='ruled';$('newPageOrientation').value='portrait';
     document.querySelectorAll('[data-cover]').forEach((b,i)=>b.classList.toggle('active',i===0));
     setTimeout(()=>$('newNotebookTitle').select(),20);
   }
   function hideModal(){$('modalBackdrop').hidden=true;}
   function createNotebook(){
     const title=$('newNotebookTitle').value.trim()||'Untitled notebook';const cover=document.querySelector('.cover-choice.active')?.dataset.cover||'purple';
-    const n=makeNotebook(title,cover,$('newPaperStyle').value);state.notebooks.push(n);scheduleSave(true);hideModal();openNotebook(n.id);toast('Your notebook is ready');
+    const n=makeNotebook(title,cover,$('newPaperStyle').value,$('newPageOrientation').value);state.notebooks.push(n);scheduleSave(true);hideModal();openNotebook(n.id);toast('Your notebook is ready');
   }
   function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast('Notebook deleted');}
   function closeMenus(){
-    ['exportMenu','paperMenu','moreMenu'].forEach(id=>$(id).hidden=true);
-    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['moreOptionsBtn','moreMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
+    ['exportMenu','paperMenu','orientationMenu','moreMenu'].forEach(id=>$(id).hidden=true);
+    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
   }
   function toggleMenu(buttonId,menuId){
     const wasClosed=$(menuId).hidden;
@@ -695,10 +809,12 @@
     $('exportBtn').onclick=e=>{e.stopPropagation();toggleMenu('exportBtn','exportMenu');};
     $('moreOptionsBtn').onclick=e=>{e.stopPropagation();toggleMenu('moreOptionsBtn','moreMenu');};
     $('paperStyleBtn').onclick=e=>{e.stopPropagation();toggleMenu('paperStyleBtn','paperMenu');};
+    $('pageOrientationBtn').onclick=e=>{e.stopPropagation();toggleMenu('pageOrientationBtn','orientationMenu');};
     document.querySelectorAll('[data-export]').forEach(el=>el.onclick=()=>exportCurrent(el.dataset.export));
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page())return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
-    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='open')$('openNotebookInput').click();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
-    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#moreOptionsBtn'))closeMenus();});
+    document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
+    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
+    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>setTool(btn.dataset.tool));
     $('colorPalette').onclick=e=>{const b=e.target.closest('[data-color]');if(b)setColor(b.dataset.color);};
     $('penSize').oninput=updateSize;
@@ -714,7 +830,7 @@
       }
     },{passive:false});
     if(window.ResizeObserver)new ResizeObserver(updateToolbarArrows).observe($('editorToolbar'));
-    $('pencilOnly').onchange=e=>{state.penOnly=e.target.checked;toast(state.penOnly?'Stylus only enabled — use fingers to pan or pinch':'Finger drawing enabled');};
+    $('pencilOnly').onchange=e=>{state.stylusPreferenceChanged=true;state.penOnly=e.target.checked;toast(state.penOnly?'Stylus input enabled — palm contacts ignored while writing':'Finger drawing enabled');};
     $('addPageSidebar').onclick=$('addPageBottom').onclick=$('addPageFloat').onclick=$('addPageTop').onclick=addPage;
     $('thumbList').onclick=e=>{const remove=e.target.closest('[data-remove-page]');if(remove){deletePage(Number(remove.dataset.removePage));return;}const thumb=e.target.closest('[data-page]');if(thumb)switchPage(Number(thumb.dataset.page));};
     $('prevPage').onclick=()=>switchPage(state.pageIndex-1);$('nextPage').onclick=()=>switchPage(state.pageIndex+1);
@@ -731,7 +847,6 @@
     $('imageFileInput').onchange=e=>{const f=e.target.files[0];if(f)importImage(f);e.target.value='';};
     $('openNotebookFile').onclick=()=>$('openNotebookInput').click();
     $('openNotebookInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)openEditableFile(file);};
-    $('backupButton').onclick=backup;$('restoreButton').onclick=()=>$('restoreFileInput').click();
     $('restoreFileInput').onchange=e=>{restore(e.target.files[0]);e.target.value='';};
     let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(state.drag?.kind==='draw')return;updateSidebar();resizePage();updateToolbarArrows();},160);});
     document.addEventListener('keydown',e=>{
@@ -746,8 +861,6 @@
     });
     document.addEventListener('visibilitychange',()=>{if(document.hidden){finishActiveStroke();saveNow(true);}});
     window.addEventListener('pagehide',()=>{finishActiveStroke();saveNow(true);});
-    window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installButton').hidden=false;});
-    $('installButton').onclick=async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;$('installButton').hidden=true;}};
   }
   async function boot(){
     initIcons();bind();setColor(COLORS[0]);updateSize();

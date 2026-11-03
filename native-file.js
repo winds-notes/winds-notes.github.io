@@ -46,13 +46,13 @@
     const pages=n.pages.map(p=>{
       check(isObject(p) && Array.isArray(p.items) && p.items.length<=50000,'Invalid notebook page');
       totalItems+=p.items.length;check(totalItems<=150000,'Notebook contains too many objects');
-      return {id:makeId(),template:PAPERS.has(p.template)?p.template:'ruled',items:p.items.map(normalizeItem)};
+      return {id:makeId(),template:PAPERS.has(p.template)?p.template:'ruled',orientation:p.orientation==='landscape'?'landscape':'portrait',items:p.items.map(normalizeItem)};
     });
     return {id:makeId(),title:str(n.title,70).trim()||'Imported notebook',cover:COVERS.has(n.cover)?n.cover:'purple',createdAt:time(n.createdAt),updatedAt:new Date().toISOString(),pages};
   }
   function serialize(notebook){
     check(isObject(notebook) && typeof notebook.title==='string' && Array.isArray(notebook.pages),'Cannot save invalid notebook');
-    return JSON.stringify({format:FORMAT,version:VERSION,application:'WiNDS Notes',exportedAt:new Date().toISOString(),pageSize:{width:840,height:1188},notebook});
+    return JSON.stringify({format:FORMAT,version:VERSION,application:'WiNDS Notes',exportedAt:new Date().toISOString(),pageSize:{portrait:{width:840,height:1188},landscape:{width:1188,height:840}},notebook});
   }
   function parse(text){
     check(typeof text==='string' && text.length>0 && text.length<=MAX_FILE_BYTES,'File is empty or too large');

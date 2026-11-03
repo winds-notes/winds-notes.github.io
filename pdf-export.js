@@ -14,7 +14,8 @@
     object(2, `<< /Type /Pages /Kids [ ${kids} ] /Count ${images.length} >>`);
     images.forEach((im, i) => {
       const pageId = 3 + i * 3, imageId = pageId + 1, contentId = pageId + 2;
-      const w = 595.28, h = 841.89;
+      const landscape=im.width>im.height;
+      const w = landscape?841.89:595.28, h = landscape?595.28:841.89;
       object(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w} ${h}] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
       object(imageId, [`<< /Type /XObject /Subtype /Image /Width ${im.width} /Height ${im.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n`, im.bytes, '\nendstream']);
       const content = `q\n${w} 0 0 ${h} 0 0 cm\n/Im0 Do\nQ\n`;
