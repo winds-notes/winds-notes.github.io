@@ -50,6 +50,8 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 **Resize images and smileys:** Import an image or insert an emoji, then choose **Select** and tap the object. Drag one of its four corner handles to resize, or use the floating **Width** control / ± buttons for exact sizing. Images preserve their aspect ratio, while smileys stay square. Shapes also support corner resizing.
 
+**Rotate images and smileys:** Choose **Select** and tap the image or smiley. Use **↶ / ↷** in its floating controls to rotate by 90°, or enter an exact **Angle**. Enter **0** to straighten it. Rotation supports undo/redo, resizing, image cropping, save/reopen and exports.
+
 **Crop images:** Choose **Select**, tap an added image and choose **Crop** in its floating controls. Drag the crop corners or enter percentages; drag inside the selection to move it. **Apply crop** updates the image; **Cancel** leaves it unchanged. **Reset → Apply crop** restores the full image. Crops support undo/redo, resizing, native files, backups, Drive workspace data and every export format. The original image is retained so you can adjust the crop later.
 
 **Zoom:** Pinch with two fingers, tap ±, or tap the **zoom percentage** for presets from 50% through 800%. Zoom is only a viewing setting and does not change the saved page dimensions.

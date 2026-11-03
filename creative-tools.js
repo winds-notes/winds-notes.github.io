@@ -29,6 +29,31 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const midpoint = (a,b) => [(a[0]+b[0])*0.5, (a[1]+b[1])*0.5];
 
+  const rotatable = item => item?.type==='image'||item?.type==='sticker';
+  function objectRotation(item) {
+    return rotatable(item)&&Number.isFinite(item.rotation)?((item.rotation%360)+360)%360:0;
+  }
+  function objectRect(item) {
+    return {x:item.x,y:item.y,w:item.type==='sticker'?(item.size||78):item.w,h:item.type==='sticker'?(item.size||78):item.h};
+  }
+  function objectPoint(item,point,inverse=false) {
+    const rotation=objectRotation(item);if(!rotation)return point;
+    const b=objectRect(item),cx=b.x+b.w/2,cy=b.y+b.h/2;
+    const angle=rotation*Math.PI/180*(inverse?-1:1),cos=Math.cos(angle),sin=Math.sin(angle);
+    const dx=point.x-cx,dy=point.y-cy;
+    return {x:cx+dx*cos-dy*sin,y:cy+dx*sin+dy*cos};
+  }
+  function rotateContext(ctx,item) {
+    const rotation=objectRotation(item);if(!rotation)return;
+    const b=objectRect(item),cx=b.x+b.w/2,cy=b.y+b.h/2;
+    ctx.translate(cx,cy);ctx.rotate(rotation*Math.PI/180);ctx.translate(-cx,-cy);
+  }
+  function positionObjectRect(original,resized) {
+    if(!objectRotation(original))return resized;
+    const b=objectRect(resized),center=objectPoint(original,{x:b.x+b.w/2,y:b.y+b.h/2});
+    return {...resized,x:center.x-b.w/2,y:center.y-b.h/2};
+  }
+
   const FULL_CROP = Object.freeze({x:0,y:0,w:1,h:1});
   function imageCrop(crop) {
     if(!crop || !['x','y','w','h'].every(k=>Number.isFinite(crop[k])))return {...FULL_CROP};
@@ -52,7 +77,7 @@
       w:fullWidth*next.w*scale,h:fullHeight*next.h*scale};
     if(next.x===0 && next.y===0 && next.w===1 && next.h===1)delete result.crop;
     else result.crop=next;
-    return result;
+    return positionObjectRect(item,result);
   }
   function drawImage(ctx,item,image) {
     const crop=imageCrop(item.crop);
@@ -228,5 +253,6 @@
   }
   return Object.freeze({PENCIL_GRADES, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade,
-    imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd});
+    imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
+    rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect});
 });

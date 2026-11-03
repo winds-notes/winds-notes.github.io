@@ -17,6 +17,12 @@
   const makeId = () => global.crypto?.randomUUID?.() || `winds-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const time = x => typeof x === 'string' && !Number.isNaN(Date.parse(x)) ? x : new Date().toISOString();
   function check(test, message){if(!test)throw new Error(message);}
+  function rotationFields(item){
+    if(item.rotation==null)return {};
+    check(typeof item.rotation==='number' && Number.isFinite(item.rotation) && Math.abs(item.rotation)<1e7,'Invalid object rotation');
+    const rotation=((item.rotation%360)+360)%360;
+    return rotation?{rotation}:{};
+  }
   function normalizeItem(item){
     check(isObject(item) && ['stroke','shape','text','image','sticker'].includes(item.type),'Unsupported or damaged page object');
     const base={id:makeId(),type:item.type};
@@ -34,14 +40,14 @@
     }
     if(item.type==='sticker'){
       check(typeof item.emoji==='string' && item.emoji.length>0 && item.emoji.length<=24,'Invalid sticker');
-      return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78)))};
+      return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78))),...rotationFields(item)};
     }
     if(item.type==='shape'){
       check(SHAPES.has(item.kind),'Invalid shape type');
       return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1))),strokeStyle:['solid','dashed','dotted','none'].includes(item.strokeStyle)?item.strokeStyle:'solid'};
     }
     check(typeof item.src==='string' && item.src.length<=50*1024*1024 && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(item.src),'Invalid embedded image');
-    const image={...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src};
+    const image={...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src,...rotationFields(item)};
     if(item.crop!=null){
       const c=item.crop;
       check(isObject(c) && ['x','y','w','h'].every(k=>Number.isFinite(c[k])) &&
