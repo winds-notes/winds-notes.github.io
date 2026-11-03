@@ -214,3 +214,8 @@
 @media(max-width:700px){.library-header-actions{margin-left:10px}.cloud-entry{font-size:11px;padding:9px 10px}.cloud-glyph{font-size:18px}.cloud-dialog{padding:26px 21px 22px}.cloud-dialog h2{font-size:23px}.emoji-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
 
 .sticker-size-control{display:flex;align-items:center;gap:9px;padding:8px 2px 10px;font-size:11px;color:#747991;font-weight:750;white-space:nowrap}.sticker-size-control input{flex:1;min-width:0;width:75px;accent-color:#6457ed}.sticker-size-control span{min-width:24px;text-align:right}
+
+/* Google account entry: clear, compact sign-in CTA for all tablet sizes. */
+.cloud-entry{border-color:#d8e2f6;color:#273e68;background:#f8fbff;font-weight:800;box-shadow:0 2px 7px rgba(34,71,118,.04)}
+.cloud-entry:hover{background:#edf5ff;border-color:#bcd0f7}
+@media(max-width:400px){.brand-mark{width:37px;height:37px}.brand-name{font-size:20px}.brand-name small{font-size:7px;letter-spacing:1.5px}.cloud-entry{gap:5px;padding:8px 7px;font-size:10px}.cloud-glyph{font-size:15px}}

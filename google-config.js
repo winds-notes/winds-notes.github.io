@@ -1,4 +1,3 @@
-/* PUBLIC browser OAuth client ID. This is not a password or secret.
- * Replace the placeholder after creating a Google Cloud Web OAuth client.
- * Authorized JavaScript origin must include your GitHub Pages origin. */
-window.WINDS_GOOGLE_CLIENT_ID = '';
+/* WiNDS Notes - public Google OAuth Web client ID.
+ * Public identifier only; no client secret, API key or OAuth token is included. */
+window.WINDS_GOOGLE_CLIENT_ID = '329919084457-rvh6k3brgmlampg1nm4c66p8joa07ffk.apps.googleusercontent.com';

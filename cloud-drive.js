@@ -24,7 +24,7 @@
     const yes=connected();
     $('cloudConnection').classList.toggle('connected',yes);
     $('cloudConnectionText').textContent=yes?`Signed in as ${profile.email}`:'Not signed in';
-    $('cloudEntryLabel').textContent=yes?profile.email:'Google Drive';
+    $('cloudEntryLabel').textContent=yes?profile.email:'Sign in with Google';
     $('googleConnect').hidden=yes;
     $('googleSwitchAccount').hidden=!yes;
     for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl','googleDisconnect'])$(id).hidden=!yes;
@@ -34,11 +34,12 @@
   }
   function open(){
     $('cloudBackdrop').hidden=false;updateUI();
-    if(!global.WINDS_GOOGLE_CLIENT_ID){
-      message('Google sign-in requires the website owner to configure google-config.js with a Google Cloud Web OAuth Client ID.',true);
-      $('googleConnect').disabled=true;
+    // Keep the sign-in action visible even before website setup. Clicking it
+    // explains the missing public client ID instead of appearing broken.
+    $('googleConnect').disabled=false;
+    if(!String(global.WINDS_GOOGLE_CLIENT_ID||'').trim()){
+      message('Google sign-in is not enabled for this website yet. The website owner must add a Web OAuth client ID to google-config.js and redeploy.',true);
     }else{
-      $('googleConnect').disabled=false;
       message(connected()?`This is ${profile.email}'s private workspace. Your notebooks sync when writing is idle.`:'Sign in to open your personal notebooks. Each Google account has its own Drive files and on-device workspace.');
     }
   }
@@ -102,7 +103,7 @@
   function connect(){
     // Initiated directly by a click, required by Google's OAuth popup.
     const clientId=String(global.WINDS_GOOGLE_CLIENT_ID||'').trim();
-    if(!clientId){message('Configure a Google OAuth Web client ID in google-config.js.',true);return;}
+    if(!clientId){message('Google sign-in is not enabled yet. Ask the website owner to configure a Google OAuth Web client ID in google-config.js and republish.',true);return;}
     if(!global.google?.accounts?.oauth2?.initTokenClient){message('Google Sign-In script is unavailable. Check the internet connection.',true);return;}
     try{
       if(!oauth){oauth=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPE,callback:connectCallback});}
