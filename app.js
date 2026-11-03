@@ -3,7 +3,8 @@
 (() => {
   'use strict';
   let W = 840, H = 1188;
-  const RENDER_SCALE = 2;
+  let RENDER_SCALE = 2;
+  const EXPORT_SCALE = 2;
   const ORIENTATIONS = Object.freeze({portrait:{width:840,height:1188},landscape:{width:1188,height:840}});
   const pageDimensions = p => ORIENTATIONS[p?.orientation==='landscape'?'landscape':'portrait'];
   function syncPageGeometry(){
@@ -68,6 +69,10 @@
   const history = new Map();
   const imageCache = new Map();
   let database = null, persistence = 'indexeddb', saving = false;
+  let workspaceId='guest';
+  let tombstones={};
+  const workspaceDatabaseName=()=>workspaceId==='guest'?'winds-notes-v2':`winds-notes-account-${workspaceId}`;
+  const workspaceLocalStorageKey=()=>workspaceId==='guest'?'winds-notes-data-v2':`winds-notes-data-${workspaceId}`;
   let dirtyAll = false, saveVersion = 0, lastInkAt = 0, thumbnailsDirty = true, thumbnailTimer = 0, inkRAF = 0, drawnIndex = 0;
   let inkComposeTimer = 0, bufferedPenInk = false, bufferedPenItems = [];
   // This log is opt-in, kept entirely on the device, and does not perform any
@@ -120,7 +125,7 @@
   // a handwriting burst as double-tap zoom. touchmove also works around older
   // Scribble interference. Leave two-finger gestures to the application's pan.
   function preventWritingGesture(e){
-    if(e.cancelable && e.touches.length<2)e.preventDefault();
+    if(e.cancelable)e.preventDefault();
   }
   const dirtyBooks = new Set(), dirtyPages = new Set();
   const now = () => new Date().toISOString();
@@ -146,7 +151,7 @@
     return new Promise(resolve=>{
       if(!window.indexedDB){persistence='localstorage';resolve();return;}
       try{
-        const req=indexedDB.open('winds-notes-v2',1);
+        const req=indexedDB.open(workspaceDatabaseName(),1);
         req.onupgradeneeded=()=>{
           const db=req.result;
           if(!db.objectStoreNames.contains('notebooks'))db.createObjectStore('notebooks',{keyPath:'id'});
@@ -177,7 +182,7 @@
   }
   function loadData(){
     if(persistence==='localstorage'){
-      try{return Promise.resolve(JSON.parse(localStorage.getItem('winds-notes-data-v2')||localStorage.getItem('folio-notes-data')));}catch(err){return Promise.resolve(null);}
+      try{return Promise.resolve(JSON.parse(localStorage.getItem(workspaceLocalStorageKey())||(workspaceId==='guest'?localStorage.getItem('folio-notes-data'):null)));}catch(err){return Promise.resolve(null);}
     }
     return new Promise(resolve=>{
       try{
@@ -185,12 +190,13 @@
         const booksReq=tx.objectStore('notebooks').getAll();
         const pagesReq=tx.objectStore('pages').getAll();
         const initializedReq=tx.objectStore('meta').get('initialized');
+        const deletionsReq=tx.objectStore('meta').get('deleted');
         tx.oncomplete=()=>{
           const books=booksReq.result||[];
-          if(!books.length){resolve(initializedReq.result?{version:2,notebooks:[]}:null);return;}
+          if(!books.length){resolve(initializedReq.result?{version:2,notebooks:[],deleted:deletionsReq.result||{}}:null);return;}
           const byId=new Map((pagesReq.result||[]).map(p=>[p.id,p]));
           const notebooks=books.map(n=>({...n,pages:(n.pages||[]).map(entry=>byId.get(typeof entry==='string'?entry:entry.id)).filter(Boolean)}));
-          resolve({version:2,notebooks});
+          resolve({version:2,notebooks,deleted:deletionsReq.result||{}});
         };
         tx.onerror=()=>resolve(null);
       }catch(err){resolve(null);}
@@ -199,13 +205,13 @@
   function metadata(n){return {...n,pages:n.pages.map(p=>({id:p.id,template:p.template,orientation:p.orientation||'portrait'}))};}
   function writeData(payload){
     if(persistence==='localstorage'){
-      localStorage.setItem('winds-notes-data-v2',JSON.stringify(payload));return Promise.resolve();
+      localStorage.setItem(workspaceLocalStorageKey(),JSON.stringify({...payload,deleted:tombstones}));return Promise.resolve();
     }
     return new Promise((resolve,reject)=>{
       try{
         const tx=database.transaction(['notebooks','pages','meta'],'readwrite');
         const books=tx.objectStore('notebooks'),pages=tx.objectStore('pages');
-        books.clear();pages.clear();tx.objectStore('meta').put(true,'initialized');
+        books.clear();pages.clear();tx.objectStore('meta').put(true,'initialized');tx.objectStore('meta').put(tombstones,'deleted');
         for(const n of payload.notebooks){books.put(metadata(n));for(const p of n.pages)pages.put({...p,notebookId:n.id});}
         tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
         tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
@@ -218,7 +224,7 @@
       try{
         const tx=database.transaction(['notebooks','pages','meta'],'readwrite');
         const books=tx.objectStore('notebooks'),pages=tx.objectStore('pages');
-        tx.objectStore('meta').put(true,'initialized');
+        tx.objectStore('meta').put(true,'initialized');tx.objectStore('meta').put(tombstones,'deleted');
         for(const id of bookIds){const n=state.notebooks.find(b=>b.id===id);if(n)books.put(metadata(n));}
         for(const id of pageIds){
           for(const n of state.notebooks){const p=n.pages.find(p=>p.id===id);if(p){pages.put({...p,notebookId:n.id});break;}}
@@ -265,6 +271,53 @@
       console.error(err);
     }finally{saving=false;}
   }
+  // Each signed-in Google identity has a dedicated local IndexedDB.
+  // The original installation remains the separate, unsigned guest workspace.
+  // Tokens and user credentials are NEVER stored in IndexedDB.
+  async function switchWorkspace(accountSub){
+    if(accountSub!==null && !/^[a-zA-Z0-9_-]{5,200}$/.test(String(accountSub)))throw new Error('Invalid Google account identifier');
+    const target=accountSub?`g-${accountSub}`:'guest';
+    if(target===workspaceId)return;
+    finishActiveStroke();composeInkNow();commitText();
+    await saveNow(true);
+    clearTimeout(state.saveTimer);clearTimeout(thumbnailTimer);clearTimeout(inkComposeTimer);
+    state.drag=null;state.draft=null;state.pinch=null;state.pointers.clear();
+    database?.close();database=null;persistence='indexeddb';workspaceId=target;
+    dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();history.clear();
+    state.activeId=null;state.pageIndex=0;state.selected=-1;
+    await storageOpen();
+    const incoming=await loadData();
+    state.notebooks=Array.isArray(incoming?.notebooks)?incoming.notebooks:[];
+    tombstones=incoming?.deleted&&typeof incoming.deleted==='object'?incoming.deleted:{};
+    statusText('Saved');
+    $('searchNotebooks').value='';view('library');renderLibrary();
+  }
+  function workspaceSnapshot(){
+    return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:clone(state.notebooks),deleted:{...tombstones}};
+  }
+  async function mergeWorkspace(snapshot){
+    if(state.drag)throw new Error('Writing resumed. Cloud synchronization will retry when idle.');
+    if(!snapshot || snapshot.format!=='winds-notes-backup' || !Array.isArray(snapshot.notebooks) || snapshot.notebooks.length>750)throw new Error('Invalid Drive workspace');
+    const remoteDeleted=snapshot.deleted&&typeof snapshot.deleted==='object'?snapshot.deleted:{};
+    const mergedDeleted={...tombstones};
+    for(const [id,when] of Object.entries(remoteDeleted))if(typeof when==='string' && (!mergedDeleted[id] || when>mergedDeleted[id]))mergedDeleted[id]=when;
+    const merged=new Map(state.notebooks.map(n=>[n.id,n]));
+    for(const n of snapshot.notebooks){
+      if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>500 || n.pages.some(p=>!Array.isArray(p.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
+      const local=merged.get(n.id);
+      if(!local || (n.updatedAt||'')>(local.updatedAt||''))merged.set(n.id,n);
+    }
+    const final=[...merged.values()].filter(n=>!(mergedDeleted[n.id] && mergedDeleted[n.id]>=(n.updatedAt||'')));
+    const hasChanges=JSON.stringify(state.notebooks)!==JSON.stringify(final) || JSON.stringify(tombstones)!==JSON.stringify(mergedDeleted);
+    if(hasChanges){
+      state.notebooks=final;tombstones=mergedDeleted;
+      dirtyAll=true;saveVersion++;await saveNow(true);
+      // Do not unexpectedly dismiss the writing page during idle cloud sync.
+      if(state.activeId && notebook()){state.pageIndex=Math.min(state.pageIndex,notebook().pages.length-1);renderEditor();}
+      else{state.activeId=null;view('library');renderLibrary();}
+    }
+    return hasChanges;
+  }
   function seed(){
     const n=makeNotebook('Welcome to WiNDS Notes','purple','dots');const p=n.pages[0];
     p.items.push({id:uid(),type:'text',x:75,y:104,w:700,size:40,color:'#454063',text:'Hello, creative mind. ✳'});
@@ -286,7 +339,7 @@
   }
   function openNotebook(id){
     const n=state.notebooks.find(x=>x.id===id);if(!n)return;
-    state.activeId=id;state.pageIndex=0;state.selected=-1;state.zoom=1;state.draft=null;
+    state.activeId=id;state.pageIndex=0;state.selected=-1;state.zoom=1;RENDER_SCALE=2;state.draft=null;
     state.sidebarOpen=false;thumbnailsDirty=true;
     view('editor');$('notebookTitle').value=n.title;
     syncPageGeometry();updateSidebar();setTool('pen');renderEditor();resizePage();requestAnimationFrame(updateToolbarArrows);
@@ -342,8 +395,8 @@
     document.querySelectorAll('[data-preview]').forEach(el=>{const i=Number(el.dataset.preview),d=pageDimensions(n.pages[i]);const ctx=el.getContext('2d');ctx.setTransform(el.width/d.width,0,0,el.height/d.height,0,0);drawPage(ctx,n.pages[i]);});
   }
   function pageBaseWidth(){const scroller=$('pageScroller');return Math.min(W,Math.max(250,scroller.clientWidth-32));}
-  function resizePage(){if($('editorView').hidden)return;syncPageGeometry();const width=Math.round(pageBaseWidth()*state.zoom);$('pageShell').style.width=`${width}px`;$('zoomValue').textContent=`${Math.round(state.zoom*100)}%`;renderCanvas();}
-  function changeZoom(amount){finishActiveStroke();state.zoom=Math.min(2.5,Math.max(.5,Math.round((state.zoom+amount)*100)/100));resizePage();}
+  function resizePage(skipRender=false){if($('editorView').hidden)return;if(!skipRender)syncPageGeometry();const width=Math.round(pageBaseWidth()*state.zoom);$('pageShell').style.width=`${width}px`;$('zoomValue').textContent=`${Math.round(state.zoom*100)}%`;if(!skipRender)renderCanvas();}
+  function changeZoom(amount){finishActiveStroke();state.zoom=Math.min(3.5,Math.max(.5,Math.round((state.zoom+amount)*100)/100));adjustInkResolution();resizePage();}
   function setOrientation(orientation){
     if(!page() || !ORIENTATIONS[orientation])return;
     finishActiveStroke();composeInkNow();commitText();
@@ -459,17 +512,58 @@
     const lines=wrapText(temp,item.text,item.w||480);
     return {lines,h:Math.max(1,lines.length)*(item.size||20)*1.42};
   }
+  // Quadratic midpoint ink: continuous rounded curves instead of visibly
+  // angular joins. The same routine is used by the live Pencil layer, local
+  // pages and exported files. Pressure is blended to prevent sudden spikes.
+  function inkWidth(item,point){
+    const pressure=Number.isFinite(point?.[2])?point[2]:.68;
+    return Math.max(.85,item.size*(.35+.65*Math.max(.1,Math.min(1,pressure))));
+  }
+  function midpoint(a,b){return [(a[0]+b[0])*.5,(a[1]+b[1])*.5];}
+  function inkLine(ctx,item,a,b,control){
+    if(control){
+      ctx.beginPath();ctx.moveTo(a[0],a[1]);
+      ctx.quadraticCurveTo(control[0],control[1],b[0],b[1]);
+    }else{ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}
+    ctx.stroke();
+  }
+  function smoothPenPart(ctx,item,points,index){
+    const n=points.length;
+    if(index===0){
+      const pt=points[0];ctx.beginPath();ctx.arc(pt[0],pt[1],inkWidth(item,pt)*.5,0,Math.PI*2);ctx.fill();return;
+    }
+    if(index===1){
+      const a=points[0],b=points[1];
+      ctx.lineWidth=(inkWidth(item,a)+inkWidth(item,b))*.5;
+      inkLine(ctx,item,a,midpoint(a,b));return;
+    }
+    const a=points[index-2],b=points[index-1],c=points[index];
+    const wa=inkWidth(item,a),wb=inkWidth(item,b),wc=inkWidth(item,c);
+    // Blend adjacent pressure samples to avoid sharp thick/thin jumps.
+    ctx.lineWidth=(wa+2*wb+wc)*.25;
+    inkLine(ctx,item,midpoint(a,b),midpoint(b,c),b);
+  }
+  function smoothPenEnd(ctx,item,points){
+    if(points.length<2)return;
+    const a=points[points.length-2],b=points[points.length-1];
+    ctx.lineWidth=(inkWidth(item,a)+inkWidth(item,b))*.5;
+    inkLine(ctx,item,midpoint(a,b),b);
+  }
   function drawStroke(ctx,item){
     const ps=item.points;if(!ps?.length)return;
-    ctx.save();ctx.strokeStyle=item.color;ctx.fillStyle=item.color;ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.save();ctx.strokeStyle=item.color;ctx.fillStyle=item.color;
+    ctx.lineCap='round';ctx.lineJoin='round';
     if(item.tool==='highlighter'){
-      ctx.globalAlpha=.27;ctx.lineWidth=Math.max(8,item.size*5.7);ctx.beginPath();ctx.moveTo(ps[0][0],ps[0][1]);for(let i=1;i<ps.length;i++)ctx.lineTo(ps[i][0],ps[i][1]);if(ps.length===1){ctx.arc(ps[0][0],ps[0][1],ctx.lineWidth/2,0,Math.PI*2);ctx.fill();}else ctx.stroke();
-    }else{
-      if(ps.length===1){ctx.beginPath();ctx.arc(ps[0][0],ps[0][1],Math.max(.5,item.size*(ps[0][2]||.65)*.5),0,Math.PI*2);ctx.fill();}
-      else for(let i=1;i<ps.length;i++){
-        const a=ps[i-1],b=ps[i];ctx.lineWidth=Math.max(.85,item.size*(.35+.65*((a[2]+b[2])/2||.7)));
-        ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
+      ctx.globalAlpha=.27;ctx.lineWidth=Math.max(8,item.size*5.7);
+      ctx.beginPath();ctx.moveTo(ps[0][0],ps[0][1]);
+      if(ps.length===1){ctx.arc(ps[0][0],ps[0][1],ctx.lineWidth/2,0,Math.PI*2);ctx.fill();}
+      else{
+        for(let i=1;i<ps.length-1;i++){const m=midpoint(ps[i],ps[i+1]);ctx.quadraticCurveTo(ps[i][0],ps[i][1],m[0],m[1]);}
+        const end=ps[ps.length-1];ctx.lineTo(end[0],end[1]);ctx.stroke();
       }
+    }else{
+      for(let i=0;i<ps.length;i++)smoothPenPart(ctx,item,ps,i);
+      smoothPenEnd(ctx,item,ps);
     }
     ctx.restore();
   }
@@ -552,16 +646,20 @@
     const it=page()?.items[state.selected];if(!it)return;
     const b=itemBounds(it);ctx.save();ctx.strokeStyle='#6557ed';ctx.lineWidth=1.7;ctx.setLineDash([8,6]);ctx.strokeRect(b.x-8,b.y-8,b.w+16,b.h+16);ctx.restore();
   }
-  function paintPendingInk(){
-    inkRAF=0;const ctx=inkContext(),item=state.draft;
+  function paintPendingInk(finalize=false){
+    inkRAF=0;
+    const ctx=inkContext(),item=state.draft;
     if(!item){drawSelection(ctx);return;}
-    if(item.type!=='stroke' || item.tool==='highlighter'){
+    if(item.type!=='stroke'||item.tool==='highlighter'){
       ctx.clearRect(0,0,W,H);drawItem(ctx,item);drawSelection(ctx);return;
     }
     const pts=item.points;
-    if(drawnIndex===0 && pts.length===1){drawStroke(ctx,{...item,points:[pts[0]]});drawnIndex=1;return;}
-    for(let i=Math.max(1,drawnIndex);i<pts.length;i++)drawStroke(ctx,{...item,points:[pts[i-1],pts[i]]});
+    ctx.save();ctx.strokeStyle=item.color;ctx.fillStyle=item.color;
+    ctx.lineCap='round';ctx.lineJoin='round';
+    for(let i=drawnIndex;i<pts.length;i++)smoothPenPart(ctx,item,pts,i);
     drawnIndex=pts.length;
+    if(finalize)smoothPenEnd(ctx,item,pts);
+    ctx.restore();
   }
   function queueInk(){if(!inkRAF)inkRAF=requestAnimationFrame(paintPendingInk);}
   function renderCanvas(){
@@ -579,8 +677,8 @@
     if(state.selected>=0)drawSelection(inkContext());
   }
   function renderExportCanvas(p){
-    const canvas=document.createElement('canvas');const dims=pageDimensions(p);canvas.width=dims.width*RENDER_SCALE;canvas.height=dims.height*RENDER_SCALE;
-    const ctx=canvas.getContext('2d',{alpha:false});ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);drawPage(ctx,p,true);return canvas;
+    const canvas=document.createElement('canvas');const dims=pageDimensions(p);canvas.width=dims.width*EXPORT_SCALE;canvas.height=dims.height*EXPORT_SCALE;
+    const ctx=canvas.getContext('2d',{alpha:false});ctx.setTransform(EXPORT_SCALE,0,0,EXPORT_SCALE,0,0);drawPage(ctx,p,true);return canvas;
   }
   function itemBounds(item){
     if(item.type==='stroke'){
@@ -607,7 +705,35 @@
   function hitTest(x,y,eraser=false){const items=page()?.items||[];for(let i=items.length-1;i>=0;i--)if(nearItem(items[i],x,y,eraser))return i;return -1;}
   function point(ev,rect=state.drag?.rect){rect=rect||$('inkCanvas').getBoundingClientRect();return{x:(ev.clientX-rect.left)/rect.width*W,y:(ev.clientY-rect.top)/rect.height*H,p:ev.pointerType==='pen'&&ev.pressure>0?ev.pressure:.68};}
   function clampPoint(p){return{x:Math.max(0,Math.min(W,p.x)),y:Math.max(0,Math.min(H,p.y)),p:p.p};}
-  function appendPoint(stroke,p){const arr=stroke.points;const prev=arr[arr.length-1];if(!prev||Math.hypot(prev[0]-p.x,prev[1]-p.y)>1)arr.push([p.x,p.y,p.p]);}
+  function appendPoint(stroke,p){const arr=stroke.points,prev=arr[arr.length-1];if(!prev){arr.push([p.x,p.y,p.p]);return;}const d=Math.hypot(prev[0]-p.x,prev[1]-p.y);if(d>=.55){const pressure=Math.max(.12,Math.min(1,prev[2]*.58+p.p*.42));arr.push([p.x,p.y,pressure]);}else if(d>.03){prev[2]=prev[2]*.72+p.p*.28;}}
+  let pinchRAF=0;
+  function queuePinchFrame(){
+    if(pinchRAF)return;
+    pinchRAF=requestAnimationFrame(()=>{
+      pinchRAF=0;const pinch=state.pinch;
+      if(!pinch?.next||!page())return;
+      const {zoom,center}=pinch.next;
+      state.zoom=zoom;
+      // Transform only the CSS page width. The high-resolution ink canvas
+      // is not re-rendered every time a finger moves.
+      resizePage(true);
+      const rect=$('pageShell').getBoundingClientRect();
+      const scroller=$('pageScroller');
+      scroller.scrollLeft+=rect.left+rect.width*pinch.anchorX-center.x;
+      scroller.scrollTop+=rect.top+rect.height*pinch.anchorY-center.y;
+    });
+  }
+  function endPinch(){
+    if(pinchRAF){cancelAnimationFrame(pinchRAF);pinchRAF=0;}
+    state.pinch=null;state.drag=null;
+    // Redraw vector strokes once, AFTER the gesture (never per finger move).
+    if(adjustInkResolution())renderCanvas();
+  }
+  function adjustInkResolution(){
+    const next=state.zoom>=1.6?2.75:2;
+    if(Math.abs(RENDER_SCALE-next)<.1)return false;
+    RENDER_SCALE=next;return true;
+  }
   function pointerDown(ev){
     if(!page()||state.editingText)return;
     if(ev.pointerType==='mouse' && ev.button!==0)return;
@@ -636,30 +762,37 @@
       state.pointers.clear();
     }
     const sincePencil=Date.now()-state.lastPenAt;
-    // Palm rejection does not create gesture state or capture the ignored touch.
-    if(ev.pointerType==='touch' && sincePencil<PALM_GUARD_MS)return;
-    const rect=$('inkCanvas').getBoundingClientRect();
-    const p=clampPoint(point(ev,rect));
     if(ev.pointerType==='touch'){
-      if(state.penOnly){
-        // A finger can pan after the Pencil has been lifted for a while. Any
-        // subsequent Pencil down preempts the pan immediately.
-        state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
-        if(state.pointers.size===2){
-          const values=[...state.pointers.values()];
-          state.pinch={distance:Math.hypot(values[0].x-values[1].x,values[0].y-values[1].y),zoom:state.zoom};
-          state.drag=null;
-        }else if(state.pointers.size===1 && !state.drag){
-          state.drag={kind:'pan',pointerId:ev.pointerId,pointerType:'touch',lastX:ev.clientX,lastY:ev.clientY};
+      // Track two contacts even when finger drawing is enabled. The former
+      // implementation restricted zoom to the Stylus-only toggle.
+      state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+      if(state.pointers.size===2 && state.drag?.pointerType!=='pen'){
+        const contacts=[...state.pointers.values()];
+        const center={x:(contacts[0].x+contacts[1].x)/2,y:(contacts[0].y+contacts[1].y)/2};
+        const rect=$('pageShell').getBoundingClientRect();
+        const distance=Math.max(12,Math.hypot(contacts[0].x-contacts[1].x,contacts[0].y-contacts[1].y));
+        // Remove accidental finger ink as the second finger establishes zoom.
+        if(state.drag?.pointerType==='touch'){
+          state.drag=null;state.draft=null;
+          $('pageShell').classList.remove('is-handdrawing');
+          renderCanvas();
         }
-        try{ev.currentTarget.setPointerCapture(ev.pointerId);}catch(err){}
+        state.pinch={distance,zoom:state.zoom,anchorX:(center.x-rect.left)/rect.width,anchorY:(center.y-rect.top)/rect.height};
+        for(const id of state.pointers.keys())try{ev.currentTarget.setPointerCapture(id);}catch{}
         if(ev.cancelable)ev.preventDefault();return;
       }
-      // Finger drawing is available for devices without a stylus.
-      // Reject secondary contacts so a palm cannot replace a live stroke.
-      if(state.drag||state.pointers.size)return;
-      state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
+      if(state.pinch){if(ev.cancelable)ev.preventDefault();return;}
+      if(state.drag || state.pointers.size!==1)return;
+      // A single palm contact after Pencil input must never begin a stroke.
+      if(sincePencil<PALM_GUARD_MS){if(ev.cancelable)ev.preventDefault();return;}
+      if(state.penOnly){
+        state.drag={kind:'pan',pointerId:ev.pointerId,pointerType:'touch',lastX:ev.clientX,lastY:ev.clientY};
+        try{ev.currentTarget.setPointerCapture(ev.pointerId);}catch{}
+        if(ev.cancelable)ev.preventDefault();return;
+      }
     }
+    const rect=$('inkCanvas').getBoundingClientRect();
+    const p=clampPoint(point(ev,rect));
     if(state.drag || state.pinch || (state.penOnly && ev.pointerType!=='pen'))return;
     if(ev.cancelable)ev.preventDefault();
     if(state.tool==='text'){
@@ -699,11 +832,13 @@
          !state.editingText && page())pointerDown(ev);
     }
     if(ev.pointerType==='touch'&&state.pointers.has(ev.pointerId))state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
-    if(state.pinch && state.penOnly){
+    if(state.pinch){
       if(state.pointers.size>=2){
-        const v=[...state.pointers.values()],d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y);
-        state.zoom=Math.max(.5,Math.min(2.5,state.pinch.zoom*d/Math.max(1,state.pinch.distance)));
-        resizePage();
+        const contacts=[...state.pointers.values()];
+        const distance=Math.max(12,Math.hypot(contacts[0].x-contacts[1].x,contacts[0].y-contacts[1].y));
+        const center={x:(contacts[0].x+contacts[1].x)/2,y:(contacts[0].y+contacts[1].y)/2};
+        state.pinch.next={zoom:Math.max(.5,Math.min(3.5,state.pinch.zoom*distance/state.pinch.distance)),center};
+        queuePinchFrame();
       }
       if(ev.cancelable)ev.preventDefault();return;
     }
@@ -738,7 +873,7 @@
   function queueBaseRefresh(){if(!baseRefreshRAF)baseRefreshRAF=requestAnimationFrame(()=>{baseRefreshRAF=0;renderCanvas();});}
   function finishPointer(ev,cancelled=false){
     state.pointers.delete(ev.pointerId);
-    if(state.pinch){if(state.pointers.size<2){state.pinch=null;state.drag=null;}return;}
+    if(state.pinch){if(state.pointers.size<2){endPinch();state.pointers.clear();}return;}
     if(!state.drag||state.drag.pointerId!==ev.pointerId)return;
     if(state.drag.kind==='draw'&&state.draft){
       if(!cancelled && Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY)){
@@ -753,7 +888,7 @@
         rememberAppend(item);page().items.push(item);
         if(item.type==='stroke'&&item.tool==='pen'){
           if(inkRAF){cancelAnimationFrame(inkRAF);inkRAF=0;}
-          paintPendingInk();
+          paintPendingInk(true);
           state.draft=null;
           bufferedPenItems.push(item);scheduleInkComposition();
         }else{
@@ -891,7 +1026,7 @@
     const title=$('newNotebookTitle').value.trim()||'Untitled notebook';const cover=document.querySelector('.cover-choice.active')?.dataset.cover||'purple';
     const n=makeNotebook(title,cover,$('newPaperStyle').value,$('newPageOrientation').value);state.notebooks.push(n);scheduleSave(true);hideModal();openNotebook(n.id);toast('Your notebook is ready');
   }
-  function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast('Notebook deleted');}
+  function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=now();state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast('Notebook deleted');}
   function closeMenus(){
     ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu'].forEach(id=>$(id).hidden=true);
     [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
@@ -972,7 +1107,8 @@
     // Events, not just PointerEvents. Without this, consecutive Apple Pencil
     // contacts can be silently consumed by WebKit's double-tap recognizer.
     const ink=$('inkCanvas');
-    for(const type of ['touchstart','touchmove','touchend'])ink.addEventListener(type,preventWritingGesture,{passive:false,capture:false});
+    for(const type of ['touchstart','touchmove','touchend','touchcancel'])ink.addEventListener(type,preventWritingGesture,{passive:false,capture:false});
+    for(const type of ['gesturestart','gesturechange','gestureend'])$('pageScroller').addEventListener(type,e=>{if(e.cancelable)e.preventDefault();},{passive:false});
     ink.addEventListener('pointerdown',pointerDown);ink.addEventListener('pointermove',pointerMove);
     ink.addEventListener('pointerup',pointerUp);ink.addEventListener('pointercancel',pointerCancel);
     for(const type of ['pointerdown','pointermove','pointerup','pointercancel','touchstart','touchmove','touchend'])
@@ -1006,12 +1142,15 @@
   async function boot(){
     initIcons();bind();setColor(COLORS[0]);updateSize();
     await storageOpen();const stored=await loadData();
-    if(stored && Array.isArray(stored.notebooks))state.notebooks=stored.notebooks;
+    if(stored && Array.isArray(stored.notebooks)){state.notebooks=stored.notebooks;tombstones=stored.deleted||{};}
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
     renderLibrary();view('library');
     window.WindsDrive?.init({
-      getData:()=>({format:'winds-notes-backup',version:1,exportedAt:now(),notebooks:clone(state.notebooks)}),
+      getData:workspaceSnapshot,
+      switchWorkspace,
+      mergeWorkspace,
       isWriting:()=>Boolean(state.drag || Date.now()-lastInkAt<45000),
+      isDrawingNow:()=>Boolean(state.drag),
       importData:async text=>{
         if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
         const parsed=window.WindsFile.parse(text);

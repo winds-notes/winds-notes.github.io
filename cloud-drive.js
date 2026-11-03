@@ -1,234 +1,281 @@
-/* WiNDS Notes: optional, per-user Google Drive backup for static GitHub Pages.
- * OAuth access tokens live only in memory; no passwords or client secret here.
- * The writing path never calls this module. Data is uploaded only when the
- * owner explicitly requests it or opts in to occasional idle backups.
+/* WiNDS Notes · Google Drive per-account workspace.
+ * Static-hosted OAuth with Google Identity Services. One public OAuth client ID
+ * serves all users, but the OAuth access token grants access ONLY to the
+ * user's own Google Drive files. Passwords and OAuth tokens are never stored.
+ * Live handwriting never calls this module or waits for the network.
  */
-(function (global) {
+(function(global){
   'use strict';
-  const SCOPE = 'https://www.googleapis.com/auth/drive.file';
-  const API = 'https://www.googleapis.com/drive/v3/files';
-  const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
-  const AUTO_DELAY_MS = 120000;             // another 2 minutes beyond local save
-  const AUTO_MIN_INTERVAL_MS = 10*60000;   // cap at one automatic backup per 10 minutes
-  const MAX_BACKUP_BYTES = 100*1024*1024;
-  const $ = id => document.getElementById(id);
-  let bridge = null;
-  let tokenClient = null;
-  let accessToken = null;
-  let expiresAt = 0;
-  let pendingTimer = 0;
-  let busy = false;
-  let lastAutoTime = 0;
-  let autoEnabled = false;
-  let localChangeVersion = 0;
-  let lastUploadedVersion = -1;
-  let deviceId = '';
-  function currentToken(){return accessToken && Date.now() < expiresAt-30000;}
-  function message(text, error=false){const el=$('cloudMessage');if(!el)return;el.textContent=text;el.classList.toggle('error',error);}
+  const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
+  const API='https://www.googleapis.com/drive/v3/files';
+  const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
+  const WORKSPACE_NAME='WiNDS Notes Workspace.json';
+  const AUTO_DELAY_MS=8000;
+  const AUTO_RETRY_MS=45000;
+  const MAX_BYTES=100*1024*1024;
+  const $=id=>document.getElementById(id);
+  let bridge=null,oauth=null,token=null,expires=0,profile=null,activeId=null;
+  let syncing=false,signingIn=false,generation=0,timer=0,lastSync=0;
+  let auto=true,localVersion=0,lastSyncedVersion=-1,deviceId='';
+  const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
+  const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
+  function message(value,error=false){const el=$('cloudMessage');if(el){el.textContent=value;el.classList.toggle('error',error);}}
   function updateUI(){
-    const connected=Boolean(currentToken());
-    $('cloudConnection').classList.toggle('connected',connected);
-    $('cloudConnectionText').textContent=connected?'Google Drive connected · this session':'Not connected';
-    $('cloudEntryLabel').textContent=connected?'Drive connected':'Google Drive';
-    $('googleConnect').hidden=connected;
-    $('googleConnect').textContent=accessToken && !connected?'Reconnect Google Drive':'Connect Google Drive';
-    for(const id of ['googleBackup','googleRestore','cloudAutoControl','googleDisconnect'])$(id).hidden=!connected;
-    $('cloudAutoBackup').checked=autoEnabled;
-    if(!connected){$('cloudBackupList').hidden=true;clearTimeout(pendingTimer);}
+    const yes=connected();
+    $('cloudConnection').classList.toggle('connected',yes);
+    $('cloudConnectionText').textContent=yes?`Signed in as ${profile.email}`:'Not signed in';
+    $('cloudEntryLabel').textContent=yes?profile.email:'Google Drive';
+    $('googleConnect').hidden=yes;
+    $('googleSwitchAccount').hidden=!yes;
+    for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl','googleDisconnect'])$(id).hidden=!yes;
+    $('googleSync').disabled=syncing;
+    $('cloudAutoBackup').checked=auto;
+    if(!yes){$('cloudBackupList').hidden=true;clearTimeout(timer);}
   }
   function open(){
-    $('cloudBackdrop').hidden=false;
-    updateUI();
+    $('cloudBackdrop').hidden=false;updateUI();
     if(!global.WINDS_GOOGLE_CLIENT_ID){
-      message('Google Drive needs one-time setup by the website owner. Add your Web OAuth Client ID to google-config.js and authorize this GitHub Pages domain.',true);
+      message('Google sign-in requires the website owner to configure google-config.js with a Google Cloud Web OAuth Client ID.',true);
       $('googleConnect').disabled=true;
     }else{
       $('googleConnect').disabled=false;
-      message(currentToken()?'Connected. Back up all your notebooks or restore copies from Drive.':'Sign in only when you want to back up or restore. Local writing always works without Google.');
+      message(connected()?`This is ${profile.email}'s private workspace. Your notebooks sync when writing is idle.`:'Sign in to open your personal notebooks. Each Google account has its own Drive files and on-device workspace.');
     }
   }
   function close(){$('cloudBackdrop').hidden=true;}
-  function connect(){
-    // Called synchronously from a real click: Google requires user activation.
-    const clientId=String(global.WINDS_GOOGLE_CLIENT_ID||'').trim();
-    if(!clientId){message('The website owner must enter a Google OAuth Client ID in google-config.js.',true);return;}
-    if(!global.google?.accounts?.oauth2?.initTokenClient){message('Google sign-in is not ready. Check your internet connection and try again.',true);return;}
-    try{
-      if(!tokenClient){
-        tokenClient=google.accounts.oauth2.initTokenClient({
-          client_id:clientId,
-          scope:SCOPE,
-          callback:result=>{
-            if(result.error||!result.access_token){message('Google sign-in was not completed. Please try again.',true);return;}
-            if(!google.accounts.oauth2.hasGrantedAllScopes(result,SCOPE)){message('Google Drive permission was not granted.',true);return;}
-            accessToken=result.access_token;
-            expiresAt=Date.now()+(Math.max(60,Number(result.expires_in)||3600)*1000);
-            message('Connected! Your notes are still local until you select Back up or enable automatic backup.');
-            updateUI();
-          }
-        });
-      }
-      tokenClient.requestAccessToken({prompt:''});
-    }catch(err){console.error('WiNDS Google OAuth:',err);message('Could not open Google sign-in. Check that the authorized origin matches this website.',true);}
+  function ensureSession(expected){
+    if(expected!==generation||!connected())throw new Error('Account changed or Google sign-in expired. Please reconnect.');
   }
-  async function request(url, options={}){
-    if(!currentToken()){
-      updateUI();
-      throw new Error('Google session expired. Choose Reconnect Google Drive and try again.');
-    }
-    const headers = new Headers(options.headers||{});
-    headers.set('Authorization','Bearer '+accessToken);
+  async function driveRequest(url,options={},expected=generation){
+    ensureSession(expected);
+    const headers=new Headers(options.headers||{});
+    headers.set('Authorization',`Bearer ${token}`);
     const response=await fetch(url,{...options,headers});
+    ensureSession(expected);
     if(!response.ok){
-      let reason='';try{const data=await response.json();reason=data?.error?.message||'';}catch{}
-      if(response.status===401){accessToken=null;updateUI();}
-      throw new Error(`Google Drive error ${response.status}${reason?': '+reason:''}`);
+      let reason='';try{const error=await response.json();reason=error.error?.message||'';}catch{}
+      if(response.status===401){expires=0;updateUI();}
+      throw new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
     }
     return response;
   }
-  function nameFor(automatic){
-    const d=new Date().toISOString().replace(/[:.]/g,'-');
-    return automatic?`WiNDS Notes Auto ${deviceId}.json`:`WiNDS Notes Backup ${d}.json`;
+  async function getProfile(accessToken){
+    const response=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{
+      headers:{Authorization:`Bearer ${accessToken}`}
+    });
+    if(!response.ok)throw new Error('Could not verify your Google identity. Check that Google Identity scopes are enabled.');
+    const user=await response.json();
+    if(!/^[0-9]{5,30}$/.test(String(user.sub||''))||!user.email||user.email_verified!==true)throw new Error('Google account identity was not verified.');
+    return {sub:String(user.sub),email:String(user.email),name:String(user.name||user.email)};
   }
-  async function listFiles(){
-    // Only app-created files are visible with drive.file; appProperties provides
-    // a second filter to prevent picking up unrelated JSON files.
-    const q="trashed = false and appProperties has { key='windsNotesBackup' and value='1' }";
-    let next='';const files=[];
+  async function connectCallback(result){
+    if(!result||result.error||!result.access_token){message('Google sign-in was cancelled or incomplete.',true);return;}
+    const nextGeneration=++generation;
+    signingIn=true;clearTimeout(timer);
+    const newToken=result.access_token;
+    const newExpires=Date.now()+Math.max(60,Number(result.expires_in)||3600)*1000;
+    try{
+      message('Verifying your Google account…');
+      const identity=await getProfile(newToken);
+      if(nextGeneration!==generation)return;
+      // No account workspace is opened until we know the verified Google ID.
+      // Save and close the previous account first, then load the new one.
+      token=newToken;expires=newExpires;profile=identity;activeId=null;
+      try{auto=localStorage.getItem(`winds-drive-auto-${identity.sub}`)!=='false';}catch{auto=true;}
+      message(`Opening ${identity.email}'s personal notebooks…`);
+      await bridge.switchWorkspace(identity.sub);
+      if(nextGeneration!==generation)return;
+      updateUI();
+      await refreshFromDrive(nextGeneration);
+      if(nextGeneration!==generation)return;
+      message(`Connected to ${identity.email}. Notebook changes sync to this Google account when idle.`);
+      localVersion++;schedule();
+    }catch(err){
+      console.error('WiNDS sign-in:',err);
+      if(nextGeneration===generation){
+        token=null;expires=0;profile=null;activeId=null;
+        await bridge.switchWorkspace(null).catch(()=>{});
+        message(err.message||'Could not open this Google account.',true);updateUI();
+      }
+    }finally{signingIn=false;updateUI();}
+  }
+  function connect(){
+    // Initiated directly by a click, required by Google's OAuth popup.
+    const clientId=String(global.WINDS_GOOGLE_CLIENT_ID||'').trim();
+    if(!clientId){message('Configure a Google OAuth Web client ID in google-config.js.',true);return;}
+    if(!global.google?.accounts?.oauth2?.initTokenClient){message('Google Sign-In script is unavailable. Check the internet connection.',true);return;}
+    try{
+      if(!oauth){oauth=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPE,callback:connectCallback});}
+      oauth.requestAccessToken({prompt:'select_account'});
+    }catch(err){console.error(err);message('Unable to open Google authorization. Check the OAuth authorized JavaScript origin.',true);}
+  }
+  async function listFiles(expected=generation){
+    const found=[];let next='';
     do{
+      const q="trashed = false and (appProperties has {key='windsNotesWorkspace' and value='1'} or appProperties has {key='windsNotesBackup' and value='1'})";
       const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,size,appProperties)',pageSize:'100',orderBy:'modifiedTime desc'});
       if(next)params.set('pageToken',next);
-      const data=await (await request(API+'?'+params.toString())).json();
-      files.push(...(data.files||[]).filter(f=>f.name?.startsWith('WiNDS Notes') && f.mimeType==='application/json'));
-      next=data.nextPageToken||'';
-    }while(next && files.length<500);
-    return files;
+      const response=await driveRequest(`${API}?${params}`,{},expected);
+      const data=await response.json();found.push(...(data.files||[]));next=data.nextPageToken||'';
+    }while(next&&found.length<500);
+    return found;
   }
-  async function uploadFile(name,text,existingId){
-    const bytes=new Blob([text],{type:'application/json'});
-    if(bytes.size>MAX_BACKUP_BYTES)throw new Error('Cloud backup exceeds 100 MB. Export notebooks to .winds-notes files instead.');
-    const metadata={name,mimeType:'application/json',appProperties:{windsNotesBackup:'1',deviceId}};
-    const create=!existingId;
-    const target=UPLOAD+(existingId?'/'+encodeURIComponent(existingId):'');
-    if(bytes.size<=5*1024*1024){
-      // Multipart REST upload: one request, correct metadata, user-visible file.
+  async function fetchWorkspace(fileId,expected=generation){
+    const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}?alt=media`,{},expected);
+    const length=Number(response.headers.get('content-length')||0);
+    if(length>MAX_BYTES)throw new Error('This Google Drive workspace is too large to open safely.');
+    const text=await response.text();ensureSession(expected);
+    if(text.length>MAX_BYTES)throw new Error('The Drive workspace exceeds the 100 MB safety limit.');
+    const data=JSON.parse(text);
+    if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
+    return data;
+  }
+  async function refreshFromDrive(expected=generation){
+    const files=await listFiles(expected);
+    const workspace=files.find(f=>f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME);
+    activeId=workspace?.id||null;
+    if(workspace){
+      const data=await fetchWorkspace(workspace.id,expected);
+      ensureSession(expected);
+      await bridge.mergeWorkspace(data);
+    }
+    return workspace;
+  }
+  async function upload(name,content,oldId,properties,expected=generation){
+    const blob=new Blob([content],{type:'application/json'});
+    if(blob.size>MAX_BYTES)throw new Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
+    const metadata={name,mimeType:'application/json',appProperties:properties};
+    const target=UPLOAD+(oldId?'/'+encodeURIComponent(oldId):'');
+    let result;
+    if(blob.size<=5*1024*1024){
       const boundary='winds_'+Math.random().toString(36).slice(2);
       const body=new Blob([
         `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
-        `--${boundary}\r\nContent-Type: application/json\r\n\r\n`,bytes,
+        `--${boundary}\r\nContent-Type: application/json\r\n\r\n`,blob,
         `\r\n--${boundary}--\r\n`
       ],{type:`multipart/related; boundary=${boundary}`});
-      const res=await request(target+'?uploadType=multipart&fields=id,name,modifiedTime',{
-        method:create?'POST':'PATCH',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body
-      });
-      return res.json();
+      result=await driveRequest(target+'?uploadType=multipart&fields=id,name,modifiedTime',{
+        method:oldId?'PATCH':'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body
+      },expected);
+    }else{
+      const init=await driveRequest(target+'?uploadType=resumable&fields=id,name,modifiedTime',{
+        method:oldId?'PATCH':'POST',
+        headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(blob.size)},
+        body:JSON.stringify(metadata)
+      },expected);
+      const location=init.headers.get('Location');
+      if(!location||!location.startsWith('https://www.googleapis.com/'))throw new Error('Drive did not provide an authorized upload URL.');
+      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':'application/json'},body:blob},expected);
     }
-    // Drive's resumable upload is recommended for larger media and iPad networks.
-    const init=await request(target+'?uploadType=resumable&fields=id,name,modifiedTime',{
-      method:create?'POST':'PATCH',
-      headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(bytes.size)},
-      body:JSON.stringify(metadata)
-    });
-    const location=init.headers.get('Location');
-    if(!location||!location.startsWith('https://www.googleapis.com/'))throw new Error('Drive did not provide an upload location. Try a smaller notebook or export locally.');
-    const finished=await request(location,{method:'PUT',headers:{'Content-Type':'application/json'},body:bytes});
-    return finished.json();
+    return result.json();
   }
-  async function save(automatic=false){
-    if(busy)return;
-    if(automatic && (bridge.isWriting() || !currentToken() || !autoEnabled))return;
-    busy=true;
-    $('googleBackup').disabled=true;
+  async function sync(manual=false){
+    if(syncing||signingIn||!connected())return;
+    if(!manual && !auto)return;
+    if(bridge.isDrawingNow()){if(manual)message('Finish the current stroke, then select Sync now.',true);else schedule(AUTO_RETRY_MS);return;}
+    if(!manual && bridge.isWriting()){schedule(AUTO_RETRY_MS);return;}
+    const expected=generation;
+    syncing=true;updateUI();
+    if(manual)message('Synchronizing this account’s notebooks with Google Drive…');
     try{
-      if(!automatic)message('Preparing a copy of your notebooks…');
+      // Re-read latest Drive state before writing so another device's newly
+      // created notebooks are not inadvertently overwritten.
+      await refreshFromDrive(expected);
+      ensureSession(expected);
       const snapshot=bridge.getData();
-      if(!snapshot.notebooks.length)throw new Error('No notebooks to back up yet.');
-      const serialized=JSON.stringify(snapshot);
-      if(automatic){
-        const all=await listFiles();
-        const old=all.find(f=>f.name===nameFor(true));
-        // A unique per-browser file avoids one device silently replacing another's backup.
-        await uploadFile(nameFor(true),serialized,old?.id);
-        lastAutoTime=Date.now();lastUploadedVersion=localChangeVersion;
-      }else{
-        // Manual backups create dated restore points, rather than overwriting older copies.
-        await uploadFile(nameFor(false),serialized);
-        lastUploadedVersion=localChangeVersion;
+      if(!snapshot.notebooks.length&&!Object.keys(snapshot.deleted||{}).length){
+        if(manual)message('There are no notebooks to sync in this account.');
+        return;
       }
-      if(!$('cloudBackdrop').hidden)message(`Saved ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to your Google Drive.`);
-      if(!automatic)bridge.toast('Google Drive backup saved');
-    }catch(err){console.error('WiNDS Drive backup:',err);message(err?.message||'Could not back up to Google Drive.',true);if(!automatic)bridge.toast('Drive backup failed; your local notes are unchanged');}
-    finally{busy=false;$('googleBackup').disabled=false;updateUI();}
+      const versionAtStart=localVersion;
+      const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected);
+      ensureSession(expected);
+      activeId=created.id;
+      lastSync=Date.now();lastSyncedVersion=versionAtStart;
+      if(manual){message(`Synced ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
+    }catch(err){
+      console.error('WiNDS Drive sync:',err);
+      if(expected===generation){message(err.message||'Sync failed. Local notes are safe; reconnect to retry.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
+    }finally{syncing=false;updateUI();if(expected===generation&&lastSyncedVersion!==localVersion&&auto)schedule(AUTO_RETRY_MS);}
+  }
+  function schedule(delay=AUTO_DELAY_MS){
+    clearTimeout(timer);
+    if(!connected()||!auto||signingIn||lastSyncedVersion===localVersion)return;
+    timer=setTimeout(()=>sync(false),delay);
+  }
+  function onLocalSave(){
+    if(!connected()||signingIn)return;
+    localVersion++;schedule();
+  }
+  function backupName(){return `WiNDS Notes Backup ${new Date().toISOString().replace(/[:.]/g,'-')}.json`;}
+  async function backup(){
+    if(!connected()||syncing)return;
+    const expected=generation;syncing=true;$('googleBackup').disabled=true;
+    try{
+      message('Creating a dated backup in your own Google Drive…');
+      const data=JSON.stringify(bridge.getData());
+      const result=await upload(backupName(),data,null,{windsNotesBackup:'1',deviceId},expected);
+      ensureSession(expected);message(`Backup “${result.name}” saved in ${profile.email}'s Drive.`);bridge.toast('Dated Google Drive backup saved');
+    }catch(err){console.error(err);message(err.message||'Google Drive backup failed.',true);}
+    finally{syncing=false;$('googleBackup').disabled=false;updateUI();}
   }
   async function browse(){
-    if(busy)return;
-    busy=true;$('googleRestore').disabled=true;
+    if(!connected()||syncing)return;
+    const expected=generation;syncing=true;$('googleRestore').disabled=true;
     try{
-      message('Finding WiNDS Notes backups in your Google Drive…');
-      const files=await listFiles();
-      const list=$('cloudBackupList');list.innerHTML='';
-      if(!files.length){list.textContent='No WiNDS Notes backups were found for this Google account.';list.hidden=false;message('Create a backup first to see it here.');return;}
+      message('Finding this Google account’s notebook backups…');
+      const files=(await listFiles(expected)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
+      const list=$('cloudBackupList');list.replaceChildren();
+      if(!files.length){list.textContent='No dated backups in this account yet.';list.hidden=false;return;}
       for(const file of files){
         const row=document.createElement('div');row.className='cloud-backup-item';
-        const name=document.createElement('div');name.textContent=file.name;
-        const small=document.createElement('small');small.textContent=file.modifiedTime?new Date(file.modifiedTime).toLocaleString():'';
-        name.appendChild(small);
-        const button=document.createElement('button');button.type='button';button.textContent='Import';
-        button.onclick=()=>restoreFrom(file.id,file.name);
-        row.append(name,button);list.appendChild(row);
+        const title=document.createElement('div');title.textContent=file.name;
+        const time=document.createElement('small');time.textContent=file.modifiedTime?new Date(file.modifiedTime).toLocaleString():'';title.appendChild(time);
+        const button=document.createElement('button');button.textContent='Import copy';button.type='button';button.onclick=()=>restore(file.id,file.name);
+        row.append(title,button);list.appendChild(row);
       }
-      list.hidden=false;message(`${files.length} available backup${files.length===1?'':'s'}. Import creates copies, leaving current notebooks untouched.`);
-    }catch(err){console.error(err);message(err.message||'Could not list Google Drive backups.',true);}
-    finally{busy=false;$('googleRestore').disabled=false;}
+      list.hidden=false;message(`Found ${files.length} dated backup(s). Import creates separate notebooks.`);
+    }catch(err){if(expected===generation)message(err.message||'Could not load backups.',true);}
+    finally{syncing=false;$('googleRestore').disabled=false;updateUI();}
   }
-  async function restoreFrom(id,name){
-    if(busy)return;
-    if(!confirm(`Import notebooks from "${name}"? They will be added as new copies, not replace your existing notebooks.`))return;
-    busy=true;
+  async function restore(id,name){
+    if(!connected()||syncing)return;
+    if(!confirm(`Import “${name}” as new notebook copies into ${profile.email}'s workspace?`))return;
+    const expected=generation;syncing=true;
     try{
-      message('Downloading and checking this backup…');
-      const res=await request(API+'/'+encodeURIComponent(id)+'?alt=media');
-      const text=await res.text();
-      const count=await bridge.importData(text); // same file validator as native imports
-      message(`Imported ${count} notebook${count===1?'':'s'} without overwriting existing notes.`);
-      bridge.toast('Notebooks imported from Google Drive');
-      $('cloudBackupList').hidden=true;
-    }catch(err){console.error(err);message(err.message||'Unable to import this backup.',true);}
-    finally{busy=false;}
+      const response=await driveRequest(`${API}/${encodeURIComponent(id)}?alt=media`,{},expected);
+      const text=await response.text();ensureSession(expected);
+      const count=await bridge.importData(text);
+      ensureSession(expected);message(`Imported ${count} notebook(s) into ${profile.email}'s workspace.`);
+      bridge.toast('Imported editable notebook copies from Google Drive');localVersion++;schedule();
+    }catch(err){if(expected===generation)message(err.message||'Could not import this backup.',true);}
+    finally{syncing=false;updateUI();}
   }
-  function scheduleAuto(){
-    clearTimeout(pendingTimer);
-    if(!autoEnabled||!currentToken()||lastUploadedVersion===localChangeVersion)return;
-    const due=Math.max(AUTO_DELAY_MS, AUTO_MIN_INTERVAL_MS-(Date.now()-lastAutoTime));
-    pendingTimer=setTimeout(async()=>{
-      if(bridge?.isWriting()){scheduleAuto();return;}
-      if(lastUploadedVersion!==localChangeVersion)await save(true);
-    },due);
-  }
-  function onLocalSave(){localChangeVersion++;scheduleAuto();}
-  function disconnect(){
-    clearTimeout(pendingTimer);
-    const oldToken=accessToken;accessToken=null;expiresAt=0;
-    // Prevent accidental backups to an account that is no longer connected.
-    updateUI();message('Disconnected. Local notebooks are unchanged.');
-    if(oldToken&&global.google?.accounts?.oauth2?.revoke){try{google.accounts.oauth2.revoke(oldToken,()=>{});}catch{}}
+  async function disconnect(){
+    if(signingIn)return;
+    generation++;clearTimeout(timer);
+    const previous=token;token=null;profile=null;expires=0;activeId=null;lastSyncedVersion=-1;
+    updateUI();message('Signed out. This device’s guest notes are now separate from all Google accounts.');
+    try{await bridge.switchWorkspace(null);}catch(err){message('Unable to open local guest notes: '+err.message,true);}
+    if(previous&&global.google?.accounts?.oauth2?.revoke){try{global.google.accounts.oauth2.revoke(previous,()=>{});}catch{}}
   }
   function init(appBridge){
     bridge=appBridge;
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
-    try{autoEnabled=localStorage.getItem('winds-drive-auto')==='true';}catch{}
     $('cloudConnectHome').onclick=open;
     $('cloudClose').onclick=close;
     $('cloudBackdrop').addEventListener('click',e=>{if(e.target===$('cloudBackdrop'))close();});
     $('googleConnect').onclick=connect;
-    $('googleBackup').onclick=()=>save(false);
+    $('googleSwitchAccount').onclick=connect;
+    $('googleSync').onclick=()=>sync(true);
+    $('googleBackup').onclick=backup;
     $('googleRestore').onclick=browse;
     $('googleDisconnect').onclick=disconnect;
     $('cloudAutoBackup').onchange=e=>{
-      autoEnabled=e.target.checked;
-      try{localStorage.setItem('winds-drive-auto',String(autoEnabled));}catch{}
-      if(autoEnabled){message('Automatic backups run only while this app is open, connected and idle.');localChangeVersion++;scheduleAuto();}
-      else{clearTimeout(pendingTimer);message('Automatic Drive backup disabled. Local autosave stays on.');}
+      auto=e.target.checked;
+      if(profile)try{localStorage.setItem(`winds-drive-auto-${profile.sub}`,String(auto));}catch{}
+      if(auto){localVersion++;message('Automatic sync enabled. Cloud uploads happen only after writing and local saving are idle.');schedule();}
+      else{clearTimeout(timer);message('Automatic cloud sync paused. Notes are still saved locally and can be synced manually.');}
     };
     updateUI();
   }

@@ -21,7 +21,7 @@
 <section class="library-view" id="libraryView">
 <header class="library-header">
 <div class="brand"><div class="brand-mark"><img src="./assets/icon.svg" width="44" height="44" alt=""/></div><div class="brand-name">WiNDS<span class="brand-dot"> Notes</span><small>IDEAS IN MOTION</small></div></div>
-<div class="library-header-actions"><button class="cloud-entry" id="cloudConnectHome" type="button" title="Google Drive backup"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Google Drive</span></button></div>
+<div class="library-header-actions"><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in and sync notebooks to your Google Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Google Drive</span></button></div>
 </header>
 <main class="library-main">
 <div class="hero">
@@ -74,7 +74,7 @@
 <button aria-label="Add smileys and stickers" aria-expanded="false" class="tool-button emoji-tool" id="emojiBtn" title="Smileys and stickers">☺</button>
 <button aria-expanded="false" aria-label="Change paper template" class="tool-button" id="paperStyleBtn" title="Change paper template"></button>
 <button aria-expanded="false" aria-label="Page orientation: Portrait or Landscape" class="tool-button" id="pageOrientationBtn" title="Page orientation: Portrait / Landscape"></button>
-<label class="pencil-toggle" title="When enabled, only a stylus draws; fingers can pan and pinch">
+<label class="pencil-toggle" title="When enabled, only a stylus draws. Two fingers can always pinch to zoom and pan.">
 <input id="pencilOnly" type="checkbox"/>
 <span id="pencilOnlyIcon"></span>
 <span>Stylus only</span>
@@ -82,7 +82,7 @@
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Page zoom" class="stage-tools">
 <button aria-label="Zoom out" class="small-icon-button" id="zoomOut" title="Zoom out"></button>
-<span id="zoomValue">100%</span>
+<span id="zoomValue" title="Pinch with two fingers to zoom or move the page">100%</span>
 <button aria-label="Zoom in" class="small-icon-button" id="zoomIn" title="Zoom in"></button>
 
 </div>
@@ -106,7 +106,7 @@
 <span class="sr-only" id="pageBreadcrumb">Page 1 of 1</span>
 <div class="pop-menu paper-menu" hidden="" id="paperMenu"><div class="menu-heading">PAPER TEMPLATE</div><button data-paper="ruled"><span class="paper-preview mini-ruled"></span> Ruled</button><button data-paper="grid"><span class="paper-preview mini-grid"></span> Grid</button><button data-paper="dots"><span class="paper-preview mini-dots"></span> Dotted</button><button data-paper="blank"><span class="paper-preview mini-blank"></span> Blank</button></div>
 <div class="pop-menu orientation-menu" hidden="" id="orientationMenu"><div class="menu-heading">PAGE ORIENTATION</div><button data-orientation="portrait">▯ &nbsp; Portrait</button><button data-orientation="landscape">▭ &nbsp; Landscape</button></div>
-<div class="pop-menu" hidden="" id="moreMenu"><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="open">Open notebook file…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive backup…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
+<div class="pop-menu" hidden="" id="moreMenu"><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="open">Open notebook file…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
 <div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
 <div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label></div>
 <div class="pop-menu emoji-menu" hidden id="emojiMenu"><div class="menu-heading">SMILEYS & STICKERS</div><input type="search" id="emojiSearch" placeholder="Find an emoji…" aria-label="Find a smiley or sticker" class="emoji-search"/><div id="emojiGrid" class="emoji-grid"></div><label class="sticker-size-control">Sticker size <input id="stickerSize" type="range" min="36" max="150" step="2" value="78" aria-label="Sticker size"/><span id="stickerSizeValue">78</span></label><div class="emoji-menu-tip">Tap a sticker to add it. Use Select to move it.</div></div>
@@ -125,20 +125,22 @@
 <div class="cloud-backdrop" id="cloudBackdrop" hidden>
   <section class="cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
     <button class="cloud-close" type="button" id="cloudClose" aria-label="Close Google Drive">×</button>
-    <div class="cloud-symbol">☁</div><div class="cloud-eyebrow">OPTIONAL CLOUD BACKUP</div>
-    <h2 id="cloudTitle">Your notes, in your Google Drive.</h2>
-    <p class="cloud-description">Keep writing offline. Connect Google only when you want a secure backup or to bring your notebooks to another device.</p>
+    <div class="cloud-symbol">☁</div><div class="cloud-eyebrow">PERSONAL GOOGLE DRIVE WORKSPACE</div>
+    <h2 id="cloudTitle">Your notebooks, your Google account.</h2>
+    <p class="cloud-description">Sign in to access your own WiNDS Notes workspace. Each Google account has separate notebooks and its own Drive storage. Handwriting remains available offline and does not wait for cloud requests.</p>
     <div class="cloud-connection" id="cloudConnection"><span class="cloud-led"></span><span id="cloudConnectionText">Not connected</span></div>
     <p class="cloud-message" id="cloudMessage" role="status"></p>
     <div id="cloudActions" class="cloud-actions">
-      <button id="googleConnect" type="button" class="btn btn-primary cloud-primary">Connect Google Drive</button>
-      <button id="googleBackup" type="button" class="btn btn-primary" hidden>Back up notebooks now</button>
-      <button id="googleRestore" type="button" class="btn btn-outline" hidden>Browse Drive backups</button>
-      <label class="cloud-auto-control" id="cloudAutoControl" hidden><input type="checkbox" id="cloudAutoBackup"/> Back up automatically when idle</label>
+      <button id="googleConnect" type="button" class="btn btn-primary cloud-primary">Sign in with Google</button>
+      <button id="googleSync" type="button" class="btn btn-primary" hidden>Sync notebooks now</button>
+      <button id="googleBackup" type="button" class="btn btn-outline" hidden>Create dated Drive backup</button>
+      <button id="googleRestore" type="button" class="btn btn-outline" hidden>Import an earlier Drive backup</button>
+      <label class="cloud-auto-control" id="cloudAutoControl" hidden><input type="checkbox" id="cloudAutoBackup" checked/> Sync automatically when idle</label>
+      <button id="googleSwitchAccount" type="button" class="btn btn-outline" hidden>Switch Google account</button>
       <div id="cloudBackupList" class="cloud-backups" hidden></div>
-      <button type="button" class="cloud-disconnect" id="googleDisconnect" hidden>Disconnect this session</button>
+      <button type="button" class="cloud-disconnect" id="googleDisconnect" hidden>Sign out / open guest notes</button>
     </div>
-    <p class="cloud-smallprint">Only notebooks created by WiNDS Notes are uploaded. Google Drive access is optional and limited to files this app creates. No Google password is handled or stored by WiNDS Notes.</p>
+    <p class="cloud-smallprint">Each account owns its own WiNDS Notes Workspace.json in Google Drive. Your unsigned notes remain in a separate local guest workspace. The app requests only access to files it creates and basic Google account identity; your Google password is never handled or stored. Drive sync requires an internet connection.</p>
   </section>
 </div>
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
