@@ -23,7 +23,7 @@
   const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const COVER_COLORS = ['purple','blue','peach','green','lilac','yellow'];
   const COLORS = ['#2b2d4c','#6457ed','#e96576','#e7a43a','#39a68c','#4777c8','#9a62b4'];
-  const MORE_COLORS = ['#171717','#6b7280','#fafafa','#5735b1','#8b5cf6','#d946ef','#ec4899','#e11d48','#ef4444','#f97316','#f59e0b','#facc15','#65a30d','#22c55e','#14b8a6','#06b6d4','#0284c7','#1d4ed8','#4338ca','#9f1239','#7c2d12','#92400e','#065f46','#164e63','#1e3a8a','#4c1d95','#0f172a','#94a3b8'];
+  const MORE_COLORS = ['#e2e8f0','#f1f5f9','#ddd6fe','#e9d5ff','#f5d0fe','#fbcfe8','#fecdd3','#fecaca','#fed7aa','#fde68a','#fef08a','#fef9c3','#d9f99d','#bef264','#bbf7d0','#a7f3d0','#99f6e4','#a5f3fc','#bae6fd','#bfdbfe','#c7d2fe','#fce7f3','#fae8ff','#ede9fe','#e0e7ff','#dbeafe','#ccfbf1','#dcfce7'];
   const CREATIVE = window.WindsCreative;
   const EMOJI_STICKERS = [
     ['😊','Smile'],['😍','Love'],['😂','Laugh'],['🥳','Celebrate'],['😎','Cool'],['🤩','Excited'],['🤔','Thinking'],['🥹','Grateful'],['😴','Sleep'],['😇','Angel'],
@@ -492,7 +492,10 @@
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
     state.color=c;
-    document.querySelectorAll('[data-color],[data-more-color]').forEach(b=>b.classList.toggle('selected',(b.dataset.color||b.dataset.moreColor)?.toLowerCase()===c.toLowerCase()));
+    document.querySelectorAll('[data-color],[data-more-color]').forEach(b=>{
+      const selected=(b.dataset.color||b.dataset.moreColor)?.toLowerCase()===c.toLowerCase();
+      b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));
+    });
     $('sizePreview').style.background=c;
     $('customColorInput').value=c;
     $('customColorBtn').style.setProperty('--chosen-color',c);
