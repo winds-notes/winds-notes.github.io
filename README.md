@@ -1,4 +1,22 @@
-# WiNDS Notes
+## Apple Pencil missing-letter fix (November 2026)
+
+**Root-cause research:** Safari/WebKit on iPad may absorb rapid successive Pencil contacts as a double-tap gesture before delivering `pointerdown` to the page. This exact symptom and a targeted fix are documented at https://github.com/shravanngoswamii/DrawShare/issues/6 . Apple's Scribble recognition has also caused similar missing events: https://bugs.webkit.org/show_bug.cgi?id=217430 . No JavaScript can reconstruct a stroke for which the browser delivers no events.
+
+**Corrections in this build:**
+
+The app no longer automatically forces Stylus-only mode when a Pencil is first detected. Input modes are now explicitly user-selected; palm contacts are still guarded during active Pencil writing.
+
+1. The writing canvas registers *non-passive* `touchstart`, `touchend`, and `touchmove` listeners and cancels the default handling for single-touch contacts. This suppresses native double-tap zoom recognition without disabling the app's two-finger gestures.
+2. Each new Pencil down closes a stale previous stroke if its `pointerup` never arrived. The previous stroke is committed rather than discarded.
+3. If Safari delivers a pressed Pencil move but misses the down, the app recovers the stroke from that move.
+4. **Notebook options → Apple Pencil input test** opens an optional event monitor. Write successive letters and check that the number of `pointerdown` events increases. The panel logs only while open and does not upload data. If entire Pencil strokes still produce zero events, that is a WebKit/iPadOS input suppression problem, not canvas rendering or storage.
+5. The offline shell cache is bumped to v7 so GitHub Pages updates are picked up more reliably.
+
+**Verification note:** Automated tests simulate Pencil pointer events and browser touch cancellation, but physical Apple Pencil validation has not been completed. A web app cannot guarantee all physical-Pencil behavior that a native drawing app can, because the native app receives lower-level Pencil events.
+
+---
+
+# WiNDS Notes — Apple Pencil Gesture Recovery Update
 
 **A refined, private handwriting notebook for iPad, Apple Pencil, Android tablets, and desktop browsers.**
 
@@ -14,7 +32,7 @@ The handwriting engine was revised to address interruptions and slow writing on 
 - **Save only after finishing writing.** The app buffers edits in memory, writes after **30 seconds without writing**, and also attempts to save when you return to the notebook gallery or leave the app. Export `.winds-notes` regularly as a separate editable copy. No IndexedDB writes are scheduled between letters. **Important:** an app or tab force-quit during the idle interval may lose the last few seconds of work; use the native editable export as a separate backup.
 - **Lighter undo.** A normal new stroke is tracked as a single undoable action, without duplicating the full page history after every letter.
 - **Lazy thumbnails.** The page thumbnail panel remains hidden while writing; its previews update after a pause if the panel is open.
-- **Safer iPad interaction.** The first detected Apple Pencil contact automatically enables stylus-only mode (you may turn it off). A palm touch cannot block a new pen stroke; Pencil contact preempts lingering one-finger pan gestures. Pointer capture and `touch-action: none` protect the drawing surface.
+- **Safer iPad interaction.** Stylus-only mode is a user choice and does not turn on automatically, avoiding rejection if Safari temporarily misclassifies a Pencil contact. A palm touch cannot block a new pen stroke; Pencil contact preempts lingering one-finger pan gestures. Pointer capture and `touch-action: none` protect the drawing surface.
 - **Fit moved to the notebook options menu.** The writing surface no longer has a prominent Fit button adjacent to pen settings. Zoom controls remain in the horizontal top toolbar.
 - **Branded as WiNDS Notes**, with a custom scalable logo and iPad home-screen icon.
 

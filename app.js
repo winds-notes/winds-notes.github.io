@@ -58,6 +58,58 @@
   let database = null, persistence = 'indexeddb', saving = false;
   let dirtyAll = false, saveVersion = 0, lastInkAt = 0, thumbnailsDirty = true, thumbnailTimer = 0, inkRAF = 0, drawnIndex = 0;
   let inkComposeTimer = 0, bufferedPenInk = false, bufferedPenItems = [];
+  // This log is opt-in, kept entirely on the device, and does not perform any
+  // work while its panel is closed. It distinguishes WebKit event loss from
+  // application-side stroke rejection when testing on a physical iPad.
+  const pencilDiagnostics = {enabled:false,events:[],counts:{down:0,move:0,up:0,cancel:0,touchstart:0,touchend:0,touchmove:0},lastReportAt:0};
+  function recordInputEvent(e){
+    if(!pencilDiagnostics.enabled)return;
+    const target=e.target;
+    if(!(target instanceof Element) || !target.closest('#pageShell'))return;
+    let kind=e.type.replace('pointer','');
+    if(e.type.startsWith('pointer')){
+      if(e.type==='pointermove'){
+        // Reduce log noise without losing the count of actual input samples.
+        pencilDiagnostics.counts.move++;
+        if(pencilDiagnostics.counts.move%15!==1)return;
+      }else if(kind in pencilDiagnostics.counts)pencilDiagnostics.counts[kind]++;
+    }else if(e.type in pencilDiagnostics.counts){
+      pencilDiagnostics.counts[e.type]++;
+      if(e.type==='touchmove' && pencilDiagnostics.counts.touchmove%15!==1)return;
+    }
+    const touch=e.changedTouches?.[0];
+    const type=e.pointerType||touch?.touchType||'contact';
+    const data=`${new Date().toLocaleTimeString()} ${e.type} ${type} ${e.pointerId??touch?.identifier??''}${e.pressure!=null?' p='+e.pressure.toFixed(2):''}`;
+    pencilDiagnostics.events.push(data);
+    if(pencilDiagnostics.events.length>90)pencilDiagnostics.events.shift();
+    const text=$('pencilEventStats');
+    if(text){const c=pencilDiagnostics.counts;text.textContent=`Starts ${c.down} · Ends ${c.up} · Cancels ${c.cancel} · Touch starts ${c.touchstart} · Touch ends ${c.touchend}`;}
+    const log=$('pencilEventLog');if(log)log.textContent=pencilDiagnostics.events.slice(-15).join('\n');
+  }
+  function togglePencilDiagnostics(open){
+    const panel=$('pencilDiagnostics');if(!panel)return;
+    pencilDiagnostics.enabled=Boolean(open);panel.hidden=!open;
+    if(open){
+      pencilDiagnostics.events=[];
+      for(const key of Object.keys(pencilDiagnostics.counts))pencilDiagnostics.counts[key]=0;
+      $('pencilEventStats').textContent='Write with Apple Pencil, lifting it between letters.';
+      $('pencilEventLog').textContent='Event log will appear here. Nothing is uploaded.';
+    }
+  }
+  function copyPencilDiagnostics(){
+    const c=pencilDiagnostics.counts;
+    const report=`WiNDS Notes Pencil diagnostics\nBrowser: ${navigator.userAgent}\nCounts: ${JSON.stringify(c)}\nRecent canvas events:\n${pencilDiagnostics.events.join('\n')}`;
+    if(navigator.clipboard?.writeText)navigator.clipboard.writeText(report).then(()=>toast('Input report copied')).catch(()=>toast('Could not copy report'));
+    else toast('Clipboard unavailable on this page');
+  }
+  // On iPadOS, WebKit's native double-tap / Scribble recognition may consume
+  // rapid repeated stylus strokes *before pointerdown is dispatched*.
+  // Non-passive touchstart/touchend suppression keeps the browser from treating
+  // a handwriting burst as double-tap zoom. touchmove also works around older
+  // Scribble interference. Leave two-finger gestures to the application's pan.
+  function preventWritingGesture(e){
+    if(e.cancelable && e.touches.length<2)e.preventDefault();
+  }
   const dirtyBooks = new Set(), dirtyPages = new Set();
   const now = () => new Date().toISOString();
   const makePage = (template,orientation='portrait') => ({id:uid(),template:template || 'ruled',orientation,items:[]});
@@ -505,11 +557,19 @@
     if(ev.pointerType==='mouse' && ev.button!==0)return;
     if(ev.pointerType==='pen'){
       state.lastPenAt=Date.now();
+      // A new Apple Pencil contact is definitive evidence that the preceding
+      // contact ended. Some WebKit builds omit pointerup/lostpointercapture,
+      // leaving state.drag set and causing every subsequent letter to be lost.
+      // Do not throw away the previous stroke: finish it before accepting this.
+      if(state.drag?.kind==='draw' || state.drag?.kind==='erase' || state.drag?.kind==='select'){
+        finishPointer({pointerId:state.drag.pointerId},true);
+      }
       if(!state.stylusSeen){
         state.stylusSeen=true;
-        // On first Pencil contact default to palm-safe input. The user can
-        // explicitly turn this off using the existing Stylus only switch.
-        if(!state.stylusPreferenceChanged){state.penOnly=true;$('pencilOnly').checked=true;}
+        // Do not silently change the user's input mode. Safari may report
+        // mixed pointer types during rapid Pencil contacts; auto-switching
+        // to stylus-only can mistakenly reject valid contacts. Users may
+        // explicitly enable Stylus only when they want finger panning.
       }
       // A resting finger/palm must NEVER lock out the next Apple Pencil stroke.
       if(state.drag?.pointerId!==undefined && state.drag.pointerId!==ev.pointerId && state.drag.pointerType==='touch'){
@@ -574,7 +634,14 @@
     queueInk();
   }
   function pointerMove(ev){
-    if(ev.pointerType==='pen')state.lastPenAt=Date.now();
+    if(ev.pointerType==='pen'){
+      state.lastPenAt=Date.now();
+      // Recover when a pressed stylus MOVE arrives without its DOWN event.
+      // Hover has pressure 0 and is never converted into handwriting.
+      if(!state.drag && !state.pinch && ev.pressure>0.01 &&
+         (ev.buttons&1) && ['pen','highlighter'].includes(state.tool) &&
+         !state.editingText && page())pointerDown(ev);
+    }
     if(ev.pointerType==='touch'&&state.pointers.has(ev.pointerId))state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
     if(state.pinch && state.penOnly){
       if(state.pointers.size>=2){
@@ -813,7 +880,7 @@
     document.querySelectorAll('[data-export]').forEach(el=>el.onclick=()=>exportCurrent(el.dataset.export));
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page())return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
     document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
-    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
+    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
     document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>btn.onclick=()=>setTool(btn.dataset.tool));
     $('colorPalette').onclick=e=>{const b=e.target.closest('[data-color]');if(b)setColor(b.dataset.color);};
@@ -837,9 +904,19 @@
     $('togglePages').onclick=()=>{state.sidebarOpen=!state.sidebarOpen;updateSidebar();};
     $('editorScrim').onclick=()=>{state.sidebarOpen=false;updateSidebar();};
     $('zoomIn').onclick=()=>changeZoom(.15);$('zoomOut').onclick=()=>changeZoom(-.15);
-    $('inkCanvas').addEventListener('pointerdown',pointerDown);$('inkCanvas').addEventListener('pointermove',pointerMove);
-    $('inkCanvas').addEventListener('pointerup',pointerUp);$('inkCanvas').addEventListener('pointercancel',pointerCancel);
+    // Critical iPadOS guard: the canvas must cancel its single-contact Touch
+    // Events, not just PointerEvents. Without this, consecutive Apple Pencil
+    // contacts can be silently consumed by WebKit's double-tap recognizer.
+    const ink=$('inkCanvas');
+    for(const type of ['touchstart','touchmove','touchend'])ink.addEventListener(type,preventWritingGesture,{passive:false,capture:false});
+    ink.addEventListener('pointerdown',pointerDown);ink.addEventListener('pointermove',pointerMove);
+    ink.addEventListener('pointerup',pointerUp);ink.addEventListener('pointercancel',pointerCancel);
+    for(const type of ['pointerdown','pointermove','pointerup','pointercancel','touchstart','touchmove','touchend'])
+      window.addEventListener(type,recordInputEvent,{capture:true,passive:true});
+    $('closePencilDiagnostics').onclick=()=>togglePencilDiagnostics(false);
+    $('copyPencilDiagnostics').onclick=copyPencilDiagnostics;
     $('inkCanvas').addEventListener('contextmenu',e=>e.preventDefault());
+    $('pageShell').addEventListener('contextmenu',e=>{if(e.cancelable)e.preventDefault();});
     $('inkCanvas').addEventListener('lostpointercapture',pointerLostCapture);
     $('inlineTextEditor').addEventListener('blur',commitText);
     $('inlineTextEditor').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();commitText();}});
