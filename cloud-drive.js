@@ -14,7 +14,7 @@
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
-  const AUTO_POLL_MS=2000;
+  const AUTO_POLL_MS=1000;
   const ACTIVE_RECHECK_MS=1000;
   const MAX_BYTES=100*1024*1024;
   const SESSION_KEY='winds-drive-session-v1';
@@ -452,8 +452,11 @@
     if(changed){
       const data=await fetchWorkspace(workspace.id,expected,manual);
       ensureIdle(expected,manual);
-      await bridge.mergeWorkspace(data,{manual});
+      const versionBefore=localVersion;
+      const merged=await bridge.mergeWorkspace(data,{manual,report:true});
       ensureIdle(expected,manual);
+      if(merged?.needsUpload===false&&versionBefore===localVersion)lastSyncedVersion=localVersion;
+      else if(merged?.needsUpload===true)localVersion++;
     }
     remoteRevision=revision;
     return workspace;
@@ -494,10 +497,10 @@
     const wait=idleDelay(manual);
     if(wait){if(manual)message('Finish writing and local saving, then select Sync now.');schedule(wait);return;}
     if(global.navigator?.onLine===false||document.hidden){schedule(AUTO_RETRY_MS);return;}
-    const expected=generation;
+    const expected=generation,pollStartedAt=Date.now();
     syncing=true;updateUI();
     if(manual)message('Synchronizing this account’s notebooks with Google Drive…');
-    let nextDelay=AUTO_POLL_MS;
+    let nextDelay=null;
     try{
       if(SERVER_AUTH&&!connected()&&!await renewServerSession()){nextDelay=AUTO_RETRY_MS;return;}
       // Re-read latest Drive state before writing so another device's newly
@@ -529,7 +532,12 @@
       }
     }finally{
       syncing=false;updateUI();
-      if(expected===generation&&auto)schedule(nextDelay===AUTO_POLL_MS&&lastSyncedVersion!==localVersion?AUTO_DELAY_MS:nextDelay);
+      if(expected===generation&&auto){
+        // Poll from the start of the previous check: network time must not be
+        // followed by another full polling interval. Never overlap requests.
+        const delay=nextDelay!==null?nextDelay:lastSyncedVersion!==localVersion?AUTO_DELAY_MS:Math.max(100,AUTO_POLL_MS-(Date.now()-pollStartedAt));
+        schedule(delay);
+      }
     }
   }
   function schedule(delay=AUTO_DELAY_MS){

@@ -16,8 +16,8 @@
     }
   }
   // Keep expensive storage and page composition out of rapid pen-up/pen-down cycles.
-  const SAVE_IDLE_MS = 3000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
-  const CLOUD_IDLE_MS = 3000;
+  const SAVE_IDLE_MS = 2500, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
+  const CLOUD_IDLE_MS = 2500;
   const $ = id => document.getElementById(id);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -255,9 +255,9 @@
     clearTimeout(state.saveTimer);
     state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);
   }
-  async function saveNow(force=false){
+  async function saveNow(force=false,fromDrive=false){
     clearTimeout(state.saveTimer);
-    if(saving){state.saveTimer=setTimeout(()=>saveNow(force),600);return;}
+    if(saving){state.saveTimer=setTimeout(()=>saveNow(force,fromDrive),600);return;}
     if(!force && (state.drag||state.pinch||state.editingText||imageCropSession||Date.now()-lastInkAt<SAVE_IDLE_MS-100)){
       const remaining=Math.max(1000,SAVE_IDLE_MS-(Date.now()-lastInkAt));
       state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
@@ -272,7 +272,9 @@
       else await writeChanged(bookIds,pageIds);
       if(version===saveVersion)statusText('Saved');
       else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
-      window.WindsDrive?.onLocalSave?.();
+      // Receiving a remote edit is not a new local edit. The merge reports
+      // whether this device has additional content that needs uploading.
+      if(!fromDrive)window.WindsDrive?.onLocalSave?.();
     }catch(err){
       dirtyAll=true;statusText('Not saved — back up your notes',true);
       toast('Saving failed. Export an editable backup to protect your notes.');
@@ -317,7 +319,7 @@
     if(state.activeId&&notebook()){state.pageIndex=Math.min(state.pageIndex,notebook().pages.length-1);renderEditor();}
     else{state.activeId=null;view('library');renderLibrary();}
   }
-  async function mergeWorkspace(snapshot,{manual=false}={}){
+  async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     if(state.drag||state.pinch||state.editingText||imageCropSession||saving||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
@@ -326,22 +328,28 @@
     const remoteDeleted=snapshot.deleted&&typeof snapshot.deleted==='object'?snapshot.deleted:{};
     const mergedDeleted={...tombstones};
     for(const [id,when] of Object.entries(remoteDeleted))if(typeof when==='string' && (!mergedDeleted[id] || when>mergedDeleted[id]))mergedDeleted[id]=when;
-    const merged=new Map(state.notebooks.map(n=>[n.id,n]));
+    const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map();
     for(const n of snapshot.notebooks){
       if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>500 || n.pages.some(p=>!Array.isArray(p.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
+      remoteBooks.set(n.id,n);
       const local=merged.get(n.id);
       if(!local || (n.updatedAt||'')>(local.updatedAt||''))merged.set(n.id,n);
     }
     const final=[...merged.values()].filter(n=>!(mergedDeleted[n.id] && mergedDeleted[n.id]>=(n.updatedAt||'')));
     const hasChanges=JSON.stringify(state.notebooks)!==JSON.stringify(final) || JSON.stringify(tombstones)!==JSON.stringify(mergedDeleted);
+    // Newer remote notebooks are already the same objects in `final`; only
+    // compare retained local notebooks. A read-only device must not echo the
+    // whole workspace back to Drive, but local-only books/deletions still sync.
+    const needsUpload=final.length!==snapshot.notebooks.length||final.some(n=>n!==remoteBooks.get(n.id)&&JSON.stringify(n)!==JSON.stringify(remoteBooks.get(n.id)))||
+      Object.keys(mergedDeleted).length!==Object.keys(remoteDeleted).length||Object.entries(mergedDeleted).some(([id,when])=>remoteDeleted[id]!==when);
     if(hasChanges){
       state.notebooks=final;tombstones=mergedDeleted;
-      dirtyAll=true;saveVersion++;await saveNow(true);
+      dirtyAll=true;saveVersion++;await saveNow(true,report);
       // A new stroke may have started while the IndexedDB write was in flight.
       // Keep that stroke and canvas intact, and compose remote changes when idle.
       renderCloudChanges();
     }
-    return hasChanges;
+    return report?{changed:hasChanges,needsUpload}:hasChanges;
   }
   function seed(){
     state.notebooks=[makeNotebook('Untitled notebook','purple','ruled')];
