@@ -32,7 +32,7 @@
   }
   function refreshRooms(){
     if(!allowed())return;
-    const rooms=new Set(['account',...api.bridge.rooms()].slice(0,8));
+    const rooms=new Set(['account',...api.bridge.rooms()].slice(0,4));
     for(const [room,record] of streams)if(!rooms.has(room)){record.source?.close();streams.delete(room);}
     for(const room of rooms)if(!streams.has(room))streams.set(room,{source:null,connected:false,retries:0,retryAt:0,cursor:''});
     schedule(0);

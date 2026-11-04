@@ -71,7 +71,7 @@
     trash:'<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>'
   };
   const icon = (key, size=20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[key] || ICONS.plus}</svg>`;
-  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:10,zoom:1,penOnly:false,artistGrade:'HB',shapeFillEnabled:false,shapeFillColor:'#b9adff',shapeFillOpacity:1,shapeOutlineColor:'#2b2d4c',shapeOutlineSize:10,shapeOutlineStyle:'solid',selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
+  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:10,zoom:1,penOnly:false,artistGrade:'HB',artistGroup:'graphite',artistFlow:1,shapeFillEnabled:false,shapeFillColor:'#b9adff',shapeFillOpacity:1,shapeOutlineColor:'#2b2d4c',shapeOutlineSize:10,shapeOutlineStyle:'solid',selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
   const history = new Map();
   const imageCache = new Map();
   let imageCropSession = null;
@@ -441,7 +441,7 @@
     state.activeId=id;state.pageIndex=0;state.selected=-1;state.zoom=1;RENDER_SCALE=2;state.draft=null;
     state.sidebarOpen=false;thumbnailsDirty=true;
     view('editor');$('notebookTitle').value=n.title;
-    syncPageGeometry();updateSidebar();setTool('pen');renderEditor();resizePage();requestAnimationFrame(updateToolbarArrows);
+    syncPageGeometry();updateSidebar();setTool('pen');renderEditor();resizePage();requestAnimationFrame(updateToolbarArrows);window.WindsLive?.refreshRooms();
   }
   function goLibrary(){finishActiveStroke();commitText();state.draft=null;composeInkNow();saveNow(true);state.activeId=null;view('library');renderLibrary();}
   function renderEditor(){
@@ -583,24 +583,43 @@
   }
   function setArtistGrade(grade){
     if(!CREATIVE.PENCIL_GRADES[grade])return;
-    state.artistGrade=grade;
+    state.artistGrade=grade;state.artistGroup=CREATIVE.ARTIST_MATERIALS[grade].group;
     $('artistGradeBadge').textContent=grade;
-    setTool('artist');closeMenus();
+    CREATIVE.prepareArtistColor(state.color);setTool('artist');closeMenus();
     toast(`${grade} artist tool selected`);
   }
+  function buildArtistLibrary(){
+    const list=$('artistGradeList');
+    for(const [grade,material] of Object.entries(CREATIVE.ARTIST_MATERIALS)){
+      const button=document.createElement('button');button.type='button';button.dataset.grade=grade;button.dataset.collection=material.group;
+      const title=document.createElement('b');title.textContent=grade;
+      const description=document.createElement('span');description.textContent=material.description;
+      const canvas=document.createElement('canvas');canvas.className='graphite-sample';canvas.width=280;canvas.height=52;canvas.dataset.artistPreview=grade;canvas.setAttribute('aria-hidden','true');
+      button.append(title,description,canvas);list.append(button);
+    }
+  }
   function renderArtistPreviews(){
+    const material=CREATIVE.ARTIST_MATERIALS[state.artistGrade];
+    $('artistMaterialName').textContent=state.artistGrade;$('artistMaterialDetail').textContent=material.detail;
+    $('artistSize').value=state.size;$('artistSizeValue').textContent=String(state.size);
+    $('artistFlow').value=Math.round(state.artistFlow*100);$('artistFlowValue').textContent=`${Math.round(state.artistFlow*100)}%`;
+    document.querySelectorAll('[data-artist-group]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.artistGroup===state.artistGroup)));
     document.querySelectorAll('[data-grade]').forEach(button=>{
       const selected=button.dataset.grade===state.artistGrade;
+      button.hidden=button.dataset.collection!==state.artistGroup;
       button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
     });
-    document.querySelectorAll('[data-artist-preview]').forEach(canvas=>{
-      const ctx=canvas.getContext('2d'),grade=canvas.dataset.artistPreview;
-      ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,112,22);
-      const points=Array.from({length:33},(_,i)=>{
-        const t=i/32;return [4+104*t,11+3*Math.sin(t*Math.PI*2),.05+.95*Math.sin(t*Math.PI)];
+    function sample(canvas,grade,large){
+      const ctx=canvas.getContext('2d'),w=canvas.width/2,h=canvas.height/2;
+      ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,w,h);
+      const points=Array.from({length:49},(_,i)=>{
+        const t=i/48;return [12+(w-24)*t,h/2+(large?6:3)*Math.sin(t*Math.PI*2),.04+.96*t];
       });
-      CREATIVE.drawArtistStroke(ctx,{tool:'artist',grade,color:state.color,size:grade==='Charcoal'?4:5,points});
-    });
+      const size=large?Math.min(state.size,14):4.5;
+      CREATIVE.drawArtistStroke(ctx,{tool:'artist',grade,color:state.color,size,flow:state.artistFlow,points});
+    }
+    document.querySelectorAll('[data-artist-preview]').forEach(canvas=>{if(!canvas.parentElement.hidden)sample(canvas,canvas.dataset.artistPreview,false);});
+    sample($('artistActivePreview'),state.artistGrade,true);
   }
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
@@ -630,7 +649,7 @@
     setTool('select');state.selected=page().items.length-1;
     closeMenus();renderCanvas();renderThumbs();scheduleSave();toast('Sticker added · drag to move');
   }
-  function updateSize(){state.size=Number($('penSize').value);$('sizeLabel').textContent=String(state.size);const diameter=Math.max(4,Math.min(state.size,19));$('sizePreview').style.width=`${diameter}px`;$('sizePreview').style.height=`${diameter}px`;}
+  function updateSize(){state.size=Number($('penSize').value);$('sizeLabel').textContent=String(state.size);const diameter=Math.max(4,Math.min(state.size,19));$('sizePreview').style.width=`${diameter}px`;$('sizePreview').style.height=`${diameter}px`;if(!$('artistMenu').hidden)renderArtistPreviews();}
   function historyForPage(){const key=page()?.id;if(!key)return null;if(!history.has(key))history.set(key,{undo:[],redo:[]});return history.get(key);}
   function recordHistory(action){
     const h=historyForPage();if(!h)return;
@@ -807,7 +826,7 @@
     drawnIndex=pts.length;
     ctx.restore();
   }
-  function queueInk(){if(!inkRAF)inkRAF=requestAnimationFrame(paintPendingInk);}
+  function queueInk(){if(!inkRAF)inkRAF=requestAnimationFrame(()=>paintPendingInk());}
   function renderCanvas(){
     const p=page();if(!p)return;
     syncPageGeometry();
@@ -1115,7 +1134,7 @@
       state.drag={kind:'select',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,startX:p.x,startY:p.y,startItems:clone(page().items),changed:false};
       renderCanvas();return;
     }
-    if(['pen','highlighter','artist'].includes(state.tool))state.draft={id:uid(),type:'stroke',tool:state.tool,color:state.color,grade:state.tool==='artist'?state.artistGrade:undefined,size:state.size,points:[[p.x,p.y,p.p]]};
+    if(['pen','highlighter','artist'].includes(state.tool))state.draft={id:uid(),type:'stroke',tool:state.tool,color:state.color,grade:state.tool==='artist'?state.artistGrade:undefined,...(state.tool==='artist'?{flow:state.artistFlow}:{}),size:state.size,points:[[p.x,p.y,p.p]]};
     else if(['rectangle','square','ellipse','circle','line','arrow','triangle','diamond','star'].includes(state.tool))state.draft={id:uid(),type:'shape',kind:state.tool,x:p.x,y:p.y,w:0,h:0,color:state.shapeOutlineColor,size:state.shapeOutlineSize,strokeStyle:state.shapeOutlineStyle,fillColor:state.shapeFillEnabled&&CREATIVE.isFillableShape(state.tool)?state.shapeFillColor:null,fillOpacity:state.shapeFillOpacity};
     else return;
     // Only the pen's incremental strokes remain in the live layer across letters.
@@ -1340,11 +1359,12 @@
     if(!wasClosed)return;
     const menu=$(menuId),trigger=$(buttonId);
     menu.hidden=false;trigger.setAttribute('aria-expanded','true');
-    const rect=trigger.getBoundingClientRect();
-    const menuWidth=menu.offsetWidth||220;
+    positionMenu(trigger,menu);
+  }
+  function positionMenu(trigger,menu){
+    const rect=trigger.getBoundingClientRect(),menuWidth=menu.offsetWidth||220;
     const x=Math.max(8,Math.min(window.innerWidth-menuWidth-8,rect.right-menuWidth));
-    menu.style.left=`${x}px`;
-    menu.style.right='auto';
+    menu.style.left=`${x}px`;menu.style.right='auto';
     menu.style.top=`${Math.min(window.innerHeight-20,rect.bottom+9)}px`;
   }
   function updateToolbarArrows(){
@@ -1390,8 +1410,11 @@
     $('shapeOutlineStyle').onchange=e=>{setFillOptions({outlineStyle:e.target.value});applyFillToSelected();};
     $('shapeFillSwatches').onclick=e=>{const b=e.target.closest('[data-fill-color]');if(!b)return;setFillOptions({enabled:true,color:b.dataset.fillColor});applyFillToSelected();};
     $('applyShapeFill').onclick=()=>{if(applyFillToSelected())toast('Selected shape fill updated');else toast('Select a shape first');};
+    buildArtistLibrary();
+    $('artistSize').oninput=()=>{$('penSize').value=$('artistSize').value;updateSize();};
+    $('artistFlow').oninput=()=>{state.artistFlow=Number($('artistFlow').value)/100;renderArtistPreviews();};
     $('artistBtn').onclick=e=>{e.stopPropagation();if(state.tool!=='artist')setTool('artist');toggleMenu('artistBtn','artistMenu');if(!$('artistMenu').hidden)renderArtistPreviews();};
-    $('artistMenu').onclick=e=>{const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
+    $('artistMenu').onclick=e=>{const group=e.target.closest('[data-artist-group]');if(group){state.artistGroup=group.dataset.artistGroup;$('artistMenu').scrollTop=0;renderArtistPreviews();return;}const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
     $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
     $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};
     $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-emoji]');if(btn)addEmoji(btn.dataset.emoji);};
@@ -1469,7 +1492,7 @@
     $('openNotebookInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)openEditableFile(file);};
     // Backups use the same complete validation and fresh IDs as native imports.
     $('restoreFileInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)openEditableFile(file);};
-    let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(state.drag?.kind==='draw')return;updateSidebar();resizePage();updateToolbarArrows();},160);});
+    let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(state.drag?.kind==='draw')return;updateSidebar();resizePage();updateToolbarArrows();if(!$('artistMenu').hidden)positionMenu($('artistBtn'),$('artistMenu'));},160);});
     document.addEventListener('keydown',e=>{
       if(!$('imageCropBackdrop').hidden){
         if(e.key==='Escape'){e.preventDefault();closeImageCrop();}
@@ -1510,7 +1533,7 @@
       sharing:{notebooks:()=>state.notebooks,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id]),openNotebook,toast},
       live:{busy:idle=>Boolean(state.drag||state.pinch||state.editingText||imageCropSession||Date.now()-lastInkAt<idle),
         room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},
-        rooms:()=>[...new Set(state.notebooks.filter(n=>n._sharing).map(n=>'shared:'+n._sharing.folderId))],
+        rooms:()=>[...new Set([notebook(),...state.notebooks].filter(n=>n?._sharing).map(n=>'shared:'+n._sharing.folderId))],
         paint:items=>{livePreviewItems=items;if(!livePreviewRAF)livePreviewRAF=requestAnimationFrame(paintLiveLayer);},clear:clearLiveLayer},
       importData:async text=>{
         if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');

@@ -12,16 +12,58 @@
   // Brush profiles are deliberately cheap to render on iPad. A single stroke
   // uses deterministic texture: no bitmap allocation or storage in pen handlers.
   const PENCIL_GRADES = Object.freeze({
+    '4H': Object.freeze({shade:'#7b838d', opacity:.24, width:.42, grain:.05, softness:.10, spacing:.20, kind:'graphite'}),
+    '3H': Object.freeze({shade:'#707b86', opacity:.29, width:.49, grain:.06, softness:.11, spacing:.20, kind:'graphite'}),
     '2H': Object.freeze({shade:'#66717c', opacity:0.34, width:0.56, grain:0.07, softness:0.13, spacing:0.20, kind:'graphite'}),
     H: Object.freeze({shade:'#59626d', opacity:0.44, width:0.72, grain:0.10, softness:0.17, spacing:0.20, kind:'graphite'}),
+    F: Object.freeze({shade:'#4e5965', opacity:.51, width:.84, grain:.12, softness:.19, spacing:.20, kind:'graphite'}),
     HB: Object.freeze({shade:'#414953', opacity:0.58, width:0.96, grain:0.15, softness:0.21, spacing:0.19, kind:'graphite'}),
     B: Object.freeze({shade:'#353d47', opacity:0.66, width:1.16, grain:0.19, softness:0.25, spacing:0.18, kind:'graphite'}),
     '2B': Object.freeze({shade:'#2d343e', opacity:0.76, width:1.46, grain:0.23, softness:0.29, spacing:0.18, kind:'graphite'}),
+    '3B': Object.freeze({shade:'#29313a', opacity:.81, width:1.66, grain:.26, softness:.32, spacing:.17, kind:'graphite'}),
     '4B': Object.freeze({shade:'#252c35', opacity:0.85, width:1.86, grain:0.29, softness:0.34, spacing:0.17, kind:'graphite'}),
     '6B': Object.freeze({shade:'#1d242d', opacity:0.94, width:2.28, grain:0.34, softness:0.39, spacing:0.16, kind:'graphite'}),
+    '8B': Object.freeze({shade:'#171d24', opacity:.98, width:2.62, grain:.40, softness:.44, spacing:.15, kind:'graphite'}),
     Charcoal: Object.freeze({shade:'#25262c', opacity:0.90, width:2.85, grain:0.58, softness:0.54, spacing:0.13, kind:'charcoal'}),
+    'Vine Charcoal': Object.freeze({shade:'#525258', opacity:.56, width:2.45, grain:.72, softness:.67, spacing:.16, kind:'charcoal'}),
+    'Compressed Charcoal': Object.freeze({shade:'#16181d', opacity:.98, width:3.05, grain:.43, softness:.36, spacing:.12, kind:'charcoal'}),
+    Fineliner: Object.freeze({shade:'#1e2740', opacity:1, width:.48, grain:0, kind:'ink', colorMode:'ink', response:'technical'}),
+    'Technical Pen': Object.freeze({shade:'#1e2740', opacity:1, width:.25, grain:0, kind:'ink', colorMode:'ink', response:'constant'}),
+    'Fountain Pen': Object.freeze({shade:'#1e2740', opacity:1, width:.84, grain:0, kind:'ink', colorMode:'ink', response:'fountain'}),
+    'Brush Marker': Object.freeze({shade:'#1e2740', opacity:1, width:2.10, grain:0, kind:'ink', colorMode:'ink', response:'marker'}),
+    'Dry Brush': Object.freeze({shade:'#1e2740', opacity:.94, width:2.2, grain:.60, softness:.15, spacing:.12, kind:'drybrush', colorMode:'ink'}),
+    'Soft Pastel': Object.freeze({shade:'#996c98', opacity:.77, width:2.75, grain:.58, softness:.48, spacing:.15, kind:'pastel', colorMode:'ink'}),
+    'Oil Pastel': Object.freeze({shade:'#996c98', opacity:.95, width:2.2, grain:.26, softness:.16, spacing:.16, kind:'wax', colorMode:'ink'}),
+    Chalk: Object.freeze({shade:'#687c96', opacity:.67, width:2.55, grain:.68, softness:.38, spacing:.14, kind:'chalk', colorMode:'ink'}),
     'Ink Brush': Object.freeze({shade:'#1e2740', opacity:1, width:1.48, grain:0, kind:'ink', colorMode:'ink'}),
     'Color Pencil': Object.freeze({shade:'#5a5b70', opacity:0.74, width:1.18, grain:0.32, softness:0.20, spacing:0.19, kind:'color', colorMode:'ink'})
+  });
+  const ARTIST_MATERIALS = Object.freeze({
+    "4H": Object.freeze({"group": "graphite", "description": "Pale construction", "detail": "Very light \u00b7 firm point"}),
+    "3H": Object.freeze({"group": "graphite", "description": "Architectural studies", "detail": "Light \u00b7 precise point"}),
+    "2H": Object.freeze({"group": "graphite", "description": "Fine construction", "detail": "Light \u00b7 fine point"}),
+    "H": Object.freeze({"group": "graphite", "description": "Precise light lines", "detail": "Light \u00b7 controlled grain"}),
+    "F": Object.freeze({"group": "graphite", "description": "Fine point drawing", "detail": "Balanced \u00b7 crisp edge"}),
+    "HB": Object.freeze({"group": "graphite", "description": "Everyday sketch", "detail": "Balanced \u00b7 paper grain"}),
+    "B": Object.freeze({"group": "graphite", "description": "Soft outlines", "detail": "Soft \u00b7 gentle shading"}),
+    "2B": Object.freeze({"group": "graphite", "description": "Sketch shading", "detail": "Soft \u00b7 rich shading"}),
+    "3B": Object.freeze({"group": "graphite", "description": "Tonal studies", "detail": "Rich \u00b7 soft grain"}),
+    "4B": Object.freeze({"group": "graphite", "description": "Rich graphite", "detail": "Dark \u00b7 velvety shading"}),
+    "6B": Object.freeze({"group": "graphite", "description": "Very dark shading", "detail": "Deep \u00b7 broad graphite"}),
+    "8B": Object.freeze({"group": "graphite", "description": "Deep expressive shadows", "detail": "Darkest \u00b7 softest graphite"}),
+    "Technical Pen": Object.freeze({"group": "ink", "description": "Precise technical line", "detail": "Constant width \u00b7 solid ink"}),
+    "Fineliner": Object.freeze({"group": "ink", "description": "Clean drawing & hatching", "detail": "Steady width \u00b7 solid ink"}),
+    "Fountain Pen": Object.freeze({"group": "ink", "description": "Fluid lettering", "detail": "Moderate pressure variation"}),
+    "Ink Brush": Object.freeze({"group": "ink", "description": "Expressive colored ink", "detail": "Wide pressure variation"}),
+    "Brush Marker": Object.freeze({"group": "ink", "description": "Bold illustration", "detail": "Broad \u00b7 controlled pressure"}),
+    "Dry Brush": Object.freeze({"group": "ink", "description": "Broken bristle texture", "detail": "Textured \u00b7 dry ink"}),
+    "Charcoal": Object.freeze({"group": "pigment", "description": "Broad textured marks", "detail": "Soft \u00b7 broken deposits"}),
+    "Vine Charcoal": Object.freeze({"group": "pigment", "description": "Airy gesture drawing", "detail": "Light \u00b7 diffuse charcoal"}),
+    "Compressed Charcoal": Object.freeze({"group": "pigment", "description": "Deep charcoal shadows", "detail": "Dense \u00b7 broad deposits"}),
+    "Color Pencil": Object.freeze({"group": "pigment", "description": "Layered colored sketch", "detail": "Fine \u00b7 colored pigment"}),
+    "Soft Pastel": Object.freeze({"group": "pigment", "description": "Powdery color studies", "detail": "Soft edges \u00b7 broken pigment"}),
+    "Oil Pastel": Object.freeze({"group": "pigment", "description": "Dense waxy color", "detail": "Rich \u00b7 streaked pigment"}),
+    "Chalk": Object.freeze({"group": "pigment", "description": "Grainy expressive marks", "detail": "Porous \u00b7 powder texture"})
   });
   const STROKE_STYLES = new Set(['solid','dashed','dotted','none']);
   const FILLABLE = new Set(['rectangle', 'square', 'ellipse', 'circle', 'triangle', 'diamond', 'star']);
@@ -211,7 +253,7 @@
   }
   function pencilWidth(item,pressure){
     const settings=pencilGrade(item.grade),p=clamp(Number.isFinite(pressure)?pressure:.68,.03,1);
-    const response=settings.kind==='ink'?.08+1.42*Math.pow(p,1.55):.28+.98*Math.pow(p,.8);
+    const response=settings.response==='constant'?1:settings.response==='technical'?.92+.16*p:settings.response==='fountain'?.34+1.06*Math.pow(p,1.1):settings.response==='marker'?.65+.75*Math.pow(p,.75):settings.kind==='ink'?.08+1.42*Math.pow(p,1.55):.28+.98*Math.pow(p,.8);
     return Math.max(settings.kind==='ink'?.35:.42,(item.size||3)*settings.width*response);
   }
   function artistBoundsPadding(item){return pencilWidth(item,1)*.68+2;}
@@ -231,6 +273,18 @@
       }else if(settings.kind==='color'){
         const fiber=grainNoise(x>>2,y>>1,seed^0x27d4eb2d);
         tooth=(.10+.90*Math.pow(fine,.75))*(fiber<.24?.18:1);
+      }else if(settings.kind==='drybrush'){
+        const bristle=grainNoise(x>>1,0,seed);
+        tooth=bristle<.38?.02:(.25+.75*fine)*(coarse<.20?.08:1);
+      }else if(settings.kind==='pastel'){
+        tooth=(.12+.88*coarse)*(fine<.3?.10:1);
+        edge*=.55+.45*grainNoise(x>>2,y>>2,seed);
+      }else if(settings.kind==='wax'){
+        const ridge=grainNoise(x>>2,y>>1,seed);
+        tooth=.45+.55*ridge;if(fine<.12+ridge*.12)tooth*=.12;
+      }else if(settings.kind==='chalk'){
+        tooth=Math.pow(fine,.6)*(coarse<.33?.08:1);
+        edge*=.65+.35*coarse;
       }else{
         tooth=.15+.85*(.64*fine+.36*coarse);
         if(fine>.97-settings.grain*.35)tooth*=.12;
@@ -271,7 +325,7 @@
       stamp=materialCanvas();
       if(stamp){
         const ctx=putMaterialPixels(stamp,artistStampPixels(grade,color));
-        if(pencilGrade(grade).kind!=='charcoal' && typeof ctx.createPattern==='function'){
+        if(['graphite','color','wax'].includes(pencilGrade(grade).kind) && typeof ctx.createPattern==='function'){
           const paper=materialCanvas();putMaterialPixels(paper,artistPaperPixels(grade,color));
           const pattern=ctx.createPattern(paper,'repeat');
           try{pattern?.setTransform?.({a:.6,b:0,c:0,d:.6,e:0,f:0});}catch{}
@@ -280,13 +334,13 @@
       }
     }catch{stamp=null;}
     artistStamps.set(key,stamp);
-    // Keep graphite masks resident; bound custom-color masks to about 512 KB.
-    const colors=[...artistStamps.keys()].filter(k=>k.startsWith('Color Pencil|'));
-    if(colors.length>32){artistStamps.delete(colors[0]);artistPatterns.delete(colors[0]);}
+    // Keep default masks resident; bound all custom-color material sets.
+    const colors=[...artistStamps.keys()].filter(k=>{const split=k.lastIndexOf('|');return k.slice(split+1)!==pencilGrade(k.slice(0,split)).shade.toLowerCase();});
+    if(colors.length>128){artistStamps.delete(colors[0]);artistPatterns.delete(colors[0]);}
     return stamp;
   }
   function prepareArtistColor(color){
-    if(/^#[0-9a-fA-F]{6}$/.test(color||''))artistStamp('Color Pencil',color);
+    if(/^#[0-9a-fA-F]{6}$/.test(color||''))for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.colorMode==='ink' && settings.kind!=='ink')artistStamp(grade,color);
   }
   function artistPoint(item,p){return {x:p[0],y:p[1],p:pressureAt(p),r:pencilWidth(item,pressureAt(p))*.5};}
   function artistMidpoint(item,a,b){
@@ -303,18 +357,23 @@
     ctx.beginPath();ctx.moveTo(a.x,a.y);
     if(c)ctx.quadraticCurveTo(c.x,c.y,b.x,b.y);else ctx.lineTo(b.x,b.y);
   }
+  function artistFlow(item){return Number.isFinite(item.flow)?clamp(item.flow,.1,1):1;}
   function drawArtistCurve(ctx,item,curve,index,finish=false){
     if(!curve)return;
-    const grade=artistGradeName(item.grade),settings=pencilGrade(grade),pigment=artistPigment(item),{a,b}=curve;
+    const grade=artistGradeName(item.grade),settings=pencilGrade(grade),pigment=artistPigment(item),flow=artistFlow(item),{a,b}=curve;
     ctx.save();ctx.fillStyle=pigment;ctx.strokeStyle=pigment;ctx.lineCap='round';ctx.lineJoin='round';
     if(settings.kind==='ink'){
-      ctx.globalAlpha=1;drawPenCurve(ctx,curve);ctx.restore();return;
+      ctx.globalAlpha=flow;
+      // Reduced-flow ink joins edge-to-edge; overlapping internal round caps
+      // would leave a dark bead at every input sample. Legacy opaque ink stays exact.
+      if(flow<1)drawPenCurve(ctx,curve,index===1,finish);else drawPenCurve(ctx,curve);
+      ctx.restore();return;
     }
     const c=curve.control||{x:(a.x+b.x)*.5,y:(a.y+b.y)*.5,p:(a.p+b.p)*.5,r:(a.r+b.r)*.5};
     const length=Math.hypot(c.x-a.x,c.y-a.y)+Math.hypot(b.x-c.x,b.y-c.y);
     const p=(a.p+2*c.p+b.p)*.25,width=a.r+b.r;
     // A light continuous core joins the material deposits without dark beads.
-    ctx.globalAlpha=settings.opacity*(settings.kind==='charcoal'?.025+.035*p:.055+.065*p);
+    ctx.globalAlpha=flow*settings.opacity*(settings.kind==='charcoal'?.025+.035*p:.055+.065*p);
     ctx.lineCap='butt';ctx.lineWidth=Math.max(.3,width*.68);artistCurvePath(ctx,a,b,curve.control);ctx.stroke();
     const stamp=artistStamp(grade,pigment);
     if(stamp){
@@ -333,12 +392,12 @@
         const rx=x*cos+y*sin,ry=-x*sin+y*cos;
         const sw=w*(settings.kind==='charcoal'?1.12:1),sh=w*(settings.kind==='charcoal'?.65:.88);
         const deposit=!paper ? .45 : settings.kind==='color' ? .28 : .36;
-        ctx.globalAlpha=settings.opacity*(.15+.85*Math.pow(pressure,1.1))*deposit;
+        ctx.globalAlpha=flow*settings.opacity*(.15+.85*Math.pow(pressure,1.1))*deposit;
         ctx.drawImage(stamp,rx-sw/2,ry-sh/2,sw,sh);
       }
       ctx.restore();
       if(paper){
-        ctx.fillStyle=paper;ctx.globalAlpha=settings.opacity*(.2+.8*p);
+        ctx.fillStyle=paper;ctx.globalAlpha=flow*settings.opacity*(.2+.8*p);
         const scale=point=>({...point,r:point.r*.9});
         drawPenCurve(ctx,{a:scale(a),b:scale(b),...(curve.control?{control:scale(c)}:{})},index===1,finish);
       }
@@ -348,7 +407,7 @@
       for(let i=0;i<fibers;i++){
         const offset=(i/(fibers-1)-.5)*width*.7;
         const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,nx=-dy/len,ny=dx/len;
-        ctx.globalAlpha=settings.opacity*(.1+.16*p)*(.6+.4*hash(grade,index,i));
+        ctx.globalAlpha=flow*settings.opacity*(.1+.16*p)*(.6+.4*hash(grade,index,i));
         ctx.lineWidth=Math.max(.3,width/(fibers*2));
         artistCurvePath(ctx,{x:a.x+nx*offset,y:a.y+ny*offset},{x:b.x+nx*offset,y:b.y+ny*offset},curve.control?{x:c.x+nx*offset,y:c.y+ny*offset}:null);ctx.stroke();
       }
@@ -357,13 +416,13 @@
   }
   function drawArtistPart(ctx,item,points,index){
     if(index===0){
-      const a=artistPoint(item,points[0]),settings=pencilGrade(item.grade),pigment=artistPigment(item);
+      const a=artistPoint(item,points[0]),settings=pencilGrade(item.grade),pigment=artistPigment(item),flow=artistFlow(item);
       ctx.save();ctx.fillStyle=pigment;
       if(settings.kind==='ink'){
-        ctx.globalAlpha=1;ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=flow;ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();
       }else{
         const stamp=artistStamp(artistGradeName(item.grade),pigment);
-        ctx.globalAlpha=settings.opacity*(.15+.85*Math.pow(a.p,1.1))*.58;
+        ctx.globalAlpha=flow*settings.opacity*(.15+.85*Math.pow(a.p,1.1))*.58;
         if(stamp)ctx.drawImage(stamp,a.x-a.r,a.y-a.r,a.r*2,a.r*2);
         else{ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();}
       }
@@ -379,7 +438,7 @@
   }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({PENCIL_GRADES, STROKE_STYLES, isFillableShape, drawShape, shapePath,
+  return Object.freeze({PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect});

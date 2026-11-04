@@ -10,7 +10,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Handwriting:** Apple Pencil / stylus / touch / mouse, pressure samples, low-latency ink layer, smooth pen ribbons with rounded ends and continuous pressure widths, undo/redo, eraser and selection.
 - **Two-finger gestures:** pinch zoom and pan (**35%–800%**), preset zoom menu, portrait and landscape notebook pages.
 - **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill.
-- **Artist mode:** 10 pressure-aware tools: **2H, H, HB, B, 2B, 4B, 6B, Charcoal, Ink Brush, and Color Pencil**. Brush strokes remain editable and export with their chosen style.
+- **Artist Studio:** 25 materials in Graphite, Ink and Pigment collections, with pressure previews, size and flow controls. Technical/fountain pens, dry brush, pastels, chalk and expanded graphite retain editable strokes and consistent exports.
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
 - **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
 - **Optional Google Drive:** Google OAuth (public client ID configured in `google-config.js`), separate on-device account workspaces, and backups/sync within each authorized user's own Drive. See `docs/ARCHITECTURE.md` for limitations.
@@ -46,7 +46,7 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 **Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, reopen **Fill** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
 
-**Artist pencils:** Click **Artist** to see actual brush previews and choose 2H/H (fine detail), HB/B/2B/4B/6B (progressively softer graphite with paper grain), Charcoal (broad, broken texture with soft edges), Ink Brush (continuous pressure-controlled ribbons) or Color Pencil (layered colored pigment). Pressure changes both width and pigment strength where supported. Use the 1–32 line-thickness control as needed. Click regular **Pen** to return to handwriting. Texture remains consistent across the editor, thumbnails, exports and native-file reopening.
+**Artist Studio:** Click **Artist**, browse **Graphite (12)**, **Ink (6)** or **Pigment (7)**, then choose a material. Set **Size (1–32)** and **Flow (10–100%)** for future strokes; width starts at 10. The large sample shows light-to-firm pressure. Technical Pen keeps a constant width, Fountain Pen and Ink Brush respond expressively, while charcoal, dry brush, pastel and chalk use distinct textures. Color applies to ink and pigments; graphite and charcoal keep their natural shades. Regular **Pen** returns to handwriting. Existing strokes retain their previous appearance. See [Artist Studio](docs/ARTIST_STUDIO.md).
 
 **Choose your color:** The extra color palette contains filled light-color cells. Choosing another color replaces the previous selection and updates the current-color preview. Stronger writing colors remain available in the main toolbar.
 
@@ -90,6 +90,8 @@ Each signed-in user's Drive files belong to that Google account, not to a shared
 
 **Sign out / open guest notes** clears the selected account's browser credentials and, in server mode, its server session. Other tabs immediately stop Drive access without interrupting writing. Offline server logout is completed before a later session restore, and old suspended tabs cannot revive a logged-out session. Existing tabs keep their own account when another tab switches accounts. Google can still require fresh permission after access is revoked or the OAuth application's test authorization expires.
 
+**Optional live previews:** The prepared backend relays small completed strokes/shapes to another connected client after a short idle opportunity, while local saving and Drive backup remain separate. Previews are temporary until confirmed by Drive; erasing, large content and initial loading still follow durable sync. See [Live previews and deployment](docs/REALTIME_SYNC.md) for the Docker/Compose package, private environment settings and limitations. It is not enabled by uploading files to GitHub Pages alone.
+
 ## Project layout
 
 | Path | Purpose |
@@ -101,6 +103,8 @@ Each signed-in user's Drive files belong to that Google account, not to a shared
 | `native-file.js` | `.winds-notes` validation, imports and serialization |
 | `cloud-drive.js` | Google OAuth and per-account Drive workspace logic |
 | `notebook-sharing.js` / `shared-notebook-model.js` | Per-notebook Drive invitations, durable outgoing edits and shared history replay |
+| `live-sync.js` / `server/live-relay.mjs` | Optional authenticated, temporary live-ink previews |
+| `Dockerfile` / `compose.yaml` | Same-origin server package with persistent encrypted sessions |
 | `google-config.js` | Public OAuth Web client ID only |
 | `pdf-export.js` | PDF writer |
 | `sw.js` | Service worker / offline cache |
@@ -120,3 +124,5 @@ Licensed under MIT. The previous UI, Pencil event-recovery logic and designer cr
 The file `examples/creative-demo.winds-notes` is an editable sample containing styled filled figures and several Artist brush strokes. Open it with **Open notebook** to try every new feature immediately.
 
 `examples/artist-studio.winds-notes` is a two-page Artist sample: all ten materials with light-to-heavy pressure, plus a graphite study and a colored-pencil botanical drawing. Every mark is an editable stroke. Open it after updating the app to try the new materials.
+
+`examples/artist-studio-pro.winds-notes` contains three editable reference pages for all **25 Artist Studio materials**.

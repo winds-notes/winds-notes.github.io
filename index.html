@@ -63,7 +63,7 @@
 <button aria-label="Diamond" aria-pressed="false" class="tool-button" data-tool="diamond" title="Diamond"></button>
 <button aria-label="Star" aria-pressed="false" class="tool-button" data-tool="star" title="Star"></button>
 <button aria-label="Shape fill options" aria-expanded="false" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" title="Fill colors for rectangles, stars and figures"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button>
-<button aria-label="Artist pencils" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist mode — graphite, charcoal, ink brush and color pencil"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
+<button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist studio — 25 graphite, ink and pigment materials"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Ink colors" class="color-palette" id="colorPalette"></div><button aria-label="More ink colors" aria-expanded="false" class="tool-button custom-color-button" id="customColorBtn" title="More colors and custom color">🎨</button>
@@ -124,21 +124,13 @@
   <label class="fill-option-row" for="shapeOutlineStyle"><span>Line style</span><select id="shapeOutlineStyle" aria-label="Shape outline style"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="none">No border</option></select></label>
   <button class="fill-apply-button" type="button" id="applyShapeFill">Apply fill &amp; border to selected shape</button>
 </div>
-<div class="pop-menu artist-menu" hidden id="artistMenu" role="group" aria-label="Artist graphite pencils">
-  <div class="menu-heading">ARTIST PENCILS</div>
-  <p class="artist-help">Light graphite, soft sketching, charcoal, expressive ink, and colored pencil. Pressure-sensitive where supported.</p>
-  <div class="artist-grade-list">
-    <button type="button" data-grade="2H"><b>2H</b><span>Fine construction</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="2H" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="H"><b>H</b><span>Precise light lines</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="H" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="HB"><b>HB</b><span>Everyday sketch</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="HB" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="B"><b>B</b><span>Soft outlines</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="B" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="2B"><b>2B</b><span>Sketch shading</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="2B" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="4B"><b>4B</b><span>Rich graphite</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="4B" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="6B"><b>6B</b><span>Very dark shading</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="6B" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="Charcoal"><b>Charcoal</b><span>Broad textured marks</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="Charcoal" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="Ink Brush"><b>Ink Brush</b><span>Expressive colored ink</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="Ink Brush" aria-hidden="true"></canvas></button>
-    <button type="button" data-grade="Color Pencil"><b>Color Pencil</b><span>Soft colored sketch</span><canvas class="graphite-sample" width="224" height="44" data-artist-preview="Color Pencil" aria-hidden="true"></canvas></button>
-  </div>
+<div class="pop-menu artist-menu" hidden id="artistMenu" role="region" aria-label="Artist studio">
+  <div class="artist-studio-heading"><div><div class="menu-heading">ARTIST STUDIO</div><h2>Find your next mark.</h2></div><span class="artist-library-count">25<br><small>MATERIALS</small></span></div>
+  <div class="artist-active-material"><div><strong id="artistMaterialName">HB</strong><span id="artistMaterialDetail">Balanced · paper grain</span></div><canvas id="artistActivePreview" width="640" height="100" aria-label="Selected material pressure preview" role="img"></canvas><div class="artist-pressure-scale"><span>LIGHT PRESSURE</span><span>FIRM PRESSURE</span></div></div>
+  <div class="artist-controls"><label for="artistSize">Size <output id="artistSizeValue">10</output><input id="artistSize" aria-label="Artist size" type="range" min="1" max="32" step="0.5" value="10"/></label><label for="artistFlow">Flow <output id="artistFlowValue">100%</output><input id="artistFlow" aria-label="Artist flow" type="range" min="10" max="100" step="5" value="100"/></label></div>
+  <div class="artist-collections" role="group" aria-label="Material collection"><button type="button" data-artist-group="graphite" aria-pressed="true">Graphite <small>12</small></button><button type="button" data-artist-group="ink" aria-pressed="false">Ink <small>6</small></button><button type="button" data-artist-group="pigment" aria-pressed="false">Pigment <small>7</small></button></div>
+  <div class="artist-grade-list" id="artistGradeList" aria-label="Artist materials"></div>
+  <p class="artist-studio-note">Pressure shapes each mark on a supported stylus. Color applies to ink, pencils and pastels; graphite and charcoal keep their natural shades. Flow changes pigment strength for new strokes.</p>
 </div>
 <div class="pop-menu zoom-menu" hidden id="zoomMenu" role="group" aria-label="Zoom presets"><div class="menu-heading">PAGE ZOOM</div><div class="zoom-preset-grid"><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button><button data-zoom="1.5">150%</button><button data-zoom="2">200%</button><button data-zoom="3">300%</button><button data-zoom="4">400%</button><button data-zoom="6">600%</button><button data-zoom="8">800%</button></div><p class="artist-help">Pinch with two fingers to zoom and pan.</p></div>
 <div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label></div>
