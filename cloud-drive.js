@@ -12,9 +12,9 @@
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
-  const AUTO_DELAY_MS=500;
+  const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
-  const AUTO_POLL_MS=5000;
+  const AUTO_POLL_MS=2000;
   const ACTIVE_RECHECK_MS=1000;
   const MAX_BYTES=100*1024*1024;
   const SESSION_KEY='winds-drive-session-v1';
@@ -118,6 +118,10 @@
           peerRequest.finish(data.session);
         }else if(data.type==='signed-out'&&profile?.sub===data.sub){
           signedOutElsewhere(data.sub);
+        }else if(data.type==='workspace-updated'&&profile?.sub===data.sub&&data.revision!==remoteRevision){
+          // A hint only: fetch and verify this account's own Drive file as usual.
+          // Never copy another tab's workspace or credentials into this account.
+          schedule();
         }
       };
     }catch{channel=null;}
@@ -205,7 +209,7 @@
     ensureIdle(expected,manual);
     const headers=new Headers(options.headers||{});
     headers.set('Authorization',`Bearer ${token}`);
-    const response=await fetch(url,{...options,headers});
+    const response=await fetch(url,{...options,headers,cache:'no-store'});
     ensureIdle(expected,manual);
     if(!response.ok){
       const text=await response.text();ensureIdle(expected,manual);
@@ -214,7 +218,8 @@
         token=null;expires=0;rememberSession();persistSession();updateUI();
         if(SERVER_AUTH){forceRenewal=true;scheduleRenewal(1000);}
       }
-      throw new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
+      const error=new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
+      error.status=response.status;throw error;
     }
     return response;
   }
@@ -399,16 +404,34 @@
       }
     }
   }
-  async function listFiles(expected=generation,manual=false){
+  async function listFiles(expected=generation,manual=false,backups=false){
     const found=[];let next='';
     do{
-      const q="trashed = false and (appProperties has {key='windsNotesWorkspace' and value='1'} or appProperties has {key='windsNotesBackup' and value='1'})";
-      const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,size,appProperties)',pageSize:'100',orderBy:'modifiedTime desc'});
+      const key=backups?'windsNotesBackup':'windsNotesWorkspace';
+      const q=`trashed = false and appProperties has {key='${key}' and value='1'}`;
+      const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,appProperties)',pageSize:'100',orderBy:'modifiedTime desc'});
       if(next)params.set('pageToken',next);
       const response=await driveRequest(`${API}?${params}`,{},expected,manual);
       const data=await readDriveJson(response,expected,manual);found.push(...(data.files||[]));next=data.nextPageToken||'';
     }while(next&&found.length<500);
     return found;
+  }
+  async function findWorkspace(expected,manual){
+    if(activeId){
+      try{
+        const params=new URLSearchParams({fields:'id,name,mimeType,modifiedTime,appProperties,trashed'});
+        const response=await driveRequest(`${API}/${encodeURIComponent(activeId)}?${params}`,{},expected,manual);
+        const file=await readDriveJson(response,expected,manual);
+        if(!file.trashed&&file.id===activeId&&file.name===WORKSPACE_NAME&&file.appProperties?.windsNotesWorkspace==='1')return file;
+      }catch(err){
+        // Only a missing file calls for rediscovery. A network/auth/quota error
+        // must not be mistaken for an empty Drive and create a duplicate file.
+        if(err.status!==404)throw err;
+      }
+    }
+    const files=await listFiles(expected,manual);
+    ensureIdle(expected,manual);
+    return files.find(f=>f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME);
   }
   async function fetchWorkspace(fileId,expected=generation,manual=false){
     const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}?alt=media`,{},expected,manual);
@@ -421,9 +444,8 @@
     return data;
   }
   async function refreshFromDrive(expected=generation,manual=false){
-    const files=await listFiles(expected,manual);
+    const workspace=await findWorkspace(expected,manual);
     ensureIdle(expected,manual);
-    const workspace=files.find(f=>f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME);
     const revision=workspace?.modifiedTime?`${workspace.id}:${workspace.modifiedTime}`:null;
     const changed=workspace&&(activeId!==workspace.id||!revision||remoteRevision!==revision);
     activeId=workspace?.id||null;
@@ -496,6 +518,7 @@
       activeId=created.id;
       remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
       lastSync=Date.now();lastSyncedVersion=versionAtStart;
+      publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
       if(manual){message(`Synced ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
       else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
     }catch(err){
@@ -536,7 +559,7 @@
     const expected=generation;syncing=true;$('googleRestore').disabled=true;
     try{
       message('Finding this Google account’s notebook backups…');
-      const files=(await listFiles(expected,true)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
+      const files=(await listFiles(expected,true,true)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
       const list=$('cloudBackupList');list.replaceChildren();
       if(!files.length){list.textContent='No dated backups in this account yet.';list.hidden=false;return;}
       for(const file of files){
@@ -607,7 +630,7 @@
     global.addEventListener?.('storage',event=>{
       if(profile&&event.key===LOGOUT_PREFIX+profile.sub&&!currentSession(sessionSnapshot()))signedOutElsewhere(profile.sub);
     });
-    const resumeSync=()=>{if(SERVER_AUTH&&!connected())scheduleRenewal(1000);schedule(1000);};
+    const resumeSync=()=>{if(SERVER_AUTH&&!connected())scheduleRenewal(0);schedule();};
     global.addEventListener?.('online',resumeSync);
     global.addEventListener?.('focus',resumeSync);
     global.addEventListener?.('pageshow',resumeSync);

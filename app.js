@@ -16,8 +16,8 @@
     }
   }
   // Keep expensive storage and page composition out of rapid pen-up/pen-down cycles.
-  const SAVE_IDLE_MS = 5000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
-  const CLOUD_IDLE_MS = 5000;
+  const SAVE_IDLE_MS = 3000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
+  const CLOUD_IDLE_MS = 3000;
   const $ = id => document.getElementById(id);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const clone = value => JSON.parse(JSON.stringify(value));
