@@ -15,7 +15,7 @@ const config=await readFile(resolve(root,'google-config.js'),'utf8');
 const clientId=process.env.GOOGLE_CLIENT_ID||config.match(/WINDS_GOOGLE_CLIENT_ID\s*=\s*['"]([^'"]+)/)?.[1];
 const store=new EncryptedSessionStore(file,key);await store.load();
 const auth=createGoogleAuth({origin,clientId,clientSecret:process.env.GOOGLE_CLIENT_SECRET,key,store});
-const assets=new Set(['index.html','styles.css','app.js','creative-tools.js','native-file.js','cloud-drive.js','pdf-export.js','google-config.js','sw.js','manifest.webmanifest']);
+const assets=new Set(['index.html','styles.css','privacy.html','terms.html','legal.css','LICENSE','app.js','creative-tools.js','native-file.js','cloud-drive.js','pdf-export.js','google-config.js','sw.js','manifest.webmanifest']);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json','.winds-notes':'application/json'};
 http.createServer(async(req,res)=>{
   try{
@@ -36,7 +36,7 @@ http.createServer(async(req,res)=>{
     if(!path.startsWith(root+sep)||(!assets.has(normalized)&&!normalized.startsWith('assets/')&&!normalized.startsWith('examples/'))){res.writeHead(404).end();return;}
     let body=await readFile(path);
     if(relative==='google-config.js')body=Buffer.from(`window.WINDS_GOOGLE_CLIENT_ID=${JSON.stringify(clientId)};\nwindow.WINDS_GOOGLE_AUTH_SERVER=true;\n`);
-    res.writeHead(200,{'Content-Type':types[extname(path)]||'application/octet-stream',
+    res.writeHead(200,{'Content-Type':normalized==='LICENSE'?'text/plain; charset=utf-8':types[extname(path)]||'application/octet-stream',
       'Cache-Control':relative==='sw.js'||relative==='google-config.js'?'no-store':'no-cache',
       'X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'}).end(req.method==='HEAD'?undefined:body);
   }catch{res.writeHead(404).end('Not found');}
