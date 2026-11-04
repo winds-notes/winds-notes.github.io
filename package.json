@@ -5,8 +5,9 @@
   "description": "WiNDS Notes — tablet handwriting, creative drawing and personal Google Drive sync",
   "scripts": {
     "dev": "node tools/dev-server.mjs",
+    "start": "node server/start.mjs",
     "test": "node --test tests/*.test.cjs",
-    "check": "node --check app.js && node --check creative-tools.js && node --check native-file.js && node --check cloud-drive.js && node --check pdf-export.js && npm test"
+    "check": "node --check app.js && node --check creative-tools.js && node --check native-file.js && node --check cloud-drive.js && node --check pdf-export.js && node --check server/google-auth.mjs && node --check server/start.mjs && npm test"
   },
   "engines": {"node": ">=18"}
 }
