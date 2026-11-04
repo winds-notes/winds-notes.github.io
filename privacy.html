@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How WiNDS Notes handles your notebooks, Google account information and optional Drive synchronization.">
+  <title>Privacy Policy · WiNDS Notes</title>
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./legal.css">
+</head>
+<body>
+  <header class="legal-header">
+    <a class="legal-brand" href="./"><img src="./assets/icon.svg" alt="" width="36" height="36">WiNDS Notes</a>
+    <nav aria-label="Policy pages"><a href="./privacy.html" aria-current="page">Privacy</a><a href="./terms.html">Terms</a><a href="./">Open app</a></nav>
+  </header>
+  <main class="legal-document">
+    <p class="legal-eyebrow">YOUR NOTES, YOUR ACCOUNT</p>
+    <h1>Privacy Policy</h1>
+    <p class="legal-date">Effective date: <time datetime="2026-11-04">4 November 2026</time></p>
+    <p>WiNDS Notes is a handwriting and note-taking application created by Alakesh Kalita. This policy explains how the app handles information when you use local notebooks, exports, Google sign-in and optional Google Drive synchronization.</p>
+    <p class="legal-summary">Your notebooks are stored on your device. If you connect Google Drive, the app also saves your account workspace and requested backups in that Google account. WiNDS Notes does not sell notebook content or use Google user data for advertising or AI-model training.</p>
+
+    <h2>Information the app uses</h2>
+    <ul>
+      <li><strong>Notebook content:</strong> handwriting and pressure samples, text, drawings, images you import, page settings, notebook titles and editing/deletion information.</li>
+      <li><strong>Google account information:</strong> your Google account identifier, email address, verified-email status and display name, used to identify the account and keep account workspaces separate.</li>
+      <li><strong>Authorization information:</strong> short-lived Google access tokens and expiry times. When the persistent-login server is enabled, it also handles refresh credentials and a browser session cookie.</li>
+      <li><strong>Local settings:</strong> preferences, a randomly generated device identifier, account selection, synchronization settings and logout records. Optional Pencil diagnostics stay on your device unless you choose to copy and share them.</li>
+    </ul>
+
+    <h2>How notebook content is stored and used</h2>
+    <p>The app uses browser storage, including IndexedDB and localStorage, to save and reopen notebooks. Guest notes and Google account workspaces have separate local stores. Notes remain on the device after signing out so that changing accounts does not erase existing work.</p>
+    <p>When you enable Drive synchronization, notebook content and deletion information are transferred directly between your browser and Google Drive over HTTPS. The app creates a workspace file and can create dated backup files in your Drive. Files exported or downloaded by you are saved wherever you choose to keep them.</p>
+    <p>The authentication server supplied with WiNDS Notes handles sign-in and token renewal; it does not receive notebook content during the app's direct browser-to-Drive synchronization. Importing a file or image includes its content in the relevant notebook, including in later exports or Drive copies.</p>
+
+    <h2>Google permissions and Limited Use</h2>
+    <p>Google sign-in requests basic identity permissions (<code>openid</code>, <code>email</code> and <code>profile</code>) and the <code>drive.file</code> permission. Drive access is limited to files created by or authorized for this app, including your WiNDS workspace and backups. The app does not request access to Gmail messages or Google Contacts.</p>
+    <p>Google information is used to provide account isolation, authorization, notebook synchronization and requested backup/restore features. We do not sell this information, use it for targeted advertising, or use it to train general-purpose AI models. Notebook content is not made publicly available by the app's sync feature.</p>
+    <p>WiNDS Notes follows the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener noreferrer">Google API Services User Data Policy</a>, including its Limited Use requirements, when using or transferring Google API data.</p>
+
+    <h2>Remembered login and cookies</h2>
+    <p>On static hosting, your account profile and short-lived access credential are saved in this browser's localStorage and sessionStorage to restore your connection. The app retains Google's original token expiry. These credentials are not included in notebook exports.</p>
+    <p>If the persistent-login server is enabled, it stores Google account and refresh credentials in an encrypted server-side session store and uses an HttpOnly session cookie. Short-lived access credentials are used by the browser; refresh credentials are not sent to browser JavaScript. This allows the server to renew authorization after tabs are closed. The session cookie is renewed with use, subject to browser cookie policies.</p>
+    <p>Signing out removes the selected account's saved browser authorization and, when enabled and reachable, its server session. An offline server sign-out is queued for completion before accepting a later server session. Signing out does not delete your local notebooks, Drive files or downloaded exports.</p>
+
+    <h2>Service providers and technical requests</h2>
+    <p>Google processes sign-in, identity and Drive requests under its own <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Privacy Policy</a>. Loading the Google sign-in script can contact Google before you choose to authorize Drive. Google and the website hosting provider can receive ordinary request information, such as IP address, browser information and request times, and may retain operational logs under their own policies.</p>
+    <p>The app code does not include advertising trackers or automatic analytics reporting. Apart from the Google and hosting operations described here, the app does not send your notebooks to an advertising service, data broker or AI service. Information you independently export or share is handled by the recipients you choose.</p>
+
+    <h2>Retention, deletion and your choices</h2>
+    <ul>
+      <li><strong>Local notebooks:</strong> remain in this browser until you delete them or clear the site's storage. Export any notes you want to keep before clearing website data.</li>
+      <li><strong>Synced notebooks:</strong> deleting a notebook in a connected account updates the active Drive workspace after successful sync. Dated backups and downloaded/exported copies remain until separately deleted.</li>
+      <li><strong>Drive files:</strong> you control them through your Google account. To remove all copies, pause sync, remove unwanted local notebooks, and delete the corresponding workspace and backup files in Drive so remaining local data does not recreate a copy.</li>
+      <li><strong>Google access:</strong> you may sign out in the app or remove its access through <a href="https://myaccount.google.com/connections" rel="noopener noreferrer">Google Account connections</a>. Revoking access stops future authorized Drive operations; it does not remove notebook files already saved.</li>
+      <li><strong>Server authorization records:</strong> when persistent login is enabled, records are kept to maintain your connection and removed for that account on completed sign-out or detected authorization revocation. Hosting-provider logs or backups may have separate retention policies.</li>
+    </ul>
+    <p>You may contact the developer about access to, correction of or deletion of account/session information held by the app's operator. The operator cannot retrieve local-only notes from a device or remove copies you independently shared with someone else.</p>
+
+    <h2>Security and policy changes</h2>
+    <p>Google requests use HTTPS. Persistent server credentials are encrypted at rest, and production session cookies use Secure, HttpOnly and SameSite attributes. Browser storage is accessible to this app in your browser profile; protect access to your device. No storage or transfer method can guarantee complete security or uninterrupted availability.</p>
+    <p>If the app's data practices change, this page will be updated and its effective date revised.</p>
+
+    <h2>Contact</h2>
+    <p>For privacy questions or account/session deletion requests, contact Alakesh Kalita through the <a href="https://alakesh-kalita.github.io/" rel="noopener noreferrer">developer website</a> or the user-support address shown on the app's Google authorization screen.</p>
+  </main>
+  <footer class="legal-footer"><a href="./">WiNDS Notes</a><span>·</span><a href="./terms.html">Terms of Service</a></footer>
+</body>
+</html>
