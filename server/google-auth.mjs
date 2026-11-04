@@ -54,7 +54,7 @@ export class EncryptedSessionStore {
   }
 }
 
-export function createGoogleAuth({origin,clientId,clientSecret,key,store,fetch:request=fetch,now=Date.now}){
+export function createGoogleAuth({origin,clientId,clientSecret,key,store,fetch:request=fetch,now=Date.now,onSessionInvalidated=()=>{}}){
   const base=new URL(origin);
   if(base.pathname!=='/'||base.search||base.hash||
     (base.protocol!=='https:'&&!(base.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(base.hostname)))){
@@ -147,6 +147,7 @@ export function createGoogleAuth({origin,clientId,clientSecret,key,store,fetch:r
           if(err.revoked){
             delete record.accounts[sub];if(record.lastSub===sub)record.lastSub=Object.keys(record.accounts)[0]||null;
             await store.set(hash(id),record.lastSub?record:null);
+            onSessionInvalidated(hash(id),sub);
             return response({error:'authorization_revoked'},401);
           }
           return response({error:'temporarily_unavailable'},503);
@@ -168,13 +169,20 @@ export function createGoogleAuth({origin,clientId,clientSecret,key,store,fetch:r
       const previous=record.accounts[sub];delete record.accounts[sub];
       if(record.lastSub===sub)record.lastSub=Object.keys(record.accounts)[0]||null;
       await store.set(hash(id),record.lastSub?record:null);
+      onSessionInvalidated(hash(id),sub);
       if(previous?.refreshToken){
         try{await request('https://oauth2.googleapis.com/revoke',{method:'POST',body:new URLSearchParams({token:previous.refreshToken}),signal:AbortSignal.timeout(15000)});}catch{}
       }
       return response(null,204,{'Set-Cookie':cookie(sessionCookie,record.lastSub?id:'',record.lastSub?COOKIE_AGE:0)});
     });
   }
-  return {async handle(req){
+  return {async authorize(req,sub){
+    const url=new URL('/auth/google/session',base);if(sub)url.searchParams.set('account',sub);
+    const headers=new Headers(req.headers);headers.set('X-Winds-Request','1');
+    const result=await session(new Request(url,{headers}),url);
+    if(!result.ok){const error=new Error('Google session unavailable.');error.status=result.status;throw error;}
+    const data=await result.json();return {profile:data.profile,accessToken:data.access_token,expires:data.expires,sessionId:hash(browserId(req))};
+  },async handle(req){
     const url=new URL(req.url);
     try{
       if(req.method==='GET'&&url.pathname==='/auth/google/start')return await start(req,url);

@@ -3,6 +3,8 @@ import {readFile} from 'node:fs/promises';
 import {resolve, extname, isAbsolute, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createGoogleAuth, EncryptedSessionStore, sessionKey} from './google-auth.mjs';
+import {createLiveRelay} from './live-relay.mjs';
+import {Readable} from 'node:stream';
 
 if(Number(process.versions.node.split('.')[0])<22)throw new Error('The persistent-login server requires Node.js 22 or newer.');
 const root=resolve(fileURLToPath(new URL('../',import.meta.url)));
@@ -14,12 +16,26 @@ if(!file||!isAbsolute(file)||resolve(file)===root||resolve(file).startsWith(root
 const config=await readFile(resolve(root,'google-config.js'),'utf8');
 const clientId=process.env.GOOGLE_CLIENT_ID||config.match(/WINDS_GOOGLE_CLIENT_ID\s*=\s*['"]([^'"]+)/)?.[1];
 const store=new EncryptedSessionStore(file,key);await store.load();
-const auth=createGoogleAuth({origin,clientId,clientSecret:process.env.GOOGLE_CLIENT_SECRET,key,store});
-const assets=new Set(['index.html','styles.css','privacy.html','terms.html','legal.css','LICENSE','app.js','creative-tools.js','native-file.js','cloud-drive.js','pdf-export.js','google-config.js','sw.js','manifest.webmanifest']);
+let live=null;
+const auth=createGoogleAuth({origin,clientId,clientSecret:process.env.GOOGLE_CLIENT_SECRET,key,store,onSessionInvalidated:(id,sub)=>live?.invalidate(id,sub)});
+const liveEnabled=process.env.WINDS_LIVE_SYNC==='true';
+if(liveEnabled)live=createLiveRelay({origin,authorize:(req,sub)=>auth.authorize(req,sub)});
+const assets=new Set(['index.html','styles.css','privacy.html','terms.html','legal.css','LICENSE','app.js','creative-tools.js','native-file.js','cloud-drive.js','live-sync.js','notebook-sharing.js','shared-notebook-model.js','pdf-export.js','google-config.js','sw.js','manifest.webmanifest']);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json','.winds-notes':'application/json'};
 http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,origin);
+    if(url.pathname==='/healthz'){res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify({ok:true,live:liveEnabled}));return;}
+    if(url.pathname.startsWith('/live/')){
+      if(!live){res.writeHead(404).end();return;}
+      const chunks=[];let size=0;
+      for await(const chunk of req){size+=chunk.length;if(size>32768){res.writeHead(413).end();return;}chunks.push(chunk);}
+      const controller=new AbortController();res.on('close',()=>controller.abort());
+      const result=await live.handle(new Request(url,{method:req.method,headers:req.headers,signal:controller.signal,
+        ...(['GET','HEAD'].includes(req.method)?{}:{body:Buffer.concat(chunks)})}));
+      res.writeHead(result.status,Object.fromEntries(result.headers));res.flushHeaders();
+      if(result.body)Readable.fromWeb(result.body).on('error',()=>res.destroy()).pipe(res);else res.end();return;
+    }
     if(url.pathname.startsWith('/auth/')){
       const chunks=[];let size=0;
       for await(const chunk of req){size+=chunk.length;if(size>8192){res.writeHead(413).end();return;}chunks.push(chunk);}
@@ -35,7 +51,7 @@ http.createServer(async(req,res)=>{
     const normalized=path.slice(root.length+1);
     if(!path.startsWith(root+sep)||(!assets.has(normalized)&&!normalized.startsWith('assets/')&&!normalized.startsWith('examples/'))){res.writeHead(404).end();return;}
     let body=await readFile(path);
-    if(relative==='google-config.js')body=Buffer.from(`window.WINDS_GOOGLE_CLIENT_ID=${JSON.stringify(clientId)};\nwindow.WINDS_GOOGLE_AUTH_SERVER=true;\n`);
+    if(relative==='google-config.js')body=Buffer.from(`window.WINDS_GOOGLE_CLIENT_ID=${JSON.stringify(clientId)};\nwindow.WINDS_GOOGLE_AUTH_SERVER=true;\nwindow.WINDS_REALTIME_ENABLED=${liveEnabled};\n`);
     res.writeHead(200,{'Content-Type':normalized==='LICENSE'?'text/plain; charset=utf-8':types[extname(path)]||'application/octet-stream',
       'Cache-Control':relative==='sw.js'||relative==='google-config.js'?'no-store':'no-cache',
       'X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin'}).end(req.method==='HEAD'?undefined:body);
