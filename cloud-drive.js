@@ -14,6 +14,7 @@
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=8000;
   const AUTO_RETRY_MS=45000;
+  const AUTO_POLL_MS=60000;
   const MAX_BYTES=100*1024*1024;
   const SESSION_KEY='winds-drive-session-v1';
   const ACCOUNT_KEY='winds-drive-last-account-v1';
@@ -23,7 +24,7 @@
   const SERVER_AUTH=global.WINDS_GOOGLE_AUTH_SERVER===true;
   const PENDING_LOGOUT='winds-drive-pending-server-logout-v1';
   const $=id=>document.getElementById(id);
-  let bridge=null,oauth=null,token=null,expires=0,profile=null,activeId=null;
+  let bridge=null,oauth=null,token=null,expires=0,profile=null,activeId=null,remoteRevision=null;
   let syncing=false,signingIn=false,generation=0,timer=0,expiryTimer=0,lastSync=0;
   let auto=true,localVersion=0,lastSyncedVersion=-1,deviceId='';
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
@@ -131,7 +132,10 @@
     });
   }
   function connectionMessage(){
-    if(connected())return `This is ${profile.email}'s private workspace. Your notebooks sync when writing is idle.`;
+    if(connected()){
+      const status=auto?'Automatic sync is on and waits until writing and local saving are idle.':'Automatic sync is paused. Select Sync notebooks now to upload changes.';
+      return `This is ${profile.email}'s private workspace. ${status}${lastSync?' Last synced at '+new Date(lastSync).toLocaleTimeString()+'.':''}`;
+    }
     if(SERVER_AUTH&&profile&&!authorizationRequired)return `Your account ${profile.email} is remembered. Drive sync will resume automatically when a connection is available.`;
     return profile?`Your local notebooks for ${profile.email} are open. Reconnect Google Drive to resume sync.`:
       'Sign in to open your personal notebooks. Each Google account has its own Drive files and on-device workspace.';
@@ -174,14 +178,37 @@
     if(profile&&!currentSession(sessionSnapshot()))signedOutElsewhere(profile.sub);
     if(expected!==generation||!connected())throw new Error('Account changed or Google sign-in expired. Please reconnect.');
   }
-  async function driveRequest(url,options={},expected=generation){
+  function idleDelay(manual=false){
+    if(bridge.isDrawingNow()||bridge.isEditing?.())return AUTO_RETRY_MS;
+    if(bridge.isSaving?.())return 1000;
+    if(!manual){
+      if(bridge.syncIdleDelay)return Math.max(0,bridge.syncIdleDelay());
+      if(bridge.isWriting())return AUTO_RETRY_MS;
+    }
+    return 0;
+  }
+  function ensureIdle(expected,manual=false){
     ensureSession(expected);
+    if(idleDelay(manual)){
+      const error=new Error('Google Drive sync is waiting for writing and local saving to finish.');
+      error.syncDeferred=true;throw error;
+    }
+  }
+  async function readDriveJson(response,expected,manual=false){
+    ensureIdle(expected,manual);
+    const text=await response.text();
+    ensureIdle(expected,manual);
+    return JSON.parse(text);
+  }
+  async function driveRequest(url,options={},expected=generation,manual=false){
+    ensureIdle(expected,manual);
     const headers=new Headers(options.headers||{});
     headers.set('Authorization',`Bearer ${token}`);
     const response=await fetch(url,{...options,headers});
-    ensureSession(expected);
+    ensureIdle(expected,manual);
     if(!response.ok){
-      let reason='';try{const error=await response.json();reason=error.error?.message||'';}catch{}
+      const text=await response.text();ensureIdle(expected,manual);
+      let reason='';try{reason=JSON.parse(text).error?.message||'';}catch{}
       if(response.status===401){
         token=null;expires=0;rememberSession();persistSession();updateUI();
         if(SERVER_AUTH){forceRenewal=true;scheduleRenewal(1000);}
@@ -236,7 +263,7 @@
   async function renewServerSession(){
     if(renewing)return renewing;
     if(!SERVER_AUTH||!profile||remoteSignedOut||authorizationRequired)return false;
-    if(bridge.isWriting()){scheduleRenewal(AUTO_RETRY_MS);return false;}
+    if(idleDelay()){scheduleRenewal(idleDelay());return false;}
     const expected=generation,sub=profile.sub;
     renewing=(async()=>{
       try{
@@ -271,7 +298,7 @@
       if(loggedOutSince(before,identity.sub))throw new Error('Signed out in another tab. Select Sign in to start a new session.');
       // No account workspace is opened until we know the verified Google ID.
       // Save and close the previous account first, then load the new one.
-      token=newToken;expires=newExpires;profile=identity;activeId=null;
+      token=newToken;expires=newExpires;profile=identity;activeId=null;remoteRevision=null;lastSync=0;
       logoutStamp=currentLogoutStamp(identity.sub);
       loadAutoPreference();
       message(`Opening ${identity.email}'s personal notebooks…`);
@@ -283,7 +310,7 @@
         if(nextGeneration!==generation)return;
         message(`Connected to ${identity.email}. Notebook changes sync to this Google account when idle.`);
       }catch(err){
-        if(nextGeneration===generation)message(`Your local notebooks are open. ${err.message||'Drive is unavailable; sync will retry when idle.'}`,true);
+        if(nextGeneration===generation&&!err.syncDeferred)message(`Your local notebooks are open. ${err.message||'Drive is unavailable; sync will retry when idle.'}`,true);
       }
       localVersion++;
     }catch(err){
@@ -371,39 +398,45 @@
       }
     }
   }
-  async function listFiles(expected=generation){
+  async function listFiles(expected=generation,manual=false){
     const found=[];let next='';
     do{
       const q="trashed = false and (appProperties has {key='windsNotesWorkspace' and value='1'} or appProperties has {key='windsNotesBackup' and value='1'})";
       const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,size,appProperties)',pageSize:'100',orderBy:'modifiedTime desc'});
       if(next)params.set('pageToken',next);
-      const response=await driveRequest(`${API}?${params}`,{},expected);
-      const data=await response.json();found.push(...(data.files||[]));next=data.nextPageToken||'';
+      const response=await driveRequest(`${API}?${params}`,{},expected,manual);
+      const data=await readDriveJson(response,expected,manual);found.push(...(data.files||[]));next=data.nextPageToken||'';
     }while(next&&found.length<500);
     return found;
   }
-  async function fetchWorkspace(fileId,expected=generation){
-    const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}?alt=media`,{},expected);
+  async function fetchWorkspace(fileId,expected=generation,manual=false){
+    const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}?alt=media`,{},expected,manual);
     const length=Number(response.headers.get('content-length')||0);
     if(length>MAX_BYTES)throw new Error('This Google Drive workspace is too large to open safely.');
-    const text=await response.text();ensureSession(expected);
+    const text=await response.text();ensureIdle(expected,manual);
     if(text.length>MAX_BYTES)throw new Error('The Drive workspace exceeds the 100 MB safety limit.');
     const data=JSON.parse(text);
     if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
     return data;
   }
-  async function refreshFromDrive(expected=generation){
-    const files=await listFiles(expected);
+  async function refreshFromDrive(expected=generation,manual=false){
+    const files=await listFiles(expected,manual);
+    ensureIdle(expected,manual);
     const workspace=files.find(f=>f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME);
+    const revision=workspace?.modifiedTime?`${workspace.id}:${workspace.modifiedTime}`:null;
+    const changed=workspace&&(activeId!==workspace.id||!revision||remoteRevision!==revision);
     activeId=workspace?.id||null;
-    if(workspace){
-      const data=await fetchWorkspace(workspace.id,expected);
-      ensureSession(expected);
-      await bridge.mergeWorkspace(data);
+    if(changed){
+      const data=await fetchWorkspace(workspace.id,expected,manual);
+      ensureIdle(expected,manual);
+      await bridge.mergeWorkspace(data,{manual});
+      ensureIdle(expected,manual);
     }
+    remoteRevision=revision;
     return workspace;
   }
-  async function upload(name,content,oldId,properties,expected=generation){
+  async function upload(name,content,oldId,properties,expected=generation,manual=false){
+    ensureIdle(expected,manual);
     const blob=new Blob([content],{type:'application/json'});
     if(blob.size>MAX_BYTES)throw new Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
     const metadata={name,mimeType:'application/json',appProperties:properties};
@@ -418,52 +451,66 @@
       ],{type:`multipart/related; boundary=${boundary}`});
       result=await driveRequest(target+'?uploadType=multipart&fields=id,name,modifiedTime',{
         method:oldId?'PATCH':'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body
-      },expected);
+      },expected,manual);
     }else{
       const init=await driveRequest(target+'?uploadType=resumable&fields=id,name,modifiedTime',{
         method:oldId?'PATCH':'POST',
         headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(blob.size)},
         body:JSON.stringify(metadata)
-      },expected);
+      },expected,manual);
       const location=init.headers.get('Location');
       if(!location||!location.startsWith('https://www.googleapis.com/'))throw new Error('Drive did not provide an authorized upload URL.');
-      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':'application/json'},body:blob},expected);
+      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':'application/json'},body:blob},expected,manual);
     }
-    return result.json();
+    return readDriveJson(result,expected,manual);
   }
   async function sync(manual=false){
-    if(syncing||signingIn||(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired)))return;
+    if(syncing){schedule(AUTO_RETRY_MS);return;}
+    if(signingIn||(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired)))return;
     if(!manual && !auto)return;
-    if(bridge.isDrawingNow()){if(manual)message('Finish the current stroke, then select Sync now.',true);else schedule(AUTO_RETRY_MS);return;}
-    if(!manual && bridge.isWriting()){schedule(AUTO_RETRY_MS);return;}
-    if(SERVER_AUTH&&!connected()&&!await renewServerSession())return;
+    const wait=idleDelay(manual);
+    if(wait){if(manual)message('Finish writing and local saving, then select Sync now.');schedule(wait);return;}
+    if(global.navigator?.onLine===false||document.hidden){schedule(AUTO_RETRY_MS);return;}
     const expected=generation;
     syncing=true;updateUI();
     if(manual)message('Synchronizing this account’s notebooks with Google Drive…');
+    let nextDelay=AUTO_POLL_MS;
     try{
+      if(SERVER_AUTH&&!connected()&&!await renewServerSession()){nextDelay=AUTO_RETRY_MS;return;}
       // Re-read latest Drive state before writing so another device's newly
       // created notebooks are not inadvertently overwritten.
-      await refreshFromDrive(expected);
-      ensureSession(expected);
+      await refreshFromDrive(expected,manual);
+      ensureIdle(expected,manual);
+      if(!manual&&activeId&&lastSyncedVersion===localVersion)return;
+      const versionAtStart=localVersion;
       const snapshot=bridge.getData();
       if(!snapshot.notebooks.length&&!Object.keys(snapshot.deleted||{}).length){
+        lastSyncedVersion=versionAtStart;
         if(manual)message('There are no notebooks to sync in this account.');
         return;
       }
-      const versionAtStart=localVersion;
-      const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected);
-      ensureSession(expected);
+      ensureIdle(expected,manual);
+      const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
+      ensureIdle(expected,manual);
       activeId=created.id;
+      remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
       lastSync=Date.now();lastSyncedVersion=versionAtStart;
       if(manual){message(`Synced ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
+      else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
     }catch(err){
-      console.error('WiNDS Drive sync:',err);
-      if(expected===generation){message(err.message||'Sync failed. Local notes are safe; reconnect to retry.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
-    }finally{syncing=false;updateUI();if(expected===generation&&lastSyncedVersion!==localVersion&&auto)schedule(AUTO_RETRY_MS);}
+      nextDelay=err.syncDeferred?Math.max(1000,idleDelay()):AUTO_RETRY_MS;
+      if(!err.syncDeferred){
+        console.error('WiNDS Drive sync:',err);
+        if(expected===generation){message('Google Drive sync will retry automatically. Your notes remain saved on this device.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
+      }
+    }finally{
+      syncing=false;updateUI();
+      if(expected===generation&&auto)schedule(nextDelay===AUTO_POLL_MS&&lastSyncedVersion!==localVersion?AUTO_DELAY_MS:nextDelay);
+    }
   }
   function schedule(delay=AUTO_DELAY_MS){
     clearTimeout(timer);
-    if(!connected()||!auto||signingIn||lastSyncedVersion===localVersion)return;
+    if(!auto||signingIn||remoteSignedOut||(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired)))return;
     timer=setTimeout(()=>sync(false),delay);
   }
   function onLocalSave(){
@@ -476,8 +523,9 @@
     const expected=generation;syncing=true;$('googleBackup').disabled=true;
     try{
       message('Creating a dated backup in your own Google Drive…');
+      ensureIdle(expected,true);
       const data=JSON.stringify(bridge.getData());
-      const result=await upload(backupName(),data,null,{windsNotesBackup:'1',deviceId},expected);
+      const result=await upload(backupName(),data,null,{windsNotesBackup:'1',deviceId},expected,true);
       ensureSession(expected);message(`Backup “${result.name}” saved in ${profile.email}'s Drive.`);bridge.toast('Dated Google Drive backup saved');
     }catch(err){console.error(err);message(err.message||'Google Drive backup failed.',true);}
     finally{syncing=false;$('googleBackup').disabled=false;updateUI();}
@@ -487,7 +535,7 @@
     const expected=generation;syncing=true;$('googleRestore').disabled=true;
     try{
       message('Finding this Google account’s notebook backups…');
-      const files=(await listFiles(expected)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
+      const files=(await listFiles(expected,true)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
       const list=$('cloudBackupList');list.replaceChildren();
       if(!files.length){list.textContent='No dated backups in this account yet.';list.hidden=false;return;}
       for(const file of files){
@@ -506,8 +554,8 @@
     if(!confirm(`Import “${name}” as new notebook copies into ${profile.email}'s workspace?`))return;
     const expected=generation;syncing=true;
     try{
-      const response=await driveRequest(`${API}/${encodeURIComponent(id)}?alt=media`,{},expected);
-      const text=await response.text();ensureSession(expected);
+      const response=await driveRequest(`${API}/${encodeURIComponent(id)}?alt=media`,{},expected,true);
+      const text=await response.text();ensureIdle(expected,true);
       const count=await bridge.importData(text);
       ensureSession(expected);message(`Imported ${count} notebook(s) into ${profile.email}'s workspace.`);
       bridge.toast('Imported editable notebook copies from Google Drive');localVersion++;schedule();
@@ -527,7 +575,7 @@
         localStorage.removeItem(PERSIST_PREFIX+previousSub);
       }
     }catch{}
-    const previous=token;token=null;profile=null;expires=0;activeId=null;lastSyncedVersion=-1;
+    const previous=token;token=null;profile=null;expires=0;activeId=null;remoteRevision=null;lastSyncedVersion=-1;lastSync=0;
     rememberSession();
     try{if(rememberedAccount()?.profile.sub===previousSub)localStorage.removeItem(ACCOUNT_KEY);}catch{}
     publish('signed-out',{sub:previousSub});
@@ -558,7 +606,10 @@
     global.addEventListener?.('storage',event=>{
       if(profile&&event.key===LOGOUT_PREFIX+profile.sub&&!currentSession(sessionSnapshot()))signedOutElsewhere(profile.sub);
     });
-    global.addEventListener?.('online',()=>{if(SERVER_AUTH)scheduleRenewal(1000);});
+    const resumeSync=()=>{if(SERVER_AUTH&&!connected())scheduleRenewal(1000);schedule(1000);};
+    global.addEventListener?.('online',resumeSync);
+    global.addEventListener?.('pageshow',resumeSync);
+    document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)resumeSync();});
     initSessionChannel();
     await restoreSession();
   }

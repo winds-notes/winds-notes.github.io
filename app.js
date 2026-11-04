@@ -17,6 +17,7 @@
   }
   // Keep expensive storage and page composition out of rapid pen-up/pen-down cycles.
   const SAVE_IDLE_MS = 30000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
+  const CLOUD_IDLE_MS = 45000;
   const $ = id => document.getElementById(id);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -80,6 +81,7 @@
   const workspaceLocalStorageKey=()=>workspaceId==='guest'?'winds-notes-data-v2':`winds-notes-data-${workspaceId}`;
   let dirtyAll = false, saveVersion = 0, lastInkAt = 0, thumbnailsDirty = true, thumbnailTimer = 0, inkRAF = 0, drawnIndex = 0;
   let inkComposeTimer = 0, bufferedPenInk = false, bufferedPenItems = [];
+  let cloudRenderTimer = 0;
   // This log is opt-in, kept entirely on the device, and does not perform any
   // work while its panel is closed. It distinguishes WebKit event loss from
   // application-side stroke rejection when testing on a physical iPad.
@@ -286,7 +288,7 @@
     if(target===workspaceId)return;
     finishActiveStroke();composeInkNow();commitText();
     await saveNow(true);
-    clearTimeout(state.saveTimer);clearTimeout(thumbnailTimer);clearTimeout(inkComposeTimer);
+    clearTimeout(state.saveTimer);clearTimeout(thumbnailTimer);clearTimeout(inkComposeTimer);clearTimeout(cloudRenderTimer);
     state.drag=null;state.draft=null;state.pinch=null;state.pointers.clear();
     database?.close();database=null;persistence='indexeddb';workspaceId=target;
     dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();history.clear();
@@ -301,8 +303,25 @@
   function workspaceSnapshot(){
     return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:clone(state.notebooks),deleted:{...tombstones}};
   }
-  async function mergeWorkspace(snapshot){
-    if(state.drag)throw new Error('Writing resumed. Cloud synchronization will retry when idle.');
+  function cloudSyncDelay(){
+    if(state.drag||state.editingText||imageCropSession)return CLOUD_IDLE_MS;
+    const remaining=CLOUD_IDLE_MS-(Date.now()-lastInkAt);
+    if(remaining>0)return remaining;
+    return saving||dirtyAll||dirtyBooks.size||dirtyPages.size?1000:0;
+  }
+  function renderCloudChanges(expectedWorkspace=workspaceId){
+    clearTimeout(cloudRenderTimer);
+    if(expectedWorkspace!==workspaceId)return;
+    const remaining=cloudSyncDelay();
+    if(remaining){cloudRenderTimer=setTimeout(()=>renderCloudChanges(expectedWorkspace),remaining);return;}
+    if(state.activeId&&notebook()){state.pageIndex=Math.min(state.pageIndex,notebook().pages.length-1);renderEditor();}
+    else{state.activeId=null;view('library');renderLibrary();}
+  }
+  async function mergeWorkspace(snapshot,{manual=false}={}){
+    if(state.drag||state.editingText||imageCropSession||saving||(!manual&&cloudSyncDelay())){
+      const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
+      error.syncDeferred=true;throw error;
+    }
     if(!snapshot || snapshot.format!=='winds-notes-backup' || !Array.isArray(snapshot.notebooks) || snapshot.notebooks.length>750)throw new Error('Invalid Drive workspace');
     const remoteDeleted=snapshot.deleted&&typeof snapshot.deleted==='object'?snapshot.deleted:{};
     const mergedDeleted={...tombstones};
@@ -318,9 +337,9 @@
     if(hasChanges){
       state.notebooks=final;tombstones=mergedDeleted;
       dirtyAll=true;saveVersion++;await saveNow(true);
-      // Do not unexpectedly dismiss the writing page during idle cloud sync.
-      if(state.activeId && notebook()){state.pageIndex=Math.min(state.pageIndex,notebook().pages.length-1);renderEditor();}
-      else{state.activeId=null;view('library');renderLibrary();}
+      // A new stroke may have started while the IndexedDB write was in flight.
+      // Keep that stroke and canvas intact, and compose remote changes when idle.
+      renderCloudChanges();
     }
     return hasChanges;
   }
@@ -1398,8 +1417,11 @@
       getData:workspaceSnapshot,
       switchWorkspace,
       mergeWorkspace,
-      isWriting:()=>Boolean(state.drag || Date.now()-lastInkAt<45000),
+      isWriting:()=>Boolean(state.drag||state.editingText||imageCropSession||Date.now()-lastInkAt<CLOUD_IDLE_MS),
       isDrawingNow:()=>Boolean(state.drag),
+      isEditing:()=>Boolean(state.editingText||imageCropSession),
+      isSaving:()=>saving,
+      syncIdleDelay:cloudSyncDelay,
       importData:async text=>{
         if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
         const parsed=window.WindsFile.parse(text);
