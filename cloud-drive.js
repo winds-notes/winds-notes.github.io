@@ -12,9 +12,10 @@
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
-  const AUTO_DELAY_MS=8000;
+  const AUTO_DELAY_MS=500;
   const AUTO_RETRY_MS=45000;
-  const AUTO_POLL_MS=60000;
+  const AUTO_POLL_MS=5000;
+  const ACTIVE_RECHECK_MS=1000;
   const MAX_BYTES=100*1024*1024;
   const SESSION_KEY='winds-drive-session-v1';
   const ACCOUNT_KEY='winds-drive-last-account-v1';
@@ -179,7 +180,7 @@
     if(expected!==generation||!connected())throw new Error('Account changed or Google sign-in expired. Please reconnect.');
   }
   function idleDelay(manual=false){
-    if(bridge.isDrawingNow()||bridge.isEditing?.())return AUTO_RETRY_MS;
+    if(bridge.isDrawingNow()||bridge.isEditing?.())return ACTIVE_RECHECK_MS;
     if(bridge.isSaving?.())return 1000;
     if(!manual){
       if(bridge.syncIdleDelay)return Math.max(0,bridge.syncIdleDelay());
@@ -361,7 +362,7 @@
         saved=await getServerSession(profile?.sub);
         if(expected!==generation)return;
         if(!profile&&bridge.isWriting()){
-          renewalTimer=setTimeout(()=>restoreSession(),AUTO_RETRY_MS);return;
+          renewalTimer=setTimeout(()=>restoreSession(),Math.max(ACTIVE_RECHECK_MS,idleDelay()));return;
         }
         profile=saved.profile;logoutStamp=saved.logoutStamp;loadAutoPreference();
       }
@@ -608,6 +609,7 @@
     });
     const resumeSync=()=>{if(SERVER_AUTH&&!connected())scheduleRenewal(1000);schedule(1000);};
     global.addEventListener?.('online',resumeSync);
+    global.addEventListener?.('focus',resumeSync);
     global.addEventListener?.('pageshow',resumeSync);
     document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)resumeSync();});
     initSessionChannel();

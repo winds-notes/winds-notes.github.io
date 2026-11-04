@@ -16,8 +16,8 @@
     }
   }
   // Keep expensive storage and page composition out of rapid pen-up/pen-down cycles.
-  const SAVE_IDLE_MS = 30000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
-  const CLOUD_IDLE_MS = 45000;
+  const SAVE_IDLE_MS = 5000, INK_COMPOSE_IDLE_MS = 2400, PALM_GUARD_MS = 2400;
+  const CLOUD_IDLE_MS = 5000;
   const $ = id => document.getElementById(id);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -258,7 +258,7 @@
   async function saveNow(force=false){
     clearTimeout(state.saveTimer);
     if(saving){state.saveTimer=setTimeout(()=>saveNow(force),600);return;}
-    if(!force && (state.drag || Date.now()-lastInkAt<SAVE_IDLE_MS-100)){
+    if(!force && (state.drag||state.pinch||state.editingText||imageCropSession||Date.now()-lastInkAt<SAVE_IDLE_MS-100)){
       const remaining=Math.max(1000,SAVE_IDLE_MS-(Date.now()-lastInkAt));
       state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
     }
@@ -304,7 +304,7 @@
     return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:clone(state.notebooks),deleted:{...tombstones}};
   }
   function cloudSyncDelay(){
-    if(state.drag||state.editingText||imageCropSession)return CLOUD_IDLE_MS;
+    if(state.drag||state.pinch||state.editingText||imageCropSession)return CLOUD_IDLE_MS;
     const remaining=CLOUD_IDLE_MS-(Date.now()-lastInkAt);
     if(remaining>0)return remaining;
     return saving||dirtyAll||dirtyBooks.size||dirtyPages.size?1000:0;
@@ -318,7 +318,7 @@
     else{state.activeId=null;view('library');renderLibrary();}
   }
   async function mergeWorkspace(snapshot,{manual=false}={}){
-    if(state.drag||state.editingText||imageCropSession||saving||(!manual&&cloudSyncDelay())){
+    if(state.drag||state.pinch||state.editingText||imageCropSession||saving||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
     }
@@ -1417,8 +1417,8 @@
       getData:workspaceSnapshot,
       switchWorkspace,
       mergeWorkspace,
-      isWriting:()=>Boolean(state.drag||state.editingText||imageCropSession||Date.now()-lastInkAt<CLOUD_IDLE_MS),
-      isDrawingNow:()=>Boolean(state.drag),
+      isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||imageCropSession||Date.now()-lastInkAt<CLOUD_IDLE_MS),
+      isDrawingNow:()=>Boolean(state.drag||state.pinch),
       isEditing:()=>Boolean(state.editingText||imageCropSession),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
