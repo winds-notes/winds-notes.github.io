@@ -30,6 +30,7 @@
   let auto=true,localVersion=0,lastSyncedVersion=-1,deviceId='';
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
+  let manualBusy=false,queuedAction=null,driveController=null,uiState='';
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
   function currentLogoutStamp(sub){
@@ -96,10 +97,28 @@
   function publish(type,details){
     try{channel?.postMessage({type,clientId:global.WINDS_GOOGLE_CLIENT_ID,...details});}catch{}
   }
+  function nextSession(){
+    generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    driveController?.abort();
+    driveController=global.AbortController?new global.AbortController():null;
+    syncing=false;manualBusy=false;queuedAction=null;
+    return generation;
+  }
+  function queueAfterSync(action){
+    if(!syncing)return false;
+    queuedAction=action;message('Finishing the current Google Drive request…');return true;
+  }
+  function finishOperation(expected){
+    if(expected!==generation)return false;
+    syncing=false;manualBusy=false;updateUI();
+    const next=queuedAction;queuedAction=null;
+    if(next){clearTimeout(timer);timer=setTimeout(next,0);return true;}
+    return false;
+  }
   function signedOutElsewhere(sub){
     if(profile?.sub!==sub)return;
     // Stop Drive access without a workspace save or re-render during writing.
-    generation++;token=null;expires=0;remoteSignedOut=true;signingIn=false;clearTimeout(renewalTimer);
+    nextSession();token=null;expires=0;remoteSignedOut=true;signingIn=false;
     peerRequest?.finish(null);rememberSession();updateUI();
     message('Signed out in another tab. Your local notebooks remain open; sign in to resume Drive sync.');
   }
@@ -148,9 +167,14 @@
   function loadAutoPreference(){
     try{auto=localStorage.getItem(`winds-drive-auto-${profile.sub}`)!=='false';}catch{auto=true;}
   }
-  function message(value,error=false){const el=$('cloudMessage');if(el){el.textContent=value;el.classList.toggle('error',error);}}
+  function message(value,error=false){const el=$('cloudMessage');if(el){if(el.textContent!==value)el.textContent=value;el.classList.toggle('error',error);}}
   function updateUI(){
     const yes=connected();
+    // Metadata polling does not change account controls. Avoid rewriting the
+    // dialog or flashing disabled states at the background polling cadence.
+    const next=JSON.stringify([yes,profile?.sub,profile?.email,expires,authorizationRequired,signingIn,manualBusy,auto]);
+    if(next===uiState)return;
+    uiState=next;
     $('cloudConnection').classList.toggle('connected',yes);
     $('cloudConnectionText').textContent=yes?`Signed in as ${profile.email}`:profile?`${profile.email} · ${SERVER_AUTH&&!authorizationRequired?'Drive sync waiting for connection':'Drive authorization needed'}`:'Not signed in';
     $('cloudEntryLabel').textContent=profile?profile.email:'Sign in with Google';
@@ -158,11 +182,11 @@
     $('googleConnect').textContent=profile?'Reconnect Google Drive':'Sign in with Google';
     $('googleConnect').disabled=signingIn;
     $('googleSwitchAccount').hidden=!profile;
-    $('googleSwitchAccount').disabled=signingIn||syncing;
+    $('googleSwitchAccount').disabled=signingIn;
     $('googleDisconnect').hidden=!profile;
-    $('googleDisconnect').disabled=signingIn||syncing;
+    $('googleDisconnect').disabled=signingIn;
     for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl'])$(id).hidden=!yes;
-    $('googleSync').disabled=syncing;
+    for(const id of ['googleSync','googleBackup','googleRestore'])$(id).disabled=signingIn||manualBusy;
     $('cloudAutoBackup').checked=auto;
     clearTimeout(expiryTimer);
     if(yes)expiryTimer=setTimeout(()=>{updateUI();if(SERVER_AUTH)renewServerSession();},expires-Date.now()-30000);
@@ -209,7 +233,7 @@
     ensureIdle(expected,manual);
     const headers=new Headers(options.headers||{});
     headers.set('Authorization',`Bearer ${token}`);
-    const response=await fetch(url,{...options,headers,cache:'no-store'});
+    const response=await fetch(url,{...options,headers,cache:'no-store',signal:driveController?.signal});
     ensureIdle(expected,manual);
     if(!response.ok){
       const text=await response.text();ensureIdle(expected,manual);
@@ -293,8 +317,9 @@
     if(!result||result.error||!result.access_token){message('Google sign-in was cancelled or incomplete.',true);return;}
     const previousSession={token,expires,profile,activeId,auto,remoteSignedOut,logoutStamp};
     const before=logoutEvent();
-    const nextGeneration=++generation;
+    const nextGeneration=nextSession();
     signingIn=true;clearTimeout(timer);
+    updateUI();
     const newToken=result.access_token;
     const newExpires=Date.now()+Math.max(60,Number(result.expires_in)||3600)*1000;
     try{
@@ -326,11 +351,11 @@
         rememberSession();await bridge.switchWorkspace(profile?.sub||null).catch(()=>{});
         message(err.message||'Could not open this Google account.',true);updateUI();
       }
-    }finally{signingIn=false;updateUI();schedule();}
+    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();}}
   }
   async function connect(switchAccount=false){
     // Initiated directly by a click, required by Google's OAuth popup.
-    if(signingIn||syncing)return;
+    if(signingIn)return;
     if(SERVER_AUTH){
       try{
         await finishServerLogouts();
@@ -354,7 +379,7 @@
     let saved=savedSession()||(account?{...account,token:null,expires:0}:null);
     if(!saved&&!SERVER_AUTH)return;
     if(saved)saved=persistentSession(saved.profile.sub)||saved;
-    const expected=++generation;
+    const expected=nextSession();
     signingIn=true;
     if(saved){profile=saved.profile;logoutStamp=saved.logoutStamp||currentLogoutStamp(profile.sub);loadAutoPreference();}
     updateUI();
@@ -491,14 +516,14 @@
     return readDriveJson(result,expected,manual);
   }
   async function sync(manual=false){
-    if(syncing){schedule(AUTO_RETRY_MS);return;}
+    if(syncing){if(manual)queueAfterSync(()=>sync(true));return;}
     if(signingIn||(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired)))return;
     if(!manual && !auto)return;
     const wait=idleDelay(manual);
     if(wait){if(manual)message('Finish writing and local saving, then select Sync now.');schedule(wait);return;}
     if(global.navigator?.onLine===false||document.hidden){schedule(AUTO_RETRY_MS);return;}
     const expected=generation,pollStartedAt=Date.now();
-    syncing=true;updateUI();
+    syncing=true;manualBusy=manual;updateUI();
     if(manual)message('Synchronizing this account’s notebooks with Google Drive…');
     let nextDelay=null;
     try{
@@ -526,13 +551,12 @@
       else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
     }catch(err){
       nextDelay=err.syncDeferred?Math.max(1000,idleDelay()):AUTO_RETRY_MS;
-      if(!err.syncDeferred){
+      if(expected===generation&&!err.syncDeferred){
         console.error('WiNDS Drive sync:',err);
         if(expected===generation){message('Google Drive sync will retry automatically. Your notes remain saved on this device.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
       }
     }finally{
-      syncing=false;updateUI();
-      if(expected===generation&&auto){
+      if(expected===generation&&!finishOperation(expected)&&auto){
         // Poll from the start of the previous check: network time must not be
         // followed by another full polling interval. Never overlap requests.
         const delay=nextDelay!==null?nextDelay:lastSyncedVersion!==localVersion?AUTO_DELAY_MS:Math.max(100,AUTO_POLL_MS-(Date.now()-pollStartedAt));
@@ -551,20 +575,20 @@
   }
   function backupName(){return `WiNDS Notes Backup ${new Date().toISOString().replace(/[:.]/g,'-')}.json`;}
   async function backup(){
-    if(!connected()||syncing)return;
-    const expected=generation;syncing=true;$('googleBackup').disabled=true;
+    if(!connected()||signingIn||queueAfterSync(backup))return;
+    const expected=generation;syncing=true;manualBusy=true;updateUI();
     try{
       message('Creating a dated backup in your own Google Drive…');
       ensureIdle(expected,true);
       const data=JSON.stringify(bridge.getData());
       const result=await upload(backupName(),data,null,{windsNotesBackup:'1',deviceId},expected,true);
       ensureSession(expected);message(`Backup “${result.name}” saved in ${profile.email}'s Drive.`);bridge.toast('Dated Google Drive backup saved');
-    }catch(err){console.error(err);message(err.message||'Google Drive backup failed.',true);}
-    finally{syncing=false;$('googleBackup').disabled=false;updateUI();}
+    }catch(err){if(expected===generation){console.error(err);message(err.message||'Google Drive backup failed.',true);}}
+    finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
   }
   async function browse(){
-    if(!connected()||syncing)return;
-    const expected=generation;syncing=true;$('googleRestore').disabled=true;
+    if(!connected()||signingIn||queueAfterSync(browse))return;
+    const expected=generation;syncing=true;manualBusy=true;updateUI();
     try{
       message('Finding this Google account’s notebook backups…');
       const files=(await listFiles(expected,true,true)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
@@ -579,12 +603,12 @@
       }
       list.hidden=false;message(`Found ${files.length} dated backup(s). Import creates separate notebooks.`);
     }catch(err){if(expected===generation)message(err.message||'Could not load backups.',true);}
-    finally{syncing=false;$('googleRestore').disabled=false;updateUI();}
+    finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
   }
   async function restore(id,name){
-    if(!connected()||syncing)return;
+    if(!connected()||signingIn||queueAfterSync(()=>restore(id,name)))return;
     if(!confirm(`Import “${name}” as new notebook copies into ${profile.email}'s workspace?`))return;
-    const expected=generation;syncing=true;
+    const expected=generation;syncing=true;manualBusy=true;updateUI();
     try{
       const response=await driveRequest(`${API}/${encodeURIComponent(id)}?alt=media`,{},expected,true);
       const text=await response.text();ensureIdle(expected,true);
@@ -592,11 +616,11 @@
       ensureSession(expected);message(`Imported ${count} notebook(s) into ${profile.email}'s workspace.`);
       bridge.toast('Imported editable notebook copies from Google Drive');localVersion++;schedule();
     }catch(err){if(expected===generation)message(err.message||'Could not import this backup.',true);}
-    finally{syncing=false;updateUI();}
+    finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
   }
   async function disconnect(){
     if(signingIn)return;
-    generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    nextSession();
     const previousSub=profile?.sub;
     if(SERVER_AUTH&&previousSub)try{localStorage.setItem(PENDING_LOGOUT,JSON.stringify([...new Set([...pendingLogouts(),previousSub])]));}catch{}
     try{
