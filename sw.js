@@ -1,5 +1,5 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline. */
-const CACHE='winds-notes-shell-v18-image-sticker-rotation';
+const CACHE='winds-notes-shell-v20-drive-session';
 const ASSETS=['./','./index.html','./styles.css','./creative-tools.js','./app.js','./pdf-export.js','./native-file.js','./google-config.js','./cloud-drive.js','./manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

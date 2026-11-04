@@ -1,7 +1,8 @@
 /* WiNDS Notes · Google Drive per-account workspace.
  * Static-hosted OAuth with Google Identity Services. One public OAuth client ID
  * serves all users, but the OAuth access token grants access ONLY to the
- * user's own Google Drive files. Passwords and OAuth tokens are never stored.
+ * user's own Google Drive files. A short-lived token survives refresh only in
+ * this tab's sessionStorage; passwords and refresh tokens are never stored.
  * Live handwriting never calls this module or waits for the network.
  */
 (function(global){
@@ -13,34 +14,69 @@
   const AUTO_DELAY_MS=8000;
   const AUTO_RETRY_MS=45000;
   const MAX_BYTES=100*1024*1024;
+  const SESSION_KEY='winds-drive-session-v1';
   const $=id=>document.getElementById(id);
   let bridge=null,oauth=null,token=null,expires=0,profile=null,activeId=null;
-  let syncing=false,signingIn=false,generation=0,timer=0,lastSync=0;
+  let syncing=false,signingIn=false,generation=0,timer=0,expiryTimer=0,lastSync=0;
   let auto=true,localVersion=0,lastSyncedVersion=-1,deviceId='';
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
+  function rememberSession(){
+    try{
+      if(profile)global.sessionStorage.setItem(SESSION_KEY,JSON.stringify({
+        clientId:global.WINDS_GOOGLE_CLIENT_ID,profile,token,expires
+      }));
+      else global.sessionStorage.removeItem(SESSION_KEY);
+    }catch{} // Storage may be blocked; the current in-memory connection still works.
+  }
+  function savedSession(){
+    try{
+      const saved=JSON.parse(global.sessionStorage.getItem(SESSION_KEY));
+      if(!saved)return null;
+      if(saved.clientId!==global.WINDS_GOOGLE_CLIENT_ID ||
+        !/^[0-9]{5,30}$/.test(String(saved.profile?.sub||'')) ||
+        typeof saved.profile.email!=='string' || !saved.profile.email ||
+        (saved.token!==null && typeof saved.token!=='string') ||
+        !Number.isFinite(saved.expires))throw new Error('Invalid saved Google session');
+      return saved;
+    }catch{try{global.sessionStorage.removeItem(SESSION_KEY);}catch{}return null;}
+  }
+  function connectionMessage(){
+    if(connected())return `This is ${profile.email}'s private workspace. Your notebooks sync when writing is idle.`;
+    return profile?`Your local notebooks for ${profile.email} are open. Reconnect Google Drive to resume sync.`:
+      'Sign in to open your personal notebooks. Each Google account has its own Drive files and on-device workspace.';
+  }
+  function loadAutoPreference(){
+    try{auto=localStorage.getItem(`winds-drive-auto-${profile.sub}`)!=='false';}catch{auto=true;}
+  }
   function message(value,error=false){const el=$('cloudMessage');if(el){el.textContent=value;el.classList.toggle('error',error);}}
   function updateUI(){
     const yes=connected();
     $('cloudConnection').classList.toggle('connected',yes);
-    $('cloudConnectionText').textContent=yes?`Signed in as ${profile.email}`:'Not signed in';
-    $('cloudEntryLabel').textContent=yes?profile.email:'Sign in with Google';
+    $('cloudConnectionText').textContent=yes?`Signed in as ${profile.email}`:profile?`${profile.email} · Drive reconnect needed`:'Not signed in';
+    $('cloudEntryLabel').textContent=profile?`${profile.email}${yes?'':' · Reconnect'}`:'Sign in with Google';
     $('googleConnect').hidden=yes;
-    $('googleSwitchAccount').hidden=!yes;
-    for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl','googleDisconnect'])$(id).hidden=!yes;
+    $('googleConnect').textContent=profile?'Reconnect Google Drive':'Sign in with Google';
+    $('googleConnect').disabled=signingIn;
+    $('googleSwitchAccount').hidden=!profile;
+    $('googleSwitchAccount').disabled=signingIn||syncing;
+    $('googleDisconnect').hidden=!profile;
+    $('googleDisconnect').disabled=signingIn||syncing;
+    for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl'])$(id).hidden=!yes;
     $('googleSync').disabled=syncing;
     $('cloudAutoBackup').checked=auto;
+    clearTimeout(expiryTimer);
+    if(yes)expiryTimer=setTimeout(updateUI,expires-Date.now()-30000);
     if(!yes){$('cloudBackupList').hidden=true;clearTimeout(timer);}
   }
   function open(){
     $('cloudBackdrop').hidden=false;updateUI();
     // Keep the sign-in action visible even before website setup. Clicking it
     // explains the missing public client ID instead of appearing broken.
-    $('googleConnect').disabled=false;
     if(!String(global.WINDS_GOOGLE_CLIENT_ID||'').trim()){
       message('Google sign-in is not enabled for this website yet. The website owner must add a Web OAuth client ID to google-config.js and redeploy.',true);
     }else{
-      message(connected()?`This is ${profile.email}'s private workspace. Your notebooks sync when writing is idle.`:'Sign in to open your personal notebooks. Each Google account has its own Drive files and on-device workspace.');
+      message(connectionMessage());
     }
   }
   function close(){$('cloudBackdrop').hidden=true;}
@@ -55,7 +91,7 @@
     ensureSession(expected);
     if(!response.ok){
       let reason='';try{const error=await response.json();reason=error.error?.message||'';}catch{}
-      if(response.status===401){expires=0;updateUI();}
+      if(response.status===401){token=null;expires=0;rememberSession();updateUI();}
       throw new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
     }
     return response;
@@ -71,6 +107,7 @@
   }
   async function connectCallback(result){
     if(!result||result.error||!result.access_token){message('Google sign-in was cancelled or incomplete.',true);return;}
+    const previousSession={token,expires,profile,activeId,auto};
     const nextGeneration=++generation;
     signingIn=true;clearTimeout(timer);
     const newToken=result.access_token;
@@ -82,33 +119,67 @@
       // No account workspace is opened until we know the verified Google ID.
       // Save and close the previous account first, then load the new one.
       token=newToken;expires=newExpires;profile=identity;activeId=null;
-      try{auto=localStorage.getItem(`winds-drive-auto-${identity.sub}`)!=='false';}catch{auto=true;}
+      loadAutoPreference();
       message(`Opening ${identity.email}'s personal notebooks…`);
       await bridge.switchWorkspace(identity.sub);
       if(nextGeneration!==generation)return;
-      updateUI();
-      await refreshFromDrive(nextGeneration);
-      if(nextGeneration!==generation)return;
-      message(`Connected to ${identity.email}. Notebook changes sync to this Google account when idle.`);
-      localVersion++;schedule();
+      rememberSession();updateUI();
+      try{
+        if(!bridge.isWriting())await refreshFromDrive(nextGeneration);
+        if(nextGeneration!==generation)return;
+        message(`Connected to ${identity.email}. Notebook changes sync to this Google account when idle.`);
+      }catch(err){
+        if(nextGeneration===generation)message(`Your local notebooks are open. ${err.message||'Drive is unavailable; sync will retry when idle.'}`,true);
+      }
+      localVersion++;
     }catch(err){
       console.error('WiNDS sign-in:',err);
       if(nextGeneration===generation){
-        token=null;expires=0;profile=null;activeId=null;
-        await bridge.switchWorkspace(null).catch(()=>{});
+        ({token,expires,profile,activeId,auto}=previousSession);
+        rememberSession();await bridge.switchWorkspace(profile?.sub||null).catch(()=>{});
         message(err.message||'Could not open this Google account.',true);updateUI();
       }
-    }finally{signingIn=false;updateUI();}
+    }finally{signingIn=false;updateUI();schedule();}
   }
-  function connect(){
+  function connect(switchAccount=false){
     // Initiated directly by a click, required by Google's OAuth popup.
+    if(signingIn||syncing)return;
     const clientId=String(global.WINDS_GOOGLE_CLIENT_ID||'').trim();
     if(!clientId){message('Google sign-in is not enabled yet. Ask the website owner to configure a Google OAuth Web client ID in google-config.js and republish.',true);return;}
     if(!global.google?.accounts?.oauth2?.initTokenClient){message('Google Sign-In script is unavailable. Check the internet connection.',true);return;}
     try{
-      if(!oauth){oauth=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPE,callback:connectCallback});}
-      oauth.requestAccessToken({prompt:'select_account'});
+      if(!oauth){oauth=global.google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPE,callback:connectCallback,
+        error_callback:()=>message('Google authorization did not open or was closed. Select Reconnect or Sign in to try again.',true)});}
+      oauth.requestAccessToken(profile&&!switchAccount?{prompt:'',hint:profile.sub}:{prompt:'select_account'});
     }catch(err){console.error(err);message('Unable to open Google authorization. Check the OAuth authorized JavaScript origin.',true);}
+  }
+  async function restoreSession(){
+    const saved=savedSession();if(!saved)return;
+    const expected=++generation;
+    signingIn=true;profile=saved.profile;loadAutoPreference();updateUI();
+    try{
+      // Reopen only this tab's previous account store, including while offline.
+      // The existing account database names and guest migration stay unchanged.
+      await bridge.switchWorkspace(profile.sub);
+      message(connectionMessage());
+      if(!saved.token || Date.now()>=saved.expires-30000)return;
+      const identity=await getProfile(saved.token);
+      if(expected!==generation)return;
+      if(identity.sub!==saved.profile.sub)throw new Error('Google account changed. Reconnect to verify the account.');
+      profile=identity;token=saved.token;expires=saved.expires;
+      message(connectionMessage());
+      // Sync later through the existing idle guard; never interrupt new writing.
+      localVersion++;
+    }catch(err){
+      if(expected===generation){
+        token=null;expires=0;
+        message('Your account needs reconnecting. Local notebooks remain on this device. '+(err.message||''),true);
+      }
+    }finally{
+      signingIn=false;
+      if(!connected()){token=null;expires=0;}
+      rememberSession();updateUI();schedule();
+    }
   }
   async function listFiles(expected=generation){
     const found=[];let next='';
@@ -256,18 +327,19 @@
     if(signingIn)return;
     generation++;clearTimeout(timer);
     const previous=token;token=null;profile=null;expires=0;activeId=null;lastSyncedVersion=-1;
+    rememberSession();
     updateUI();message('Signed out. This device’s guest notes are now separate from all Google accounts.');
     try{await bridge.switchWorkspace(null);}catch(err){message('Unable to open local guest notes: '+err.message,true);}
     if(previous&&global.google?.accounts?.oauth2?.revoke){try{global.google.accounts.oauth2.revoke(previous,()=>{});}catch{}}
   }
-  function init(appBridge){
+  async function init(appBridge){
     bridge=appBridge;
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
     $('cloudConnectHome').onclick=open;
     $('cloudClose').onclick=close;
     $('cloudBackdrop').addEventListener('click',e=>{if(e.target===$('cloudBackdrop'))close();});
-    $('googleConnect').onclick=connect;
-    $('googleSwitchAccount').onclick=connect;
+    $('googleConnect').onclick=()=>connect();
+    $('googleSwitchAccount').onclick=()=>connect(true);
     $('googleSync').onclick=()=>sync(true);
     $('googleBackup').onclick=backup;
     $('googleRestore').onclick=browse;
@@ -279,6 +351,7 @@
       else{clearTimeout(timer);message('Automatic cloud sync paused. Notes are still saved locally and can be synced manually.');}
     };
     updateUI();
+    await restoreSession();
   }
   global.WindsDrive=Object.freeze({init,open,onLocalSave});
 })(window);

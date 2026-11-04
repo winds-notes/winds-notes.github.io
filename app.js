@@ -489,9 +489,23 @@
     setTool('artist');closeMenus();
     toast(`${grade} artist tool selected`);
   }
+  function renderArtistPreviews(){
+    document.querySelectorAll('[data-grade]').forEach(button=>{
+      const selected=button.dataset.grade===state.artistGrade;
+      button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
+    });
+    document.querySelectorAll('[data-artist-preview]').forEach(canvas=>{
+      const ctx=canvas.getContext('2d'),grade=canvas.dataset.artistPreview;
+      ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,112,22);
+      const points=Array.from({length:33},(_,i)=>{
+        const t=i/32;return [4+104*t,11+3*Math.sin(t*Math.PI*2),.05+.95*Math.sin(t*Math.PI)];
+      });
+      CREATIVE.drawArtistStroke(ctx,{tool:'artist',grade,color:state.color,size:grade==='Charcoal'?4:5,points});
+    });
+  }
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
-    state.color=c;
+    state.color=c;CREATIVE.prepareArtistColor(c);
     document.querySelectorAll('[data-color],[data-more-color]').forEach(b=>{
       const selected=(b.dataset.color||b.dataset.moreColor)?.toLowerCase()===c.toLowerCase();
       b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));
@@ -720,7 +734,7 @@
       // Incremental bounds avoid argument-list overflow for long pencil strokes.
       let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
       for(const point of pts){minX=Math.min(minX,point[0]);minY=Math.min(minY,point[1]);maxX=Math.max(maxX,point[0]);maxY=Math.max(maxY,point[1]);}
-      const pad=Math.max(7,item.size*(item.tool==='highlighter'?3:1));
+      const pad=Math.max(7,item.tool==='artist'?CREATIVE.artistBoundsPadding(item):item.size*(item.tool==='highlighter'?3:1));
       return {x:minX-pad,y:minY-pad,w:maxX-minX+2*pad,h:maxY-minY+2*pad};
     }
     if(item.type==='text')return{x:item.x,y:item.y,w:item.w||480,h:textGeometry(item).h};
@@ -881,8 +895,9 @@
     const b=itemBounds(item),tolerance=forEraser?14:9;
     if(x<b.x-tolerance||x>b.x+b.w+tolerance||y<b.y-tolerance||y>b.y+b.h+tolerance)return false;
     if(item.type!=='stroke')return true;
-    const pts=item.points||[];if(pts.length===1)return Math.hypot(x-pts[0][0],y-pts[0][1])<tolerance+item.size;
-    for(let i=1;i<pts.length;i++)if(distToSegment(x,y,...pts[i-1].slice(0,2),...pts[i].slice(0,2))<tolerance+item.size*(item.tool==='highlighter'?2.5:0.7))return true;
+    const pts=item.points||[];const reach=item.tool==='artist'?CREATIVE.artistBoundsPadding(item):item.size*(item.tool==='highlighter'?2.5:.7);
+    if(pts.length===1)return Math.hypot(x-pts[0][0],y-pts[0][1])<tolerance+(item.tool==='artist'?reach:item.size);
+    for(let i=1;i<pts.length;i++)if(distToSegment(x,y,...pts[i-1].slice(0,2),...pts[i].slice(0,2))<tolerance+reach)return true;
     return false;
   }
   function hitTest(x,y,eraser=false){const items=page()?.items||[];for(let i=items.length-1;i>=0;i--)if(nearItem(items[i],x,y,eraser))return i;return -1;}
@@ -1271,7 +1286,7 @@
     $('shapeOutlineStyle').onchange=e=>{setFillOptions({outlineStyle:e.target.value});applyFillToSelected();};
     $('shapeFillSwatches').onclick=e=>{const b=e.target.closest('[data-fill-color]');if(!b)return;setFillOptions({enabled:true,color:b.dataset.fillColor});applyFillToSelected();};
     $('applyShapeFill').onclick=()=>{if(applyFillToSelected())toast('Selected shape fill updated');else toast('Select a shape first');};
-    $('artistBtn').onclick=e=>{e.stopPropagation();if(state.tool!=='artist')setTool('artist');toggleMenu('artistBtn','artistMenu');};
+    $('artistBtn').onclick=e=>{e.stopPropagation();if(state.tool!=='artist')setTool('artist');toggleMenu('artistBtn','artistMenu');if(!$('artistMenu').hidden)renderArtistPreviews();};
     $('artistMenu').onclick=e=>{const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
     $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
     $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};

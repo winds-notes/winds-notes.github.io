@@ -44,7 +44,7 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 **Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, reopen **Fill** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
 
-**Artist pencils:** Click **Artist** to choose 2H/H (fine), HB/B/2B/4B/6B (graphite), Charcoal (textured), Ink Brush (strong pressure-sensitive colored ink) or Color Pencil (softer colored marks). Use the 1–32 line-thickness control as needed. Click regular **Pen** to return to handwriting.
+**Artist pencils:** Click **Artist** to see actual brush previews and choose 2H/H (fine detail), HB/B/2B/4B/6B (progressively softer graphite with paper grain), Charcoal (broad, broken texture with soft edges), Ink Brush (continuous pressure-controlled ribbons) or Color Pencil (layered colored pigment). Pressure changes both width and pigment strength where supported. Use the 1–32 line-thickness control as needed. Click regular **Pen** to return to handwriting. Texture remains consistent across the editor, thumbnails, exports and native-file reopening.
 
 **Choose your color:** The extra color palette contains filled light-color cells. Choosing another color replaces the previous selection and updates the current-color preview. Stronger writing colors remain available in the main toolbar.
 
@@ -71,6 +71,8 @@ If you publish by replacing GitHub files, ensure the updated `creative-tools.js`
 The Google OAuth Web client ID is a **public identifier**; it is in `google-config.js` so this static GitHub Pages app can initiate authorization. **No OAuth client secret, Google API key, access token or refresh token is committed.** Sign-in still requires correct Google Cloud Console settings: permitted website origin, external OAuth audience/test users or public production status, enabled Google Drive API and appropriate scopes. For a different domain, add the exact origin in Google Cloud Console. To test Google sign-in locally, authorize `http://localhost:5173` as another JavaScript origin; otherwise use the deployed GitHub Pages URL.
 
 Each signed-in user's Drive files belong to that Google account, not to a shared developer account. Local guest data is separate. Network saves do not run inside the active Pencil input handlers. This is **single-user workspace sync/backup**, not real-time collaborative editing and not a backend that can reconcile simultaneous edits perfectly.
+
+**Refresh and reconnect:** A short-lived Drive access token is kept in the current tab's `sessionStorage` so refreshing can restore the same account after verifying it with Google. It is not saved in localStorage, notebook files or the repository. If the token expires, is rejected, or cannot be verified offline, the account's local notebooks remain open and **Reconnect Google Drive** resumes sync. Closing the tab normally ends this recovery session; browsers may restore it when restoring tabs. **Sign out / open guest notes** explicitly clears the saved session. Google may still require a reconnect click because this static app has no backend to refresh authorization automatically.
 
 ## Project layout
 
@@ -99,3 +101,5 @@ Licensed under MIT. The previous UI, Pencil event-recovery logic and designer cr
 ## Try an example notebook
 
 The file `examples/creative-demo.winds-notes` is an editable sample containing styled filled figures and several Artist brush strokes. Open it with **Open notebook** to try every new feature immediately.
+
+`examples/artist-studio.winds-notes` is a two-page Artist sample: all ten materials with light-to-heavy pressure, plus a graphite study and a colored-pencil botanical drawing. Every mark is an editable stroke. Open it after updating the app to try the new materials.
