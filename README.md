@@ -42,6 +42,8 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Using the new features
 
+**Drawing width:** New pen strokes and shape outlines start at **10**. The thickness controls still support 1–32; existing saved strokes keep their original widths.
+
 **Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, reopen **Fill** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
 
 **Artist pencils:** Click **Artist** to see actual brush previews and choose 2H/H (fine detail), HB/B/2B/4B/6B (progressively softer graphite with paper grain), Charcoal (broad, broken texture with soft edges), Ink Brush (continuous pressure-controlled ribbons) or Color Pencil (layered colored pigment). Pressure changes both width and pigment strength where supported. Use the 1–32 line-thickness control as needed. Click regular **Pen** to return to handwriting. Texture remains consistent across the editor, thumbnails, exports and native-file reopening.

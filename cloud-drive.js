@@ -100,6 +100,7 @@
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     global.WindsSharing?.cancel();
+    global.WindsLive?.stop();
     driveController?.abort();
     driveController=global.AbortController?new global.AbortController():null;
     syncing=false;manualBusy=false;queuedAction=null;
@@ -312,7 +313,7 @@
         if(expected!==generation||!currentSession(sessionSnapshot()))return false;
         token=saved.token;expires=saved.expires;authorizationRequired=false;
         if(forced)forceRenewal=false;
-        rememberSession();persistSession();updateUI();schedule();return true;
+        rememberSession();persistSession();updateUI();schedule();global.WindsLive?.start();return true;
       }catch(err){
         if(err.signedOut)signedOutElsewhere(sub);
         if(expected===generation){
@@ -362,7 +363,7 @@
         rememberSession();await bridge.switchWorkspace(profile?.sub||null).catch(()=>{});
         message(err.message||'Could not open this Google account.',true);updateUI();
       }
-    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();global.WindsSharing?.resume();}}
+    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();global.WindsSharing?.resume();global.WindsLive?.start();}}
   }
   async function connect(switchAccount=false){
     // Initiated directly by a click, required by Google's OAuth popup.
@@ -436,7 +437,7 @@
       if(expected===generation){
         signingIn=false;
         if(!connected()){token=null;expires=0;}
-        rememberSession();rememberAccount(true);updateUI();schedule();if(profile)scheduleRenewal();global.WindsSharing?.resume();
+        rememberSession();rememberAccount(true);updateUI();schedule();if(profile)scheduleRenewal();global.WindsSharing?.resume();global.WindsLive?.start();
       }
     }
   }
@@ -583,7 +584,7 @@
   }
   function onLocalSave(){
     if(!profile||remoteSignedOut||signingIn)return;
-    localVersion++;schedule();if(SERVER_AUTH&&!connected())scheduleRenewal(AUTO_RETRY_MS);
+    localVersion++;schedule();global.WindsLive?.refreshRooms();if(SERVER_AUTH&&!connected())scheduleRenewal(AUTO_RETRY_MS);
   }
   function backupName(){return `WiNDS Notes Backup ${new Date().toISOString().replace(/[:.]/g,'-')}.json`;}
   async function backup(){
@@ -654,6 +655,8 @@
   }
   async function init(appBridge){
     bridge=appBridge;
+    if(bridge.live)global.WindsLive?.init({bridge:bridge.live,session:()=>({profile:SERVER_AUTH&&!remoteSignedOut&&!authorizationRequired?profile:null,auto}),
+      catchup:()=>schedule(),authLost:()=>{forceRenewal=true;scheduleRenewal(0);}});
     if(bridge.sharing)global.WindsSharing?.init({bridge:bridge.sharing,session:sharingSession,check:(s,manual)=>ensureIdle(s.version,manual),
       request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
@@ -671,6 +674,7 @@
       if(profile)try{localStorage.setItem(`winds-drive-auto-${profile.sub}`,String(auto));}catch{}
       if(auto){localVersion++;message('Automatic sync enabled. Cloud uploads happen only after writing and local saving are idle.');schedule();}
       else{clearTimeout(timer);message('Automatic cloud sync paused. Notes are still saved locally and can be synced manually.');}
+      global.WindsLive?.start();
     };
     updateUI();
     global.addEventListener?.('storage',event=>{

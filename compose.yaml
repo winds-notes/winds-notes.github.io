@@ -1,0 +1,17 @@
+services:
+  winds-notes:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - .env.production
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8080"
+      WINDS_SESSION_FILE: /data/sessions.enc
+      WINDS_LIVE_SYNC: "true"
+    volumes:
+      - winds-data:/data
+volumes:
+  winds-data:

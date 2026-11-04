@@ -10,7 +10,8 @@
   function syncPageGeometry(){
     const {width,height}=pageDimensions(page());W=width;H=height;
     const shell=$('pageShell');shell.style.aspectRatio=`${W}/${H}`;
-    for(const id of ['pageCanvas','inkCanvas']){
+    for(const id of ['pageCanvas','inkCanvas','liveCanvas']){
+      if(id==='liveCanvas'&&window.WINDS_REALTIME_ENABLED!==true)continue;
       const c=$(id);if(c.width!==W*RENDER_SCALE)c.width=W*RENDER_SCALE;
       if(c.height!==H*RENDER_SCALE)c.height=H*RENDER_SCALE;
     }
@@ -70,7 +71,7 @@
     trash:'<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>'
   };
   const icon = (key, size=20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[key] || ICONS.plus}</svg>`;
-  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:3,zoom:1,penOnly:false,artistGrade:'HB',shapeFillEnabled:false,shapeFillColor:'#b9adff',shapeFillOpacity:1,shapeOutlineColor:'#2b2d4c',shapeOutlineSize:3,shapeOutlineStyle:'solid',selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
+  const state = {notebooks:[],activeId:null,pageIndex:0,tool:'pen',color:COLORS[0],size:10,zoom:1,penOnly:false,artistGrade:'HB',shapeFillEnabled:false,shapeFillColor:'#b9adff',shapeFillOpacity:1,shapeOutlineColor:'#2b2d4c',shapeOutlineSize:10,shapeOutlineStyle:'solid',selected:-1,draft:null,drag:null,pointers:new Map(),pinch:null,sidebarOpen:false,saveTimer:null,toastTimer:null,editingText:null,lastPenAt:0,stylusSeen:false,stylusPreferenceChanged:false};
   const history = new Map();
   const imageCache = new Map();
   let imageCropSession = null;
@@ -82,6 +83,26 @@
   let dirtyAll = false, saveVersion = 0, lastInkAt = 0, thumbnailsDirty = true, thumbnailTimer = 0, inkRAF = 0, drawnIndex = 0;
   let inkComposeTimer = 0, bufferedPenInk = false, bufferedPenItems = [];
   let cloudRenderTimer = 0;
+  let livePreviewItems=[],livePreviewRAF=0;
+  function clearLiveLayer(){
+    livePreviewItems=[];if(livePreviewRAF){cancelAnimationFrame(livePreviewRAF);livePreviewRAF=0;}
+    const canvas=$('liveCanvas');if(canvas){canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);canvas.dataset.livePreviews='0';}
+  }
+  function paintLiveLayer(){
+    livePreviewRAF=0;
+    if(window.WINDS_REALTIME_ENABLED!==true)return;
+    if(state.drag||state.pinch||state.editingText||imageCropSession){window.WindsLive?.render();return;}
+    const canvas=$('liveCanvas'),n=notebook(),p=page();if(!canvas)return;
+    const ctx=canvas.getContext('2d');ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);ctx.clearRect(0,0,W,H);
+    canvas.dataset.livePreviews='0';
+    if(!n||!p||$('editorView').hidden)return;
+    const ids=new Set(p.items.map(item=>item.id)),room=n._sharing?'shared:'+n._sharing.folderId:'account';
+    ctx.globalAlpha=.8;
+    let painted=0;
+    for(const preview of livePreviewItems){const packet=preview.packet;if(preview.room===room&&packet.bookId===n.id&&packet.pageId===p.id&&!ids.has(packet.item.id)){drawItem(ctx,packet.item);painted++;}}
+    canvas.dataset.livePreviews=String(painted);
+    ctx.globalAlpha=1;
+  }
   // This log is opt-in, kept entirely on the device, and does not perform any
   // work while its panel is closed. It distinguishes WebKit event loss from
   // application-side stroke rejection when testing on a physical iPad.
@@ -250,6 +271,7 @@
     const n=notebook();if(n){n.updatedAt=now();dirtyBooks.add(n.id);if(page())dirtyPages.add(page().id);}
     if(structural)dirtyAll=true;
     saveVersion++;lastInkAt=Date.now();
+    window.WindsLive?.changed(n?.id,page()?.id);
     // A writing burst has a single pending state; there are NO writes between letters.
     if($('saveStatus').textContent!=='Unsaved changes')statusText('Unsaved changes',true);
     clearTimeout(state.saveTimer);
@@ -411,10 +433,11 @@
     dirtyAll=true;const saved=++saveVersion,expectedWorkspace=workspaceId;
     await saveNow(true,true);
     if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size){const error=Error('Shared changes are waiting for durable local saving.');error.syncDeferred=true;throw error;}
-    renderCloudChanges(expectedWorkspace);return saved;
+    window.WindsLive?.refreshRooms();renderCloudChanges(expectedWorkspace);return saved;
   }
   function openNotebook(id){
     const n=state.notebooks.find(x=>x.id===id);if(!n)return;
+    clearLiveLayer();
     state.activeId=id;state.pageIndex=0;state.selected=-1;state.zoom=1;RENDER_SCALE=2;state.draft=null;
     state.sidebarOpen=false;thumbnailsDirty=true;
     view('editor');$('notebookTitle').value=n.title;
@@ -440,7 +463,7 @@
   }
   function switchPage(index){
     finishActiveStroke();const n=notebook();if(!n||index<0||index>=n.pages.length)return;
-    composeInkNow();commitText();state.pageIndex=index;state.selected=-1;state.draft=null;syncPageGeometry();resizePage();renderEditor();
+    clearLiveLayer();composeInkNow();commitText();state.pageIndex=index;state.selected=-1;state.draft=null;syncPageGeometry();resizePage();renderEditor();
     $('pageScroller').scrollTop=0;
     if(state.sidebarOpen){state.sidebarOpen=false;updateSidebar();}
   }
@@ -614,7 +637,7 @@
     h.undo.push(action);if(h.undo.length>70)h.undo.shift();h.redo=[];updateHistoryButtons();
   }
   function remember(){recordHistory({kind:'snapshot',items:clone(page().items)});}
-  function rememberAppend(item){recordHistory({kind:'append',item:clone(item)});}
+  function rememberAppend(item){recordHistory({kind:'append',item:clone(item)});window.WindsLive?.append(notebook()?.id,page()?.id,item);}
   function undo(){
     commitText();const h=historyForPage();if(!h?.undo.length)return;
     const action=h.undo.pop();
@@ -794,6 +817,7 @@
     drawPage(ctx,p,true);clearInk();
     if(state.draft)queueInk();else drawSelection(inkContext());
     updateSelectionActions();
+    paintLiveLayer();window.WindsLive?.render();
   }
   function commitInkToPage(item){
     const ctx=$('pageCanvas').getContext('2d');
@@ -1484,6 +1508,10 @@
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
       sharing:{notebooks:()=>state.notebooks,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id]),openNotebook,toast},
+      live:{busy:idle=>Boolean(state.drag||state.pinch||state.editingText||imageCropSession||Date.now()-lastInkAt<idle),
+        room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},
+        rooms:()=>[...new Set(state.notebooks.filter(n=>n._sharing).map(n=>'shared:'+n._sharing.folderId))],
+        paint:items=>{livePreviewItems=items;if(!livePreviewRAF)livePreviewRAF=requestAnimationFrame(paintLiveLayer);},clear:clearLiveLayer},
       importData:async text=>{
         if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
         const parsed=window.WindsFile.parse(text);
