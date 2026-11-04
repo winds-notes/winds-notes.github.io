@@ -99,10 +99,21 @@
   }
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    global.WindsSharing?.cancel();
     driveController?.abort();
     driveController=global.AbortController?new global.AbortController():null;
     syncing=false;manualBusy=false;queuedAction=null;
     return generation;
+  }
+  function sharingSession(){return {profile:connected()?profile:null,version:generation,deviceId};}
+  async function runSharingTask(task){
+    if(signingIn)return;
+    if(!connected()){open();return;}
+    if(queueAfterSync(()=>runSharingTask(task)))return;
+    const expected=generation;syncing=true;manualBusy=true;updateUI();
+    try{await task(sharingSession());}
+    catch(error){if(expected===generation)message(error.message||'Notebook sharing is unavailable.',true);}
+    finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
   }
   function queueAfterSync(action){
     if(!syncing)return false;
@@ -351,7 +362,7 @@
         rememberSession();await bridge.switchWorkspace(profile?.sub||null).catch(()=>{});
         message(err.message||'Could not open this Google account.',true);updateUI();
       }
-    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();}}
+    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();global.WindsSharing?.resume();}}
   }
   async function connect(switchAccount=false){
     // Initiated directly by a click, required by Google's OAuth popup.
@@ -425,7 +436,7 @@
       if(expected===generation){
         signingIn=false;
         if(!connected()){token=null;expires=0;}
-        rememberSession();rememberAccount(true);updateUI();schedule();if(profile)scheduleRenewal();
+        rememberSession();rememberAccount(true);updateUI();schedule();if(profile)scheduleRenewal();global.WindsSharing?.resume();
       }
     }
   }
@@ -528,6 +539,7 @@
     let nextDelay=null;
     try{
       if(SERVER_AUTH&&!connected()&&!await renewServerSession()){nextDelay=AUTO_RETRY_MS;return;}
+      await global.WindsSharing?.sync(sharingSession(),manual);
       // Re-read latest Drive state before writing so another device's newly
       // created notebooks are not inadvertently overwritten.
       await refreshFromDrive(expected,manual);
@@ -642,6 +654,8 @@
   }
   async function init(appBridge){
     bridge=appBridge;
+    if(bridge.sharing)global.WindsSharing?.init({bridge:bridge.sharing,session:sharingSession,check:(s,manual)=>ensureIdle(s.version,manual),
+      request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
     $('cloudConnectHome').onclick=open;
     $('cloudClose').onclick=close;

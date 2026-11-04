@@ -12,7 +12,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill.
 - **Artist mode:** 10 pressure-aware tools: **2H, H, HB, B, 2B, 4B, 6B, Charcoal, Ink Brush, and Color Pencil**. Brush strokes remain editable and export with their chosen style.
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
-- **Sharing:** PDF, JPEG, PNG and JSON backups.
+- **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
 - **Optional Google Drive:** Google OAuth (public client ID configured in `google-config.js`), separate on-device account workspaces, and backups/sync within each authorized user's own Drive. See `docs/ARCHITECTURE.md` for limitations.
 
 ## Run locally (recommended for Codex)
@@ -62,15 +62,25 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Deploy on GitHub Pages
 
-The repository root itself is the **deployable website**. Commit or upload `index.html`, all `.js`/`.css` files, `manifest.webmanifest`, `.nojekyll`, and `assets/` to the root of the website repository. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
+The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all `.js`/`.css` files (including `legal.css`), `manifest.webmanifest`, `.nojekyll`, and `assets/` to the root of the website repository. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
 If you publish by replacing GitHub files, ensure the updated `creative-tools.js` is included. `sw.js` has an updated cache version so returning visitors can receive the new app shell. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+
+## Share a notebook
+
+In **My notebooks**, tap a notebook's **three-dot Actions menu → Share notebook…**, enter the collaborator's Google account email and choose **Share and send invitation**. Only that notebook is shared with editing access. Google emails the invitation and app link; the recipient opens the app link and signs in with the invited account. **Open shared link** also opens a WiNDS invitation link. Both people can write and retrieve each other's saved changes automatically while their private notebooks stay separate.
+
+Shared notebooks show a Shared label. Their menu retains **Remove from my library**; the owner manages/revokes Drive permissions in the dedicated shared notebook folder. See [Notebook sharing](docs/NOTEBOOK_SHARING.md) for deployment files, OAuth/test-user requirements, offline recovery and editing limitations. Real Google delivery and recipient access still need deployment verification.
 
 ## Google Drive configuration and privacy
 
 The Google OAuth Web client ID is a **public identifier**; it is in `google-config.js` so this static GitHub Pages app can initiate authorization. **No OAuth client secret, Google API key, access token or refresh token is committed.** Sign-in still requires correct Google Cloud Console settings: permitted website origin, external OAuth audience/test users or public production status, enabled Google Drive API and appropriate scopes. For a different domain, add the exact origin in Google Cloud Console. To test Google sign-in locally, authorize `http://localhost:5173` as another JavaScript origin; otherwise use the deployed GitHub Pages URL.
 
-Each signed-in user's Drive files belong to that Google account, not to a shared developer account. Local guest data is separate. Network saves do not run inside the active Pencil input handlers. This is **single-user workspace sync/backup**, not real-time collaborative editing and not a backend that can reconcile simultaneous edits perfectly.
+**OAuth policy links:** The public `privacy.html` and `terms.html` pages describe this app's data practices and service terms, with links from the homepage and Drive dialog. Publish them with `legal.css` and confirm the contact information before submitting them to Google. For an app at `https://winds-notes.github.io/`, enter `https://winds-notes.github.io/privacy.html` as the Application privacy policy link and `https://winds-notes.github.io/terms.html` as the Application terms of service link. If the app uses a repository subpath or another domain, use that same base URL for both pages. They must be reachable publicly without sign-in; these URLs become live only after deployment.
+
+Each signed-in user's Drive files belong to that Google account, not to a shared developer account. Local guest data is separate. Network saves do not run inside the active Pencil input handlers. Each account keeps its own private workspace. Selected notebooks can be shared explicitly with another Google account for viewing and editing; shared changes synchronize after writing is idle. This does not provide real-time cursors or perfect reconciliation of simultaneous edits to the same object.
+
+**Fast automatic Drive synchronization:** Automatic sync is enabled by default for each account. Edits save locally after a **2.5-second pause in writing**, then queue for upload immediately. Incoming changes are checked automatically every **1 second** while the app is visible and idle, with immediate checks on opening, returning to the app or reconnecting. Same-account tabs notify one another after a completed upload so they can retrieve changes without waiting for the next poll. Once the workspace file is known, checks request only its metadata rather than searching dated backups. No manual Sync or page refresh is needed. A new stroke, text edit or pinch gesture postpones remaining parsing, merging, canvas refreshes and uploads until idle again. Polling includes time already spent on the request, and a receiving device saves incoming changes without uploading the same data again. Newer local notebooks and deletion markers are still merged and uploaded. Unchanged workspaces are not repeatedly downloaded or uploaded, and failed requests retain their retry delay. The target for a small workspace on two visible, idle devices is roughly 3–5 seconds from the final stroke to retrieval, rather than an upload-only timing. Actual transfer time depends on connection speed, Drive response time and notebook size; active writing, background tabs and failed requests can take longer. Open Google Drive to check the automatic-sync setting and last successful upload time; explicit pause remains supported.
 
 **Persistent login:** The account workspace is remembered across refreshes, new tabs and closing the browser. On static hosting, each account's short-lived Drive credential is saved in this browser's localStorage and reverified with Google on reopening. Its expiry is never extended, so static GitHub Pages hosting still requires renewed Drive authorization after Google expires the token. Credentials are never included in notebook files or source control.
 
@@ -88,6 +98,7 @@ Each signed-in user's Drive files belong to that Google account, not to a shared
 | `creative-tools.js` | Figure geometry/fills and artist graphite rendering (independently testable) |
 | `native-file.js` | `.winds-notes` validation, imports and serialization |
 | `cloud-drive.js` | Google OAuth and per-account Drive workspace logic |
+| `notebook-sharing.js` / `shared-notebook-model.js` | Per-notebook Drive invitations, durable outgoing edits and shared history replay |
 | `google-config.js` | Public OAuth Web client ID only |
 | `pdf-export.js` | PDF writer |
 | `sw.js` | Service worker / offline cache |

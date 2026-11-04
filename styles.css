@@ -207,6 +207,7 @@
 
 /* WiNDS Notes Studio: polished unobtrusive creativity and optional cloud. */
 .library-header-actions{display:flex;align-items:center;gap:8px}.cloud-entry{display:inline-flex;align-items:center;gap:9px;border:1px solid #e9eaf3;background:white;color:#545476;border-radius:11px;padding:10px 15px;font-size:12px;font-weight:750;white-space:nowrap;transition:background .12s ease,border-color .12s ease}.cloud-entry:hover{background:#f3f1ff;border-color:#ddd8ff}.cloud-glyph{font-size:20px;line-height:1;color:#6259da}.designer-credit{margin:47px 0 0;padding:22px 0 9px;text-align:center;color:#a0a0b6;font-size:11px;font-weight:500;letter-spacing:.1px}.designer-credit a{color:#6c60d0;font-weight:750;text-decoration:none}.designer-credit a:hover{text-decoration:underline}
+.legal-links{display:flex;justify-content:center;flex-wrap:wrap;gap:16px;margin-top:10px}
 .editor-header .emoji-tool{font-family:system-ui;font-size:25px;line-height:1;color:#65618d}.editor-header .custom-color-button{font-size:19px;line-height:1;position:relative}.editor-header .custom-color-button:after{content:'';position:absolute;bottom:2px;left:10px;width:13px;height:3px;border-radius:2px;background:var(--chosen-color,#2b2d4c)}
 .editor-header .color-menu{width:247px;max-width:calc(100vw - 16px);padding:14px}.color-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:9px;padding:6px 2px 12px}.extended-swatch{width:25px;height:25px;border:2px solid #e7e9ef;border-radius:50%;background:var(--swatch);padding:0;box-shadow:0 1px 2px #30305012}.extended-swatch.selected{outline:2px solid #5e55db;outline-offset:2px}.custom-color-choice{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #eaeaf2;padding-top:11px;color:#4f5573;font-size:12px;font-weight:700}.custom-color-choice input{height:32px;width:55px;border:0;background:transparent;cursor:pointer}
 /* Swatches must override the general pop-menu button background and padding. */
@@ -371,3 +372,13 @@
 /* Artist cards preview the real material without changing the toolbar layout. */
 .artist-grade-list canvas.graphite-sample{display:block;width:100%;height:22px;border:0;opacity:1;transform:none;margin-top:3px}
 .editor-header .artist-grade-list button.selected{border-color:#bdb4fa;background:#f2efff}
+
+/* Notebook sharing lives in the library; the writing toolbar stays unchanged. */
+.notebook-card-actions{position:fixed;z-index:45;min-width:205px;padding:7px;background:#fff;border:1px solid #e8e7f2;border-radius:13px;box-shadow:0 12px 34px #29254425}
+.notebook-card-actions button{display:block;width:100%;padding:12px 14px;text-align:left;border:0;border-radius:8px;background:none;color:#393750;font:inherit;font-size:13px;cursor:pointer}
+.notebook-card-actions button:hover,.notebook-card-actions button:focus-visible{background:#f1efff;color:#5948d5;outline:2px solid #bdb4f4;outline-offset:-2px}
+.notebook-card-actions .danger-text{color:#bd425c}
+.notebook-share-dialog{max-height:90vh;overflow:auto}.notebook-share-dialog h2{margin-top:10px}.notebook-share-dialog #shareNotebookTitle{font-weight:700;overflow-wrap:anywhere;color:#58536f}
+.share-access{font-size:12px;color:#6e648f}.share-status{font-size:13px;line-height:1.6;color:#655f7e;min-height:42px}.share-status.error{color:#b83251}
+#shareLinkControl{margin-top:23px;padding-top:15px;border-top:1px solid #eceaf4}#shareLinkControl button{margin-top:9px}
+@media(max-width:750px){.section-heading{flex-wrap:wrap}.section-controls{flex-wrap:wrap;gap:8px}.section-controls .btn{font-size:11px}}

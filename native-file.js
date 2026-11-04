@@ -69,7 +69,15 @@
   }
   function serialize(notebook){
     check(isObject(notebook) && typeof notebook.title==='string' && Array.isArray(notebook.pages),'Cannot save invalid notebook');
-    return JSON.stringify({format:FORMAT,version:VERSION,application:'WiNDS Notes',exportedAt:new Date().toISOString(),pageSize:{portrait:{width:840,height:1188},landscape:{width:1188,height:840}},notebook});
+    const {_sharing,...content}=notebook;
+    return JSON.stringify({format:FORMAT,version:VERSION,application:'WiNDS Notes',exportedAt:new Date().toISOString(),pageSize:{portrait:{width:840,height:1188},landscape:{width:1188,height:840}},notebook:content});
+  }
+  function validateShared(notebook){
+    const clean=normalizeNotebook(notebook),ids=new Set();
+    function retain(value){check(typeof value==='string'&&value.length>0&&value.length<=200&&!/[\u0000-\u001f]/.test(value)&&!ids.has(value),'Invalid or duplicate shared object ID');ids.add(value);return value;}
+    clean.id=retain(notebook.id);clean.updatedAt=time(notebook.updatedAt);
+    clean.pages.forEach((p,i)=>{p.id=retain(notebook.pages[i].id);p.items.forEach((item,j)=>{item.id=retain(notebook.pages[i].items[j].id);});});
+    return clean;
   }
   function parse(text){
     check(typeof text==='string' && text.length>0 && text.length<=MAX_FILE_BYTES,'File is empty or too large');
@@ -85,5 +93,5 @@
     }
     throw new Error('Choose a .winds-notes notebook or a compatible JSON backup');
   }
-  global.WindsFile=Object.freeze({FORMAT,VERSION,MAX_FILE_BYTES,serialize,parse});
+  global.WindsFile=Object.freeze({FORMAT,VERSION,MAX_FILE_BYTES,serialize,parse,validateShared});
 })(typeof window!=='undefined'?window:globalThis);

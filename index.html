@@ -28,9 +28,9 @@
 <div class="hero-copy"><div class="eyebrow"><span class="sparkle">✦</span> YOUR CREATIVE SPACE</div><h1>Every great idea<br/>starts <em>somewhere.</em></h1><p>Beautifully simple handwritten notes, sketches, and ideas — all in one place. Made for your iPad, tablet, and laptop.</p><button class="btn btn-primary hero-cta" id="heroCreate"><span id="heroPlus"></span> Create a notebook</button></div>
 <div aria-hidden="true" class="hero-graphic"><div class="hero-paper paper-back"></div><div class="hero-paper paper-front"><div class="hero-paper-tag">THOUGHTS / 001</div><div class="hero-hello">Make space<br/>for <i>ideas.</i></div><div class="hero-underline"></div><div class="hero-doodle">✳</div><div class="hero-lines"><span></span><span></span><span></span></div></div><div class="hero-pencil"></div><div class="hero-star">✳</div></div>
 </div>
-<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
+<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button type="button" class="btn btn-outline btn-small" id="openSharedNotebook">Open shared link</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
 
-<footer class="designer-credit">Designed by <a href="https://alakesh-kalita.github.io/" target="_blank" rel="noopener noreferrer">Alakesh Kalita</a><span aria-hidden="true"> · </span>WiNDS Notes</footer>
+<footer class="designer-credit">Designed by <a href="https://alakesh-kalita.github.io/" target="_blank" rel="noopener noreferrer">Alakesh Kalita</a><span aria-hidden="true"> · </span>WiNDS Notes<nav class="legal-links" aria-label="Policies"><a href="./privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a><a href="./terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a></nav></footer>
 </main>
 </section>
 <section class="editor-view" hidden="" id="editorView">
@@ -175,6 +175,30 @@
     <div class="modal-footer"><button type="button" class="btn btn-outline" id="resetImageCrop">Reset</button><button type="button" class="btn btn-outline" id="cancelImageCrop">Cancel</button><button type="button" class="btn btn-primary" id="applyImageCrop">Apply crop</button></div>
   </section>
 </div>
+<div id="notebookCardMenu" class="notebook-card-actions" role="menu" aria-label="Notebook actions" hidden>
+  <button type="button" id="cardShareNotebook" role="menuitem">Share notebook…</button>
+  <button type="button" id="cardDeleteNotebook" role="menuitem" class="danger-text">Delete notebook</button>
+</div>
+<div class="modal-backdrop" id="shareBackdrop" hidden>
+  <section class="modal notebook-share-dialog" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <button type="button" class="modal-close" id="shareClose" aria-label="Close notebook sharing">×</button>
+    <div class="modal-eyebrow">SHARE ONE NOTEBOOK</div>
+    <h2 id="shareTitle">Share notebook</h2>
+    <p id="shareNotebookTitle"></p>
+    <form id="shareForm">
+      <label class="field-label" for="shareEmail">Google account email</label>
+      <input id="shareEmail" class="modal-input" type="email" autocomplete="email" placeholder="name@gmail.com" required/>
+      <p class="share-access">Can view and edit · Only this notebook is shared</p>
+      <p id="shareStatus" class="share-status" role="status"></p>
+      <button type="submit" id="shareSubmit" class="btn btn-primary">Share and send invitation</button>
+    </form>
+    <div id="shareLinkControl" hidden>
+      <label class="field-label" for="shareLink">Notebook link for invited accounts</label>
+      <input id="shareLink" class="modal-input" readonly/>
+      <button type="button" id="shareCopyLink" class="btn btn-outline">Copy notebook link</button>
+    </div>
+  </section>
+</div>
 <div class="cloud-backdrop" id="cloudBackdrop" hidden>
   <section class="cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
     <button class="cloud-close" type="button" id="cloudClose" aria-label="Close Google Drive">×</button>
@@ -193,7 +217,7 @@
       <div id="cloudBackupList" class="cloud-backups" hidden></div>
       <button type="button" class="cloud-disconnect" id="googleDisconnect" hidden>Sign out / open guest notes</button>
     </div>
-    <p class="cloud-smallprint">Each account owns its own WiNDS Notes Workspace.json in Google Drive. Your unsigned notes remain in a separate local guest workspace. The app requests only access to files it creates and basic Google account identity; your Google password is never handled or stored. Drive sync requires an internet connection.</p>
+    <p class="cloud-smallprint">Each account owns its own WiNDS Notes Workspace.json in Google Drive. Your unsigned notes remain in a separate local guest workspace. The app requests only access to files it creates and basic Google account identity; your Google password is never handled or stored. Drive sync requires an internet connection. Read our <a href="./privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a> and <a href="./terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</p>
   </section>
 </div>
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
@@ -203,6 +227,8 @@
 <script src="./creative-tools.js"></script>
 <script src="./pdf-export.js"></script>
 <script src="./native-file.js"></script>
+<script src="./shared-notebook-model.js"></script>
+<script src="./notebook-sharing.js"></script>
 <script src="./google-config.js"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
 <script defer src="./cloud-drive.js"></script>

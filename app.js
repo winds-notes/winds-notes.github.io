@@ -333,6 +333,9 @@
       if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>500 || n.pages.some(p=>!Array.isArray(p.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
       remoteBooks.set(n.id,n);
       const local=merged.get(n.id);
+      // Shared edits have their own immutable Drive history. A private backup
+      // must not overwrite that notebook's local baseline or pending edits.
+      if(local?._sharing)continue;
       if(!local || (n.updatedAt||'')>(local.updatedAt||''))merged.set(n.id,n);
     }
     const final=[...merged.values()].filter(n=>!(mergedDeleted[n.id] && mergedDeleted[n.id]>=(n.updatedAt||'')));
@@ -362,7 +365,53 @@
     $('notebookCount').textContent=state.notebooks.length;
     const found=[...state.notebooks].sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt)).filter(n=>n.title.toLowerCase().includes(query));
     if(!found.length){$('notebookGrid').innerHTML=`<div class="empty-state"><div style="font-size:34px">✳</div><h3>${query?'No notebooks found':'Your next idea starts here'}</h3><p>${query?'Try another search term.':'Create a new notebook to start writing.'}</p></div>`;return;}
-    $('notebookGrid').innerHTML=found.map(n=>`<article class="notebook-card" data-open="${safe(n.id)}" tabindex="0" role="button" aria-label="Open ${safe(n.title)}"><div class="book-cover cover-${COVER_COLORS.includes(n.cover)?n.cover:'purple'}"><div class="cover-name">${safe(n.title)}</div><div class="cover-rule"></div><div class="cover-foot">WiNDS / NOTES</div></div><div class="notebook-meta"><div style="min-width:0"><h3>${safe(n.title)}</h3><p>${n.pages.length} ${n.pages.length===1?'page':'pages'} · ${displayDate(n.updatedAt)}</p></div><button class="card-menu" data-delete="${safe(n.id)}" title="Delete notebook" aria-label="Delete ${safe(n.title)}">${icon('more')}</button></div></article>`).join('');
+    $('notebookGrid').innerHTML=found.map(n=>`<article class="notebook-card" data-open="${safe(n.id)}" tabindex="0" role="button" aria-label="Open ${safe(n.title)}"><div class="book-cover cover-${COVER_COLORS.includes(n.cover)?n.cover:'purple'}"><div class="cover-name">${safe(n.title)}</div><div class="cover-rule"></div><div class="cover-foot">WiNDS / NOTES${n._sharing?' · SHARED':''}</div></div><div class="notebook-meta"><div style="min-width:0"><h3>${safe(n.title)}</h3><p>${n.pages.length} ${n.pages.length===1?'page':'pages'} · ${displayDate(n.updatedAt)}${n._sharing?' · Shared':''}</p></div><button type="button" class="card-menu" data-notebook-menu="${safe(n.id)}" title="Notebook actions" aria-label="Actions for ${safe(n.title)}" aria-haspopup="menu" aria-expanded="false">${icon('more')}</button></div></article>`).join('');
+  }
+  let menuNotebookId=null,menuTrigger=null;
+  function closeNotebookMenu(){
+    $('notebookCardMenu').hidden=true;menuTrigger?.setAttribute('aria-expanded','false');menuTrigger=null;
+  }
+  function openNotebookMenu(button){
+    const wasOpen=!$('notebookCardMenu').hidden&&menuNotebookId===button.dataset.notebookMenu;
+    closeNotebookMenu();if(wasOpen)return;
+    menuNotebookId=button.dataset.notebookMenu;menuTrigger=button;
+    const n=state.notebooks.find(book=>book.id===menuNotebookId);if(!n)return;
+    $('cardDeleteNotebook').textContent=n._sharing?'Remove from my library':'Delete notebook';
+    const menu=$('notebookCardMenu'),rect=button.getBoundingClientRect();menu.hidden=false;
+    menu.style.left=`${Math.max(8,Math.min(innerWidth-menu.offsetWidth-8,rect.right-menu.offsetWidth))}px`;
+    menu.style.top=`${Math.max(8,Math.min(innerHeight-menu.offsetHeight-8,rect.bottom+6))}px`;
+    button.setAttribute('aria-expanded','true');$('cardShareNotebook').focus();
+  }
+  async function putSharedNotebook(book,sharing,version,attach=false,manual=false){
+    if(version!==saveVersion||saving||state.drag||state.pinch||state.editingText||imageCropSession||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
+      const error=Error('Local editing changed while sharing. Try again when idle.');error.syncDeferred=true;throw error;
+    }
+    if(!/^[\w-]{5,200}$/.test(sharing?.folderId||''))throw Error('Invalid shared notebook folder');
+    const clean=window.WindsFile.validateShared(book),index=state.notebooks.findIndex(n=>n.id===clean.id),current=state.notebooks[index];
+    if(current?._sharing&&current._sharing.folderId!==sharing.folderId)throw Error('This notebook ID belongs to another shared notebook.');
+    if(current&&!current._sharing&&!attach){
+      const copy=window.WindsFile.parse(window.WindsFile.serialize(current)).notebooks[0];
+      copy.title=(copy.title+' (private copy)').slice(0,70);state.notebooks.push(copy);
+      toast('Your existing notebook was preserved as a private copy');
+    }
+    const before=current?window.WindsFile.validateShared(current):null;
+    const changed=before&&!window.WindsSharedModel.sameValue({...before,updatedAt:null},{...clean,updatedAt:null});
+    if(changed&&state.activeId===clean.id)state.selected=-1;
+    const next={...clean,_sharing:sharing};if(index<0)state.notebooks.push(next);else state.notebooks[index]=next;
+    delete tombstones[clean.id];
+    if(changed)for(const p of before.pages){
+      const h=history.get(p.id);if(!h)continue;
+      const after=new Map((clean.pages.find(next=>next.id===p.id)?.items||[]).map(item=>[item.id,item]));
+      const previous=new Map(p.items.map(item=>[item.id,item]));
+      // Keep safe stroke undo/redo; an old whole-page snapshot must not erase
+      // a collaborator's new marks or changes to the same object.
+      h.undo=h.undo.filter(action=>action.kind==='append'&&after.has(action.item.id)&&window.WindsSharedModel.sameValue(previous.get(action.item.id),after.get(action.item.id)));
+      h.redo=h.redo.filter(action=>action.kind==='append'&&!after.has(action.item.id));
+    }
+    dirtyAll=true;const saved=++saveVersion,expectedWorkspace=workspaceId;
+    await saveNow(true,true);
+    if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size){const error=Error('Shared changes are waiting for durable local saving.');error.syncDeferred=true;throw error;}
+    renderCloudChanges(expectedWorkspace);return saved;
   }
   function openNotebook(id){
     const n=state.notebooks.find(x=>x.id===id);if(!n)return;
@@ -1256,7 +1305,7 @@
     const title=$('newNotebookTitle').value.trim()||'Untitled notebook';const cover=document.querySelector('.cover-choice.active')?.dataset.cover||'purple';
     const n=makeNotebook(title,cover,$('newPaperStyle').value,$('newPageOrientation').value);state.notebooks.push(n);scheduleSave(true);hideModal();openNotebook(n.id);toast('Your notebook is ready');
   }
-  function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=now();state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast('Notebook deleted');}
+  function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(n._sharing?`Remove "${n.title}" from this account's library? Other collaborators retain their shared notebook.`:`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=now();state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast(n._sharing?'Shared notebook removed from your library':'Notebook deleted');}
   function closeMenus(){
     ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu','fillMenu','artistMenu','zoomMenu'].forEach(id=>$(id).hidden=true);
     [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['shapeFillBtn','fillMenu'],['artistBtn','artistMenu'],['zoomValue','zoomMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
@@ -1288,7 +1337,11 @@
     $('newNotebookTitle').addEventListener('keydown',e=>{if(e.key==='Enter')createNotebook();});
     $('createNotebookConfirm').onclick=createNotebook;
     $('coverChoices').onclick=e=>{const button=e.target.closest('[data-cover]');if(!button)return;document.querySelectorAll('[data-cover]').forEach(x=>x.classList.toggle('active',x===button));};
-    $('notebookGrid').addEventListener('click',e=>{const remove=e.target.closest('[data-delete]');if(remove){deleteNotebook(remove.dataset.delete);return;}const card=e.target.closest('[data-open]');if(card)openNotebook(card.dataset.open);});
+    $('notebookGrid').addEventListener('click',e=>{const menu=e.target.closest('[data-notebook-menu]');if(menu){e.stopPropagation();openNotebookMenu(menu);return;}closeNotebookMenu();const card=e.target.closest('[data-open]');if(card)openNotebook(card.dataset.open);});
+    $('cardShareNotebook').onclick=()=>{const id=menuNotebookId;closeNotebookMenu();window.WindsSharing?.open(id);};
+    $('cardDeleteNotebook').onclick=()=>{const id=menuNotebookId;closeNotebookMenu();deleteNotebook(id);};
+    document.addEventListener('click',e=>{if(!e.target.closest('#notebookCardMenu'))closeNotebookMenu();});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeNotebookMenu();$('shareBackdrop').hidden=true;}});
     $('notebookGrid').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('[data-open]'))openNotebook(e.target.dataset.open);});
     $('searchNotebooks').oninput=renderLibrary;
     $('goLibrary').onclick=goLibrary;
@@ -1430,6 +1483,7 @@
       isEditing:()=>Boolean(state.editingText||imageCropSession),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
+      sharing:{notebooks:()=>state.notebooks,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id]),openNotebook,toast},
       importData:async text=>{
         if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
         const parsed=window.WindsFile.parse(text);
