@@ -425,3 +425,33 @@
 .cloud-sync-details dl>div{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;align-items:baseline}
 .cloud-sync-details dt{color:#8a839b}.cloud-sync-details dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;line-height:1.45}
 .cloud-sync-details p{font-size:10px;line-height:1.6;margin:12px 0 1px;color:#9a93a8}
+
+/* PDF import stays outside the single-row writing workspace. */
+.pdf-import-backdrop{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:#20213666;backdrop-filter:blur(5px);padding:16px}
+.pdf-import-backdrop[hidden]{display:none}
+.pdf-import-dialog{position:relative;background:#fff;border:1px solid #e8e5f1;border-radius:22px;width:min(530px,100%);max-height:calc(100dvh - 32px);overflow:auto;padding:29px;box-shadow:0 25px 90px #24213945;color:#3c3850;outline:none}
+.pdf-import-eyebrow{font-size:9px;letter-spacing:2px;font-weight:800;color:#8b7ca3;margin:2px 0 10px}
+.pdf-import-dialog h2{font-family:Georgia,serif;font-size:28px;font-weight:500;letter-spacing:-.7px;margin:0 25px 10px 0}
+.pdf-import-description{font-size:12px;line-height:1.65;color:#8b849a;margin:0 0 17px}
+.pdf-document-summary{display:flex;align-items:center;gap:18px;padding:13px;background:#f8f7fa;border:1px solid #ece9f0;border-radius:12px;min-height:70px;margin-bottom:16px}
+.pdf-document-summary canvas{display:block;max-width:88px;max-height:113px;width:auto;height:auto;box-shadow:0 2px 8px #38334a16;flex-shrink:0;background:#fff}
+.pdf-document-summary canvas[hidden]{display:none}
+.pdf-document-summary strong{font-size:13px;overflow-wrap:anywhere;line-height:1.5;display:block}
+.pdf-document-summary span,.pdf-document-summary small{display:block;font-size:10px;line-height:1.6;color:#92899f;margin-top:4px}
+.pdf-document-summary small{color:#a39aad}
+.pdf-import-options{margin:0;padding:0;border:0;min-width:0}
+.pdf-import-options[hidden],.pdf-password-form[hidden]{display:none}
+.pdf-import-options label,.pdf-password-form label{display:block;font-size:11px;font-weight:750;margin:14px 0 7px;color:#61566f}
+.pdf-import-options input,.pdf-import-options select,.pdf-password-form input{width:100%;border:1px solid #e3dfe9;border-radius:8px;padding:10px 11px;background:#fff;font-size:12px;color:#4c435b;box-sizing:border-box}
+.pdf-import-options small{font-size:10px;display:block;margin-top:6px;line-height:1.45;color:#9b91aa}
+.pdf-import-status{font-size:11px;line-height:1.6;color:#81718f;margin:17px 0 10px;min-height:18px}
+.pdf-import-status.error{color:#b44761}
+#pdfImportProgress{width:100%;height:9px;accent-color:#766088;margin-bottom:15px}
+.pdf-import-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:14px}
+.pdf-import-actions .btn{min-height:40px;font-size:12px}
+.pdf-import-footnote{border-top:1px solid #eeeaf2;padding-top:13px;font-size:10px;line-height:1.65;color:#a59aaf;margin:19px 0 0}
+.pdf-password-form>div{display:flex;gap:8px}.pdf-password-form .btn{flex-shrink:0;font-size:11px}
+@media(max-width:600px){.pdf-import-dialog{padding:23px 20px}.pdf-import-dialog h2{font-size:25px}.section-controls{flex-wrap:wrap}.pdf-import-actions .btn{flex:1;justify-content:center}}
+
+.editor-header .prepared-export-link{display:block;background:#efeaf7;color:#5c477c;border-radius:9px;margin:0 0 8px;padding:12px;font-size:11px;font-weight:750;text-decoration:none;overflow-wrap:anywhere;line-height:1.45}.editor-header .prepared-export-link[hidden]{display:none}
+@media(max-width:1100px){.section-heading{flex-wrap:wrap;align-items:center}.section-heading>div:first-child{flex-shrink:0}.section-controls{flex-wrap:wrap;max-width:100%;min-width:0}}

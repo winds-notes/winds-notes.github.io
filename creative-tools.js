@@ -97,6 +97,10 @@
   }
 
   const FULL_CROP = Object.freeze({x:0,y:0,w:1,h:1});
+  function pageBackgroundRect(background,dimensions){
+    const scale=Math.min(dimensions.width/background.width,dimensions.height/background.height),w=background.width*scale,h=background.height*scale;
+    return {x:(dimensions.width-w)/2,y:(dimensions.height-h)/2,w,h};
+  }
   function imageCrop(crop) {
     if(!crop || !['x','y','w','h'].every(k=>Number.isFinite(crop[k])))return {...FULL_CROP};
     const x=clamp(crop.x,0,.99),y=clamp(crop.y,0,.99);
@@ -440,6 +444,6 @@
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
   return Object.freeze({PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
-    imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
+    pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect});
 });

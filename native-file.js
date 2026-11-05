@@ -56,6 +56,20 @@
     }
     return image;
   }
+  const backgroundCache=new WeakMap(),backgroundFields=['type','src','thumbnail','width','height','sourceName','sourcePage'];
+  function pageBackground(value){
+    if(value==null)return {};
+    check(isObject(value)&&value.type==='pdf','Invalid page background');
+    const cached=backgroundCache.get(value);
+    if(cached&&backgroundFields.every(key=>cached.input[key]===value[key]))return {background:cached.clean};
+    const image=x=>typeof x==='string'&&x.length<=12*1024*1024&&/^data:image\/(?:png|jpeg);base64,[a-zA-Z0-9+/=]+$/.test(x);
+    check(image(value.src)&&image(value.thumbnail)&&value.thumbnail.length<=256*1024,'Invalid PDF page image');
+    check(Number.isInteger(value.width)&&Number.isInteger(value.height)&&value.width>=1&&value.height>=1&&value.width<=2376&&value.height<=2376&&value.width*value.height<=2376*1680,'Invalid PDF page dimensions');
+    check(Number.isInteger(value.sourcePage)&&value.sourcePage>=1&&value.sourcePage<=100000,'Invalid PDF page number');
+    const clean=Object.freeze({type:'pdf',src:value.src,thumbnail:value.thumbnail,width:value.width,height:value.height,sourceName:str(value.sourceName,200,'Imported PDF'),sourcePage:value.sourcePage});
+    backgroundCache.set(value,{input:Object.fromEntries(backgroundFields.map(key=>[key,value[key]])),clean});
+    backgroundCache.set(clean,{input:clean,clean});return {background:clean};
+  }
   function normalizeNotebook(n){
     check(isObject(n) && typeof n.title==='string' && Array.isArray(n.pages),'Invalid notebook');
     check(n.pages.length>=1 && n.pages.length<=750,'Invalid page count');
@@ -63,7 +77,7 @@
     const pages=n.pages.map(p=>{
       check(isObject(p) && Array.isArray(p.items) && p.items.length<=50000,'Invalid notebook page');
       totalItems+=p.items.length;check(totalItems<=150000,'Notebook contains too many objects');
-      return {id:makeId(),template:PAPERS.has(p.template)?p.template:'ruled',orientation:p.orientation==='landscape'?'landscape':'portrait',items:p.items.map(normalizeItem)};
+      return {id:makeId(),template:PAPERS.has(p.template)?p.template:'ruled',orientation:p.orientation==='landscape'?'landscape':'portrait',...pageBackground(p.background),items:p.items.map(normalizeItem)};
     });
     return {id:makeId(),title:str(n.title,70).trim()||'Imported notebook',cover:COVERS.has(n.cover)?n.cover:'purple',createdAt:time(n.createdAt),updatedAt:new Date().toISOString(),pages};
   }

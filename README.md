@@ -3,7 +3,7 @@
 **A tablet-first handwriting and drawing application with optional Google Drive storage.**  
 Designed by [Alakesh Kalita](https://alakesh-kalita.github.io/).
 
-This is the **complete, editable Codex development workspace**, built from the latest WiNDS Notes Google sign-in edition. It is a static application that runs on GitHub Pages. **No build step, backend, or npm dependency is required to use the website.**
+This is the **complete, editable Codex development workspace**, built from the latest WiNDS Notes Google sign-in edition. It is a static application that runs on GitHub Pages. **No build step, backend, or npm install is required to use the website.** The PDF reader is bundled locally with the app.
 
 ## What works
 
@@ -12,6 +12,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill.
 - **Artist Studio:** 25 materials in Graphite, Ink and Pigment collections, with pressure previews, size and flow controls. Technical/fountain pens, dry brush, pastels, chalk and expanded graphite retain editable strokes and consistent exports.
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
+- **PDF annotation:** Import selected PDF pages into a new or existing notebook, then write, highlight, draw or add text over fixed page backgrounds. Supports password-protected PDFs, mixed page orientations, offline use and annotated exports.
 - **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
 - **Optional Google Drive:** Google OAuth (public client ID configured in `google-config.js`), separate on-device account workspaces, and backups/sync within each authorized user's own Drive. See `docs/ARCHITECTURE.md` for limitations.
 
@@ -42,6 +43,8 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Using the new features
 
+**Annotate a PDF:** On the home page choose **Import PDF**, or in an open notebook choose **Notebook options → Import PDF pages…**. Select pages such as `1-5, 8`, then create a notebook or append to the current one. Use the existing Pen, Artist, Highlighter and Text tools. The eraser removes your marks while the PDF background stays fixed. Export an annotated PDF or an editable `.winds-notes` copy. PDF text, links and form controls are flattened into page images; the source file is unchanged. Limits: **25 MB per source PDF, 50 selected pages per import**. See [PDF annotation](docs/PDF_ANNOTATION.md) for quality, storage and sharing details.
+
 **Drawing width:** New pen strokes and shape outlines start at **7**. The thickness controls still support 1–32; existing saved strokes keep their original widths.
 
 **Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, reopen **Fill** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
@@ -64,9 +67,9 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Deploy on GitHub Pages
 
-The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all `.js`/`.css` files (including `legal.css`), `manifest.webmanifest`, `.nojekyll`, and `assets/` to the root of the website repository. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
+The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
-If you publish by replacing GitHub files, ensure the updated `creative-tools.js` is included. `sw.js` has an updated cache version so returning visitors can receive the new app shell. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v34** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 
 ## Share a notebook
 
@@ -109,6 +112,7 @@ Each signed-in user's Drive files belong to that Google account, not to a shared
 | `Dockerfile` / `compose.yaml` | Same-origin server package with persistent encrypted sessions |
 | `google-config.js` | Public OAuth Web client ID only |
 | `pdf-export.js` | PDF writer |
+| `pdf-import.js` / `vendor/pdfjs/` | Local PDF import dialog and bundled Mozilla PDF.js reader |
 | `sw.js` | Service worker / offline cache |
 | `tests/` | Node built-in unit tests |
 | `tools/dev-server.mjs` | Local zero-dependency server |
@@ -128,3 +132,5 @@ The file `examples/creative-demo.winds-notes` is an editable sample containing s
 `examples/artist-studio.winds-notes` is a two-page Artist sample: all ten materials with light-to-heavy pressure, plus a graphite study and a colored-pencil botanical drawing. Every mark is an editable stroke. Open it after updating the app to try the new materials.
 
 `examples/artist-studio-pro.winds-notes` contains three editable reference pages for all **25 Artist Studio materials**.
+
+`examples/pdf-annotation-demo.pdf` is a small three-page worksheet for trying PDF import, handwriting and highlights, with portrait, landscape and rotated pages.

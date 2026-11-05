@@ -13,12 +13,20 @@
     for(const key of ['title','cover','createdAt'])put(['book',key],book[key]);
     put(['order'],book.pages.map(page=>page.id));
     for(const page of book.pages){
-      put(['page',page.id],{template:page.template,orientation:page.orientation||'portrait'});
+      put(['page',page.id],{template:page.template,orientation:page.orientation||'portrait',...(page.background?{background:page.background}:{})});
       for(const item of page.items)put(['item',page.id,item.id],item);
     }
     return result;
   }
+  const backgroundDigests=new WeakMap();
   function digest(value){
+    if(value?.background?.type==='pdf'&&Object.isFrozen(value.background)){
+      const bg=value.background;let hash=backgroundDigests.get(bg);if(!hash){hash=digestRaw(bg);backgroundDigests.set(bg,hash);}
+      return digestRaw({...value,background:hash});
+    }
+    return digestRaw(value);
+  }
+  function digestRaw(value){
     const text=JSON.stringify(value);let a=2166136261,b=5381;
     for(let i=0;i<text.length;i++){a=Math.imul(a^text.charCodeAt(i),16777619);b=Math.imul(b,33)^text.charCodeAt(i);}
     return `${text.length}:${a>>>0}:${b>>>0}`;

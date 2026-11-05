@@ -3,10 +3,11 @@ WORKDIR /app
 RUN mkdir -p /data && chown node:node /data
 COPY package.json LICENSE manifest.webmanifest .nojekyll ./
 COPY index.html privacy.html terms.html styles.css legal.css ./
-COPY app.js creative-tools.js native-file.js cloud-drive.js notebook-sharing.js shared-notebook-model.js live-sync.js google-config.js pdf-export.js sw.js ./
+COPY app.js creative-tools.js native-file.js cloud-drive.js notebook-sharing.js shared-notebook-model.js live-sync.js google-config.js pdf-export.js pdf-import.js sw.js ./
 COPY server/start.mjs server/google-auth.mjs server/live-relay.mjs ./server/
 COPY assets/ ./assets/
 COPY examples/ ./examples/
+COPY vendor/pdfjs/ ./vendor/pdfjs/
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 WINDS_SESSION_FILE=/data/sessions.enc WINDS_LIVE_SYNC=true
 USER node
 EXPOSE 8080
