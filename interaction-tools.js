@@ -1,4 +1,4 @@
-/* Pure geometry for area selection and adjustable whole-stroke erasing. */
+/* Pure geometry for area selection and eraser contact detection. */
 (function(global){
   'use strict';
   const rect=(a,b)=>({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)});

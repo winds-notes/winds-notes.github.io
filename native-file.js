@@ -23,9 +23,18 @@
     const rotation=((item.rotation%360)+360)%360;
     return rotation?{rotation}:{};
   }
+  function erasureFields(item){
+    if(item.erasures==null)return {};
+    check(Array.isArray(item.erasures)&&item.erasures.length<=2048,'Too many erased areas');let count=0;
+    const erasures=item.erasures.map(mask=>{
+      check(isObject(mask)&&Number.isFinite(mask.rx)&&mask.rx>0&&mask.rx<1e7&&Number.isFinite(mask.ry)&&mask.ry>0&&mask.ry<1e7,'Invalid eraser radius');
+      check(Array.isArray(mask.points)&&mask.points.length>=1&&mask.points.length<=2048,'Invalid erased area');count+=mask.points.length;check(count<=200000,'Too many eraser points');
+      return {rx:mask.rx,ry:mask.ry,points:mask.points.map(p=>{check(Array.isArray(p)&&p.length===2&&p.every(v=>Number.isFinite(v)&&Math.abs(v)<1e7),'Invalid eraser point');return [p[0],p[1]];})};
+    });return erasures.length?{erasures}:{};
+  }
   function normalizeItem(item){
     check(isObject(item) && ['stroke','shape','text','image','sticker'].includes(item.type),'Unsupported or damaged page object');
-    const base={id:makeId(),type:item.type};
+    const base={id:makeId(),type:item.type,...erasureFields(item)};
     if(item.type==='stroke'){
       check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
       check(Array.isArray(item.points) && item.points.length>=1 && item.points.length<=200000,'Invalid pen points');

@@ -121,9 +121,38 @@
     const scale=Math.min(1,2200/(fullWidth*next.w),2200/(fullHeight*next.h));
     const result={...item,x:item.x+(next.x-old.x)*fullWidth,y:item.y+(next.y-old.y)*fullHeight,
       w:fullWidth*next.w*scale,h:fullHeight*next.h*scale};
+    if(item.erasures?.length)result.erasures=item.erasures.map(mask=>({rx:mask.rx*old.w/next.w,ry:mask.ry*old.h/next.h,points:mask.points.map(([u,v])=>[(old.x+u*old.w-next.x)/next.w,(old.y+v*old.h-next.y)/next.h])}));
     if(next.x===0 && next.y===0 && next.w===1 && next.h===1)delete result.crop;
     else result.crop=next;
     return positionObjectRect(item,result);
+  }
+  // Object-relative masks retain editable source data and follow move/resize/rotation.
+  function erasurePath(points,radius,bounds,localPoint=p=>p){
+    const w=Math.max(1,bounds.w),h=Math.max(1,bounds.h);
+    return {rx:radius/w,ry:radius/h,points:points.map(point=>{const p=localPoint(point);return [(p.x-bounds.x)/w,(p.y-bounds.y)/h];})};
+  }
+  function erasedAt(item,bounds,point){
+    if(!item.erasures?.length)return false;const p=objectPoint(item,point,true),u=(p.x-bounds.x)/Math.max(1,bounds.w),v=(p.y-bounds.y)/Math.max(1,bounds.h);
+    for(const mask of item.erasures){const x=u/mask.rx,y=v/mask.ry;
+      for(let i=0;i<mask.points.length;i++){const a=mask.points[Math.max(0,i-1)],b=mask.points[i],ax=a[0]/mask.rx,ay=a[1]/mask.ry,dx=b[0]/mask.rx-ax,dy=b[1]/mask.ry-ay,t=dx*dx+dy*dy?Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy))):0;if(Math.hypot(x-ax-t*dx,y-ay-t*dy)<=1)return true;}
+    }return false;
+  }
+  function drawErasedItem(ctx,item,bounds,visualBounds,drawSource){
+    const pad=item.type==='shape'?Math.max(2,(item.size||1)/2+2):2;
+    const box={x:visualBounds.x-pad,y:visualBounds.y-pad,w:visualBounds.w+pad*2,h:visualBounds.h+pad*2};
+    const t=ctx.getTransform(),resolution=Math.max(.2,Math.hypot(t.a,t.b),Math.hypot(t.c,t.d));
+    const ratio=Math.min(resolution,4096/box.w,4096/box.h,Math.sqrt(4194304/(box.w*box.h)));
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(box.w*ratio));canvas.height=Math.max(1,Math.ceil(box.h*ratio));
+    const layer=canvas.getContext('2d');layer.setTransform(canvas.width/box.w,0,0,canvas.height/box.h,-box.x*canvas.width/box.w,-box.y*canvas.height/box.h);
+    drawSource(layer,item);layer.globalCompositeOperation='destination-out';layer.globalAlpha=1;layer.strokeStyle=layer.fillStyle='#000';layer.lineWidth=2;layer.lineCap=layer.lineJoin='round';
+    for(const mask of item.erasures){
+      layer.save();rotateContext(layer,item);layer.translate(bounds.x,bounds.y);layer.scale(Math.max(1,bounds.w)*mask.rx,Math.max(1,bounds.h)*mask.ry);layer.beginPath();
+      const first=mask.points[0];if(mask.points.length===1){layer.arc(first[0]/mask.rx,first[1]/mask.ry,1,0,Math.PI*2);layer.fill();}
+      else{layer.moveTo(first[0]/mask.rx,first[1]/mask.ry);for(let i=1;i<mask.points.length;i++)layer.lineTo(mask.points[i][0]/mask.rx,mask.points[i][1]/mask.ry);layer.stroke();}
+      layer.restore();
+    }
+    // Composite only this object's pixels. Holes reveal other items and the paper.
+    ctx.drawImage(canvas,box.x,box.y,box.w,box.h);canvas.width=canvas.height=1;
   }
   function drawImage(ctx,item,image) {
     const crop=imageCrop(item.crop);
@@ -444,6 +473,6 @@
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
   return Object.freeze({PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
-    pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
+    erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect});
 });
