@@ -36,7 +36,11 @@
     }
     if(item.type==='text'){
       check(typeof item.text==='string' && item.text.length<=1000000,'Invalid text object');
-      return {...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,480)),size:Math.max(1,Math.min(300,num(item.size,20))),color:color(item.color),text:item.text};
+      return {...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,480)),size:Math.max(1,Math.min(300,num(item.size,20))),color:color(item.color),text:item.text,
+        ...(item.fontFamily!=null?{fontFamily:['Arial','Georgia','Times New Roman','Verdana','Trebuchet MS','Courier New','Palatino','Chalkboard SE','system-ui'].includes(item.fontFamily)?item.fontFamily:'Arial'}:{}),
+        ...Object.fromEntries(['bold','italic','underline'].filter(key=>item[key]!=null).map(key=>[key,item[key]===true])),
+        ...(item.align!=null?{align:['left','center','right'].includes(item.align)?item.align:'left'}:{}),
+        ...(item.lineHeight!=null?{lineHeight:Math.max(.8,Math.min(3,num(item.lineHeight,1.42)))}:{})};
     }
     if(item.type==='sticker'){
       check(typeof item.emoji==='string' && item.emoji.length>0 && item.emoji.length<=24,'Invalid sticker');
