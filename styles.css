@@ -417,3 +417,11 @@
 .artist-menu button:focus-visible{outline:2px solid #6552af;outline-offset:2px}
 @media(max-width:480px){.editor-header .pop-menu.artist-menu{padding:14px}.artist-studio-heading h2{font-size:21px}.artist-active-material>div:first-child{align-items:flex-start;flex-direction:column;gap:3px}}
 .editor-header .artist-current-grade{max-width:65px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.cloud-sync-details{margin-top:13px;border:1px solid #e8e6f1;border-radius:10px;background:#faf9fd;padding:11px 12px;font-size:11px;color:#625c76}
+.cloud-sync-details[hidden]{display:none}
+.cloud-sync-details summary{font-weight:750;cursor:pointer;color:#5c507e}
+.cloud-sync-details dl{margin:12px 0 0;display:grid;gap:9px}
+.cloud-sync-details dl>div{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;align-items:baseline}
+.cloud-sync-details dt{color:#8a839b}.cloud-sync-details dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;line-height:1.45}
+.cloud-sync-details p{font-size:10px;line-height:1.6;margin:12px 0 1px;color:#9a93a8}

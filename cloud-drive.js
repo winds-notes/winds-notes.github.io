@@ -31,6 +31,7 @@
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
+  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
   function currentLogoutStamp(sub){
@@ -99,6 +100,7 @@
   }
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
     global.WindsSharing?.cancel();
     global.WindsLive?.stop();
     driveController?.abort();
@@ -180,7 +182,18 @@
     try{auto=localStorage.getItem(`winds-drive-auto-${profile.sub}`)!=='false';}catch{auto=true;}
   }
   function message(value,error=false){const el=$('cloudMessage');if(el){if(el.textContent!==value)el.textContent=value;el.classList.toggle('error',error);}}
+  function updateSyncDetails(){
+    const panel=$('cloudSyncDetails');if(!panel)return;
+    const hidden=!profile||remoteSignedOut;if(panel.hidden!==hidden)panel.hidden=hidden;
+    if(hidden||!panel.open||$('cloudBackdrop').hidden)return;
+    const time=value=>value?new Date(value).toLocaleTimeString():'None in this tab yet';
+    const values={cloudSyncMode:global.WINDS_REALTIME_ENABLED===true?'Drive + live previews enabled':'Drive only · live previews are not enabled on this site',
+      cloudLastChecked:time(syncDetails.checked),cloudLastReceived:time(syncDetails.received),cloudLastUploaded:time(syncDetails.uploaded),
+      cloudCycleDuration:syncDetails.elapsed===null?'Waiting for a completed cycle':`${(syncDetails.elapsed/1000).toFixed(2)} seconds`};
+    for(const [id,value] of Object.entries(values)){const el=$(id);if(el&&el.textContent!==value)el.textContent=value;}
+  }
   function updateUI(){
+    updateSyncDetails();
     const yes=connected();
     // Metadata polling does not change account controls. Avoid rewriting the
     // dialog or flashing disabled states at the background polling cadence.
@@ -494,8 +507,9 @@
       ensureIdle(expected,manual);
       if(merged?.needsUpload===false&&versionBefore===localVersion)lastSyncedVersion=localVersion;
       else if(merged?.needsUpload===true)localVersion++;
+      if(merged?.changed!==false)syncDetails.received=Date.now();
     }
-    remoteRevision=revision;
+    remoteRevision=revision;syncDetails.checked=Date.now();updateSyncDetails();
     return workspace;
   }
   async function upload(name,content,oldId,properties,expected=generation,manual=false){
@@ -527,6 +541,29 @@
     }
     return readDriveJson(result,expected,manual);
   }
+  async function syncWorkspace(expected,manual){
+    // Re-read latest Drive state before writing so another device's newly
+    // created notebooks are not inadvertently overwritten.
+    await refreshFromDrive(expected,manual);
+    ensureIdle(expected,manual);
+    if(!manual&&activeId&&lastSyncedVersion===localVersion)return;
+    const versionAtStart=localVersion;
+    const snapshot=bridge.getData();
+    if(!snapshot.notebooks.length&&!Object.keys(snapshot.deleted||{}).length){
+      lastSyncedVersion=versionAtStart;
+      if(manual)message('There are no notebooks to sync in this account.');
+      return;
+    }
+    ensureIdle(expected,manual);
+    const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
+    ensureIdle(expected,manual);
+    activeId=created.id;
+    remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
+    lastSync=Date.now();syncDetails.uploaded=lastSync;lastSyncedVersion=versionAtStart;
+    publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
+    if(manual){message(`Synced ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
+    else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
+  }
   async function sync(manual=false){
     if(syncing){if(manual)queueAfterSync(()=>sync(true));return;}
     if(signingIn||(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired)))return;
@@ -540,28 +577,17 @@
     let nextDelay=null;
     try{
       if(SERVER_AUTH&&!connected()&&!await renewServerSession()){nextDelay=AUTO_RETRY_MS;return;}
-      await global.WindsSharing?.sync(sharingSession(),manual);
-      // Re-read latest Drive state before writing so another device's newly
-      // created notebooks are not inadvertently overwritten.
-      await refreshFromDrive(expected,manual);
-      ensureIdle(expected,manual);
-      if(!manual&&activeId&&lastSyncedVersion===localVersion)return;
-      const versionAtStart=localVersion;
-      const snapshot=bridge.getData();
-      if(!snapshot.notebooks.length&&!Object.keys(snapshot.deleted||{}).length){
-        lastSyncedVersion=versionAtStart;
-        if(manual)message('There are no notebooks to sync in this account.');
-        return;
+      if(manual){
+        await global.WindsSharing?.sync(sharingSession(),true);
+        await syncWorkspace(expected,true);
       }
-      ensureIdle(expected,manual);
-      const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
-      ensureIdle(expected,manual);
-      activeId=created.id;
-      remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
-      lastSync=Date.now();lastSyncedVersion=versionAtStart;
-      publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
-      if(manual){message(`Synced ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
-      else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
+      else{
+        const priority=bridge.sharing?.activeId?.();
+        if(priority)await global.WindsSharing?.sync(sharingSession(),false,{only:priority});
+        await syncWorkspace(expected,false);
+        ensureIdle(expected,false);
+        await global.WindsSharing?.sync(sharingSession(),false,{exclude:priority,limit:1});
+      }
     }catch(err){
       nextDelay=err.syncDeferred?Math.max(1000,idleDelay()):AUTO_RETRY_MS;
       if(expected===generation&&!err.syncDeferred){
@@ -569,6 +595,7 @@
         if(expected===generation){message('Google Drive sync will retry automatically. Your notes remain saved on this device.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
       }
     }finally{
+      if(expected===generation&&nextDelay===null)syncDetails.elapsed=Date.now()-pollStartedAt;
       if(expected===generation&&!finishOperation(expected)&&auto){
         // Poll from the start of the previous check: network time must not be
         // followed by another full polling interval. Never overlap requests.
@@ -658,8 +685,10 @@
     if(bridge.live)global.WindsLive?.init({bridge:bridge.live,session:()=>({profile:SERVER_AUTH&&!remoteSignedOut&&!authorizationRequired?profile:null,auto}),
       catchup:()=>schedule(),authLost:()=>{forceRenewal=true;scheduleRenewal(0);}});
     if(bridge.sharing)global.WindsSharing?.init({bridge:bridge.sharing,session:sharingSession,check:(s,manual)=>ensureIdle(s.version,manual),
-      request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open});
+      request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open,
+      received:()=>{syncDetails.received=Date.now();updateSyncDetails();},uploaded:()=>{syncDetails.uploaded=Date.now();updateSyncDetails();}});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
+    if($('cloudSyncDetails'))$('cloudSyncDetails').ontoggle=updateSyncDetails;
     $('cloudConnectHome').onclick=open;
     $('cloudClose').onclick=close;
     $('cloudBackdrop').addEventListener('click',e=>{if(e.target===$('cloudBackdrop'))close();});

@@ -70,8 +70,8 @@
 <span aria-hidden="true" class="toolbar-divider"></span>
 <label class="size-control" title="Pen thickness">
 <span class="size-preview" id="sizePreview"></span>
-<input aria-label="Pen thickness" id="penSize" max="32" min="1" step="0.5" type="range" value="10"/>
-<span id="sizeLabel">10</span>
+<input aria-label="Pen thickness" id="penSize" max="32" min="1" step="0.5" type="range" value="7"/>
+<span id="sizeLabel">7</span>
 </label>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <button aria-label="Insert an image" class="tool-button" id="insertImageBtn" title="Insert an image"></button>
@@ -120,14 +120,14 @@
   <label class="fill-option-row" for="shapeFillOpacity"><span>Fill opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
   <div class="fill-section-title">BORDER / OUTLINE</div>
   <div class="fill-option-row"><label for="shapeOutlineColor">Line color</label><input id="shapeOutlineColor" type="color" value="#2b2d4c" aria-label="Shape outline color"/></div>
-  <label class="fill-option-row" for="shapeOutlineSize"><span>Line width</span><input id="shapeOutlineSize" type="range" min="1" max="32" step="0.5" value="10"/><strong id="shapeOutlineSizeLabel">10</strong></label>
+  <label class="fill-option-row" for="shapeOutlineSize"><span>Line width</span><input id="shapeOutlineSize" type="range" min="1" max="32" step="0.5" value="7"/><strong id="shapeOutlineSizeLabel">7</strong></label>
   <label class="fill-option-row" for="shapeOutlineStyle"><span>Line style</span><select id="shapeOutlineStyle" aria-label="Shape outline style"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="none">No border</option></select></label>
   <button class="fill-apply-button" type="button" id="applyShapeFill">Apply fill &amp; border to selected shape</button>
 </div>
 <div class="pop-menu artist-menu" hidden id="artistMenu" role="region" aria-label="Artist studio">
   <div class="artist-studio-heading"><div><div class="menu-heading">ARTIST STUDIO</div><h2>Find your next mark.</h2></div><span class="artist-library-count">25<br><small>MATERIALS</small></span></div>
   <div class="artist-active-material"><div><strong id="artistMaterialName">HB</strong><span id="artistMaterialDetail">Balanced · paper grain</span></div><canvas id="artistActivePreview" width="640" height="100" aria-label="Selected material pressure preview" role="img"></canvas><div class="artist-pressure-scale"><span>LIGHT PRESSURE</span><span>FIRM PRESSURE</span></div></div>
-  <div class="artist-controls"><label for="artistSize">Size <output id="artistSizeValue">10</output><input id="artistSize" aria-label="Artist size" type="range" min="1" max="32" step="0.5" value="10"/></label><label for="artistFlow">Flow <output id="artistFlowValue">100%</output><input id="artistFlow" aria-label="Artist flow" type="range" min="10" max="100" step="5" value="100"/></label></div>
+  <div class="artist-controls"><label for="artistSize">Size <output id="artistSizeValue">7</output><input id="artistSize" aria-label="Artist size" type="range" min="1" max="32" step="0.5" value="7"/></label><label for="artistFlow">Flow <output id="artistFlowValue">100%</output><input id="artistFlow" aria-label="Artist flow" type="range" min="10" max="100" step="5" value="100"/></label></div>
   <div class="artist-collections" role="group" aria-label="Material collection"><button type="button" data-artist-group="graphite" aria-pressed="true">Graphite <small>12</small></button><button type="button" data-artist-group="ink" aria-pressed="false">Ink <small>6</small></button><button type="button" data-artist-group="pigment" aria-pressed="false">Pigment <small>7</small></button></div>
   <div class="artist-grade-list" id="artistGradeList" aria-label="Artist materials"></div>
   <p class="artist-studio-note">Pressure shapes each mark on a supported stylus. Color applies to ink, pencils and pastels; graphite and charcoal keep their natural shades. Flow changes pigment strength for new strokes.</p>
@@ -200,6 +200,11 @@
     <div class="cloud-connection" id="cloudConnection"><span class="cloud-led"></span><span id="cloudConnectionText">Not connected</span></div>
     <p class="cloud-message" id="cloudMessage" role="status"></p>
     <p class="cloud-message" id="liveSyncStatus" role="status" hidden></p>
+    <details id="cloudSyncDetails" class="cloud-sync-details" hidden>
+      <summary>Sync details</summary>
+      <dl><div><dt>Sync mode</dt><dd id="cloudSyncMode">Drive only</dd></div><div><dt>Last workspace check</dt><dd id="cloudLastChecked">None in this tab yet</dd></div><div><dt>Last received change</dt><dd id="cloudLastReceived">None in this tab yet</dd></div><div><dt>Last successful upload</dt><dd id="cloudLastUploaded">None in this tab yet</dd></div><div><dt>Last sync cycle</dt><dd id="cloudCycleDuration">Waiting for a completed cycle</dd></div></dl>
+      <p>Times are for this tab and account. Other notebooks may still be syncing. Live previews are temporary; Drive uploads save changes remotely.</p>
+    </details>
     <div id="cloudActions" class="cloud-actions">
       <button id="googleConnect" type="button" class="btn btn-primary cloud-primary">Sign in with Google</button>
       <button id="googleSync" type="button" class="btn btn-primary" hidden>Sync notebooks now</button>

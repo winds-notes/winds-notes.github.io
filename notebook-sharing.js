@@ -5,14 +5,15 @@
   const LIMIT=100*1024*1024,MODEL=global.WindsSharedModel,$=id=>document.getElementById(id);
   const validFile=id=>typeof id==='string'&&/^[\w-]{5,200}$/.test(id);
   const uuid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-  let api=null,selected=null,context=-1,discovered=0,pendingLink='',busy=false;
+  let api=null,selected=null,context=-1,discovered=0,pendingLink='',busy=false,backgroundCursor=0;
+  let pendingDiscoveries=[];
   const cache=new Map(),failures=new Map();
   function deferred(){const error=Error('Writing resumed. Sharing will continue when idle.');error.syncDeferred=true;return error;}
   function status(text,error=false){$('shareStatus').textContent=text;$('shareStatus').classList.toggle('error',error);}
   function link(id){const url=new URL(global.location.pathname,global.location.origin);url.searchParams.set('shared',id);return url.href;}
   function readLink(text){try{const url=new URL(text);return url.searchParams.get('shared')||'';}catch{return validFile(text)?text:'';}}
   function session(){const current=api.session();if(!current.profile)throw Error('Sign in to Google Drive first.');return current;}
-  function reset(s){if(context!==s.version){cache.clear();failures.clear();context=s.version;discovered=0;}}
+  function reset(s){if(context!==s.version){cache.clear();failures.clear();context=s.version;discovered=0;backgroundCursor=0;pendingDiscoveries=[];}}
   function check(s,manual=false){api.check(s,manual);reset(s);}
   async function json(url,options,s,manual=false){const response=await api.request(url,options,s,manual);return api.read(response,s,manual);}
   async function content(id,s,manual=false){
@@ -93,7 +94,7 @@
     if(existing){if(explicit)api.bridge.openNotebook(existing.id);return existing;}
     if(!explicit&&api.bridge.deleted(remote.id))return null;
     const sharing={folderId:id,seedId:entry.seedId,baseline:MODEL.fingerprint(remote),pending:[]};
-    await put(remote,sharing,api.bridge.version(),s,manual);
+    await put(remote,sharing,api.bridge.version(),s,manual);api.received?.();
     if(explicit)api.bridge.openNotebook(remote.id);return remote;
   }
   async function synchronize(book,s,manual=false){
@@ -110,22 +111,32 @@
       sharing.baseline=MODEL.fingerprint(clean);
       version=await put(clean,sharing,version,s,manual);
     }
-    const cutoff=entry.cursor?new Date(Date.parse(entry.cursor)-60000).toISOString():'';
-    const files=await list(`'${entry.folder.id}' in parents and trashed = false${cutoff?` and createdTime >= '${cutoff}'`:''}`,s,manual);
-    await readEdits(entry,files,s,manual);
+    async function pull(){
+      const cutoff=entry.cursor?new Date(Date.parse(entry.cursor)-60000).toISOString():'';
+      const files=await list(`'${entry.folder.id}' in parents and trashed = false${cutoff?` and createdTime >= '${cutoff}'`:''}`,s,manual);
+      await readEdits(entry,files,s,manual);
+    }
+    // Immutable edit files can be published before pulling other people's edits.
+    // An uncertain prior reply is reconciled first so retries do not create files again.
+    let pulled=false;
+    if(entry.uncertainUpload){await pull();entry.uncertainUpload=false;pulled=true;}
     for(const batch of sharing.pending||[]){
       MODEL.validateBatch(batch);
       if(!entry.batches.has(batch.id)){
+        entry.uncertainUpload=true;
         const uploaded=await upload(`Edit ${batch.id}.json`,batch,entry.folder.id,{windsNotesSharedEdit:'1'},s,manual);
-        entry.seen.add(uploaded.id);entry.batches.set(batch.id,batch);
+        entry.seen.add(uploaded.id);entry.batches.set(batch.id,batch);entry.uncertainUpload=false;pulled=false;
       }
     }
+    if(!pulled)await pull();
     check(s,manual);if(version!==api.bridge.version())throw deferred();
     const merged=MODEL.replay(entry.seed,entry.batches.values());
     const nextSharing={...sharing,pending:[],baseline:MODEL.fingerprint(merged)};
-    if(JSON.stringify(clean)!==JSON.stringify(merged)||sharing.pending?.length)await put(merged,nextSharing,version,s,manual);
+    const received=JSON.stringify(clean)!==JSON.stringify(merged);
+    if(received||sharing.pending?.length)await put(merged,nextSharing,version,s,manual);
+    if(received)api.received?.();if(sharing.pending?.length)api.uploaded?.();
   }
-  async function sync(s,manual=false){
+  async function sync(s,manual=false,{only=null,exclude=null,limit=Infinity}={}){
     check(s,manual);
     async function attempt(id,work){
       if(!manual&&(failures.get(id)||0)>Date.now())return;
@@ -134,13 +145,30 @@
         failures.set(id,Date.now()+45000);api.bridge.toast('A shared notebook could not sync. Local edits are retained. '+error.message);
       }
     }
-    if(Date.now()-discovered>60000){
-      const folders=await list("trashed = false and mimeType = 'application/vnd.google-apps.folder' and appProperties has {key='windsNotesShared' and value='1'}",s,manual);
-      for(const item of folders){if(!api.bridge.notebooks().some(n=>n._sharing?.folderId===item.id))await attempt(item.id,()=>join(item.id,s,manual,false));}
-      discovered=Date.now();
+    if(only){
+      const book=api.bridge.notebooks().find(n=>n.id===only&&validFile(n._sharing?.folderId));
+      if(book)await attempt(book._sharing.folderId,()=>synchronize(book,s,manual));
+      return;
     }
-    for(const book of api.bridge.notebooks().filter(n=>validFile(n._sharing?.folderId)))await attempt(book._sharing.folderId,()=>synchronize(book,s,manual));
+    if(Date.now()-discovered>60000)await attempt('discovery',async()=>{
+      const folders=await list("trashed = false and mimeType = 'application/vnd.google-apps.folder' and appProperties has {key='windsNotesShared' and value='1'}",s,manual);
+      const known=new Set(api.bridge.notebooks().map(n=>n._sharing?.folderId));
+      pendingDiscoveries=[...new Set([...pendingDiscoveries,...folders.filter(item=>!known.has(item.id)).map(item=>item.id)])];
+      discovered=Date.now();
+    });
+    // Automatic background work is bounded and rotates fairly. The open shared
+    // notebook was already handled before the private workspace's critical path.
+    let remaining=limit;
+    while(pendingDiscoveries.length&&remaining>0){
+      const id=pendingDiscoveries[0];await attempt(id,()=>join(id,s,manual,false));
+      pendingDiscoveries.shift();remaining--;
+    }
+    const books=api.bridge.notebooks().filter(n=>n.id!==exclude&&validFile(n._sharing?.folderId));
+    if(Number.isFinite(limit)){
+      if(remaining>0&&books.length){const book=books[backgroundCursor++%books.length];await attempt(book._sharing.folderId,()=>synchronize(book,s,manual));}
+    }else for(const book of books)await attempt(book._sharing.folderId,()=>synchronize(book,s,manual));
   }
+
   async function invite(id,email,s){
     check(s,true);let book=api.bridge.notebooks().find(n=>n.id===id);if(!book)throw Error('Notebook no longer exists.');
     if(!book._sharing){
@@ -196,6 +224,6 @@
     $('shareCopyLink').onclick=async()=>{try{await navigator.clipboard.writeText($('shareLink').value);status('Notebook link copied. Only invited accounts can open it.');}catch{$('shareLink').select();status('Select and copy this notebook link.');}};
     $('openSharedNotebook').onclick=()=>{const value=prompt('Paste the WiNDS shared notebook link:');if(!value)return;const id=readLink(value.trim());if(!validFile(id)){api.bridge.toast('Choose a valid shared notebook link.');return;}pendingLink=id;sessionStorage.setItem('winds-pending-shared-notebook',id);if(!api.session().profile)api.signIn();else resume();};
   }
-  function cancel(){cache.clear();failures.clear();selected=null;busy=false;context=-1;if(api){$('shareBackdrop').hidden=true;$('shareSubmit').disabled=false;}}
+  function cancel(){cache.clear();failures.clear();selected=null;busy=false;context=-1;pendingDiscoveries=[];backgroundCursor=0;if(api){$('shareBackdrop').hidden=true;$('shareSubmit').disabled=false;}}
   global.WindsSharing=Object.freeze({init,open,sync,resume,cancel});
 })(window);
