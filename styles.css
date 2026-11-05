@@ -470,3 +470,25 @@
 
 /* Reparenting the active canvas must not move the user’s scroll position. */
 #pageScroller{overflow-anchor:none}
+
+/* Eraser settings stay beside the tool, outside the scrolling toolbar. */
+#drawingSizeControl[hidden]{display:none!important}
+.eraser-trigger{position:relative}
+.eraser-trigger[aria-pressed="true"]::after{content:attr(data-size);position:absolute;right:1px;bottom:0;min-width:13px;font-size:8px;font-weight:800;line-height:12px;border-radius:4px;color:#6557ed;background:#eeebff}
+.pop-menu.eraser-menu{width:min(300px,calc(100vw - 16px));padding:16px;box-sizing:border-box;font-size:12px;color:#55536c}
+.eraser-menu-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.eraser-menu-heading strong{font-size:15px;color:#302b50}
+.pop-menu.eraser-menu button{width:auto;min-height:34px;padding:7px 12px;border:1px solid #e7e3f2;border-radius:8px;text-align:center;background:#faf9ff;font-size:12px;color:#6557ad}
+.eraser-range-label{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700}
+.eraser-range-label output{font-size:14px;color:#6557ed}
+.eraser-range-row{display:flex;align-items:center;gap:10px;margin:8px 0 14px;color:#8d89a3;font-size:11px}
+#eraserSize{flex:1;min-width:0;width:100%;height:38px;accent-color:#6557ed;touch-action:pan-x}
+.eraser-exact-row{display:flex;align-items:center;gap:8px}
+#eraserSizeNumber{width:60px;border:1px solid #ddd8ed;border-radius:7px;padding:8px;font-size:13px;color:#49405f;box-sizing:border-box}
+.eraser-exact-row>span{font-size:11px;color:#8d89a3}
+.eraser-presets{display:flex;gap:7px;margin:14px 0}
+.pop-menu.eraser-menu .eraser-presets button{flex:1}
+.pop-menu.eraser-menu .eraser-presets button[aria-pressed="true"]{background:#eeebff;border-color:#a99de8;color:#5144b4}
+.eraser-menu .eraser-mode-control{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:700}
+.eraser-menu .eraser-mode-control select{font-size:12px;min-height:38px;max-width:190px}
+.eraser-menu p{margin:12px 0 0;color:#8b849c;font-size:11px;line-height:1.6}
