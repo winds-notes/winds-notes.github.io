@@ -137,13 +137,26 @@
       for(let i=0;i<mask.points.length;i++){const a=mask.points[Math.max(0,i-1)],b=mask.points[i],ax=a[0]/mask.rx,ay=a[1]/mask.ry,dx=b[0]/mask.rx-ax,dy=b[1]/mask.ry-ay,t=dx*dx+dy*dy?Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy))):0;if(Math.hypot(x-ax-t*dx,y-ay-t*dy)<=1)return true;}
     }return false;
   }
+  let eraserSurface=null;
+  function eraserLayer(width,height){
+    if(!eraserSurface)eraserSurface=document.createElement('canvas');
+    // Reuse one surface; Safari can retain backing stores of discarded canvases.
+    for(const factor of [1,.5,.25]){
+      const w=Math.max(1,Math.floor(width*factor)),h=Math.max(1,Math.floor(height*factor));
+      if(eraserSurface.width!==w||eraserSurface.height!==h){eraserSurface.width=1;eraserSurface.height=h;eraserSurface.width=w;}
+      const layer=eraserSurface.getContext('2d');if(layer)return {canvas:eraserSurface,layer};
+      eraserSurface.width=eraserSurface.height=1;
+    }
+    eraserSurface=null;const error=Error('Not enough drawing memory. Close other browser tabs and reopen this notebook.');error.code='CANVAS_MEMORY';throw error;
+  }
   function drawErasedItem(ctx,item,bounds,visualBounds,drawSource){
     const pad=item.type==='shape'?Math.max(2,(item.size||1)/2+2):2;
     const box={x:visualBounds.x-pad,y:visualBounds.y-pad,w:visualBounds.w+pad*2,h:visualBounds.h+pad*2};
-    const t=ctx.getTransform(),resolution=Math.max(.2,Math.hypot(t.a,t.b),Math.hypot(t.c,t.d));
+    const t=typeof ctx.getTransform==='function'?ctx.getTransform():{a:2,b:0,c:0,d:2},resolution=Math.max(.2,Math.hypot(t.a,t.b),Math.hypot(t.c,t.d));
     const ratio=Math.min(resolution,4096/box.w,4096/box.h,Math.sqrt(4194304/(box.w*box.h)));
-    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.ceil(box.w*ratio));canvas.height=Math.max(1,Math.ceil(box.h*ratio));
-    const layer=canvas.getContext('2d');layer.setTransform(canvas.width/box.w,0,0,canvas.height/box.h,-box.x*canvas.width/box.w,-box.y*canvas.height/box.h);
+    const {canvas,layer}=eraserLayer(box.w*ratio,box.h*ratio);
+    layer.setTransform(1,0,0,1,0,0);layer.clearRect(0,0,canvas.width,canvas.height);layer.globalCompositeOperation='source-over';layer.globalAlpha=1;
+    layer.setTransform(canvas.width/box.w,0,0,canvas.height/box.h,-box.x*canvas.width/box.w,-box.y*canvas.height/box.h);
     drawSource(layer,item);layer.globalCompositeOperation='destination-out';layer.globalAlpha=1;layer.strokeStyle=layer.fillStyle='#000';layer.lineWidth=2;layer.lineCap=layer.lineJoin='round';
     for(const mask of item.erasures){
       layer.save();rotateContext(layer,item);layer.translate(bounds.x,bounds.y);layer.scale(Math.max(1,bounds.w)*mask.rx,Math.max(1,bounds.h)*mask.ry);layer.beginPath();
@@ -152,7 +165,7 @@
       layer.restore();
     }
     // Composite only this object's pixels. Holes reveal other items and the paper.
-    ctx.drawImage(canvas,box.x,box.y,box.w,box.h);canvas.width=canvas.height=1;
+    ctx.drawImage(canvas,box.x,box.y,box.w,box.h);
   }
   function drawImage(ctx,item,image) {
     const crop=imageCrop(item.crop);

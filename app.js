@@ -1697,10 +1697,13 @@
   function activeGroup(){return groupSelection&&state.selected>=0&&groupSelection.version===saveVersion&&clipboardMatches(groupSelection.scope)?groupSelection:null;}
   function selectionItems(){const group=activeGroup();return group?page().items.filter(item=>group.ids.has(item.id)):[page()?.items[state.selected]].filter(Boolean);}
   function selectGroup(items){
+    if(groupSelection?.bitmap)groupSelection.bitmap.width=groupSelection.bitmap.height=1;
     groupSelection=null;if(!items.length){state.selected=-1;return;}
     state.selected=page().items.indexOf(items[0]);const bounds=interactions.union(items.map(clipboardBounds));
-    const bitmap=document.createElement('canvas'),scale=Math.min(1,1400/Math.max(bounds.w,bounds.h,1));bitmap.width=Math.max(1,Math.ceil(bounds.w*scale+16));bitmap.height=Math.max(1,Math.ceil(bounds.h*scale+16));
-    const ctx=bitmap.getContext('2d');ctx.scale(scale,scale);ctx.translate(8/scale-bounds.x,8/scale-bounds.y);for(const item of items)drawItem(ctx,item);
+    let bitmap=document.createElement('canvas');const scale=Math.min(1,1400/Math.max(bounds.w,bounds.h,1));bitmap.width=Math.max(1,Math.ceil(bounds.w*scale+16));bitmap.height=Math.max(1,Math.ceil(bounds.h*scale+16));
+    const ctx=bitmap.getContext('2d');
+    if(ctx){try{ctx.scale(scale,scale);ctx.translate(8/scale-bounds.x,8/scale-bounds.y);for(const item of items)drawItem(ctx,item);}catch(error){bitmap.width=bitmap.height=1;throw error;}}
+    else{bitmap.width=bitmap.height=1;bitmap=null;}
     groupSelection={ids:new Set(items.map(i=>i.id)),scope:clipboardContext(),version:saveVersion,bounds,bitmap,scale};
   }
   function deleteSelection(){if(!clipboardEnabled())return;const items=selectionItems();if(!items.length)return;const ids=new Set(items.map(i=>i.id));remember();page().items=page().items.filter(i=>!ids.has(i.id));state.selected=-1;groupSelection=null;renderCanvas();renderThumbs();scheduleSave();}
@@ -1711,8 +1714,25 @@
       const p=d.points.at(-1);if(!p)return true;ctx.save();ctx.strokeStyle='#ed728b';ctx.fillStyle='#ed728b22';ctx.lineWidth=Math.max(1,handleSize()*.2);ctx.beginPath();ctx.arc(p.x,p.y,d.radius,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();return true;
     }
     if(d?.kind==='area')box=interactions.rect(d.start,d.end);
-    else if(group){box={...group.bounds};if(d?.kind==='areaMove'){box.x+=d.dx;box.y+=d.dy;ctx.save();ctx.globalAlpha=.8;ctx.drawImage(group.bitmap,box.x-8/group.scale,box.y-8/group.scale,group.bitmap.width/group.scale,group.bitmap.height/group.scale);ctx.restore();}}
+    else if(group){box={...group.bounds};if(d?.kind==='areaMove'){box.x+=d.dx;box.y+=d.dy;ctx.save();ctx.globalAlpha=.8;if(group.bitmap)ctx.drawImage(group.bitmap,box.x-8/group.scale,box.y-8/group.scale,group.bitmap.width/group.scale,group.bitmap.height/group.scale);ctx.restore();}}
     if(!box)return false;ctx.save();ctx.strokeStyle='#6557ed';ctx.fillStyle='#6557ed0b';ctx.lineWidth=Math.max(1,handleSize()*.18);ctx.setLineDash([7,5]);ctx.fillRect(box.x,box.y,box.w,box.h);ctx.strokeRect(box.x-3,box.y-3,box.w+6,box.h+6);ctx.restore();return true;
+  }
+  function commitDeferredItems(items,selection=null){
+    const target=page(),previous=target.items,selected=state.selected,group=groupSelection;
+    composeInkNow();const h=historyForPage(),undo=h.undo.slice(),redo=h.redo;
+    remember();
+    try{
+      target.items=items;state.selected=-1;groupSelection=null;
+      if(selection)selectGroup(selection);
+      renderCanvas();
+    }catch(error){
+      target.items=previous;state.selected=selected;groupSelection=group;h.undo=undo;h.redo=redo;updateHistoryButtons();
+      try{renderCanvas();}catch{}
+      throw error;
+    }
+    if(group?.bitmap&&group!==groupSelection)group.bitmap.width=group.bitmap.height=1;
+    scheduleSave();if(groupSelection)groupSelection.version=saveVersion;
+    renderThumbs();
   }
   function deferInteraction(gesture){
     state.pendingInteractions++;
@@ -1727,7 +1747,7 @@
         await interactionIdle();composeInkNow();selectGroup(chosen);renderCanvas();toast(chosen.length?`${chosen.length} strokes selected · Drag inside the box to move`:'Draw a box around complete handwriting strokes');
       }else if(gesture.kind==='areaMove'){
         const originals=p.items.filter(item=>gesture.group.ids.has(item.id));if(!originals.length||Math.hypot(gesture.dx,gesture.dy)<1)return;
-        composeInkNow();remember();const moved=interactions.translate(originals,gesture.dx,gesture.dy),byId=new Map(moved.map(i=>[i.id,i]));p.items=p.items.map(i=>byId.get(i.id)||i);scheduleSave();selectGroup(moved);renderCanvas();renderThumbs();
+        const moved=interactions.translate(originals,gesture.dx,gesture.dy),byId=new Map(moved.map(i=>[i.id,i]));commitDeferredItems(p.items.map(i=>byId.get(i.id)||i),moved);
       }else if(gesture.kind==='erase'){
         const edits=[];
         const unchanged=(a,b)=>Boolean(a&&b&&Object.keys(a).filter(k=>k!=='erasures').every(k=>a[k]===b[k])&&Object.keys(b).filter(k=>k!=='erasures').every(k=>a[k]===b[k]));
@@ -1743,9 +1763,9 @@
         }
         await interactionIdle();if(!clipboardMatches(gesture.scope))return;
         const byId=new Map();for(const {original,mask} of edits){const current=p.items.find(it=>it.id===original.id);if(unchanged(original,current))byId.set(current.id,{...current,erasures:[...(current.erasures||[]),mask]});}
-        if(byId.size){composeInkNow();remember();p.items=p.items.map(item=>byId.get(item.id)||item);state.selected=-1;groupSelection=null;scheduleSave();renderCanvas();renderThumbs();}else queueInteractionOverlay();
+        if(byId.size)commitDeferredItems(p.items.map(item=>byId.get(item.id)||item));else queueInteractionOverlay();
       }
-    }).catch(error=>{console.error('Deferred page edit:',error);toast('The page edit could not be completed. Try again.');}).finally(()=>{state.pendingInteractions--;queueInteractionOverlay();});
+    }).catch(error=>{console.error('Deferred page edit:',error);toast(error.code==='CANVAS_MEMORY'?error.message:`Page edit failed: ${String(error.message||'Unknown drawing error').slice(0,150)}`);}).finally(()=>{state.pendingInteractions--;queueInteractionOverlay();});
   }
   function initPageStack(){
     window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden,scope:clipboardContext,matches:clipboardMatches,dimensions:pageDimensions,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,
