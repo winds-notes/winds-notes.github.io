@@ -1,5 +1,5 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline. */
-const CACHE='winds-notes-shell-v39-pasted-object-eraser';
+const CACHE='winds-notes-shell-v40-area-eraser';
 importScripts('./vendor/pdfjs/assets.js');
 const ASSETS=['./','./index.html','./styles.css','./privacy.html','./terms.html','./legal.css','./LICENSE','./creative-tools.js','./app.js','./pdf-export.js','./pdf-import.js','./clipboard.js','./text-tools.js','./interaction-tools.js','./page-stack.js','./vendor/pdfjs/assets.js','./native-file.js','./google-config.js','./cloud-drive.js','./live-sync.js','./notebook-sharing.js','./shared-notebook-model.js','./manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...self.WINDS_PDF_ASSETS])).then(()=>self.skipWaiting()));});

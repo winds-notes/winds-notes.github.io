@@ -492,3 +492,7 @@
 .eraser-menu .eraser-mode-control{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:700}
 .eraser-menu .eraser-mode-control select{font-size:12px;min-height:38px;max-width:190px}
 .eraser-menu p{margin:12px 0 0;color:#8b849c;font-size:11px;line-height:1.6}
+
+.eraser-tool-group{display:flex;align-items:center;gap:0;flex-shrink:0}
+.eraser-settings-button{width:20px;height:34px;padding:0;border:0;background:transparent;border-radius:6px;color:#8b84a3;font-size:15px}
+.eraser-settings-button:hover,.eraser-settings-button[aria-expanded="true"]{background:#eeebff;color:#6557ed}
