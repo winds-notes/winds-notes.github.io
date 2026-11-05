@@ -13,6 +13,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Artist Studio:** 25 materials in Graphite, Ink and Pigment collections, with pressure previews, size and flow controls. Technical/fountain pens, dry brush, pastels, chalk and expanded graphite retain editable strokes and consistent exports.
 - **Text editing and fonts:** Select a text box and tap **Edit text** to change its words, font, size, color, bold/italic/underline, alignment, spacing and width. Works with pasted and typed text, undo/redo, copying and exports. See [Text editing](docs/TEXT_EDITING.md).
 - **Copy/paste:** External text and images, editable internal ink/shapes/text/images/stickers, keyboard shortcuts, Copy/Cut selection controls, and a touch paste box with undo/redo. See [Copy and paste](docs/COPY_PASTE.md).
+- **Handwriting selection and eraser:** Adjustable eraser diameter (4–128), ink-only protection, rectangle selection of multiple handwritten strokes, group movement and editable copy/cut/paste. See [Eraser, selection and scrolling](docs/ERASER_SELECTION_SCROLLING.md).
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
 - **PDF annotation:** Import selected PDF pages into a new or existing notebook, then write, highlight, draw or add text over fixed page backgrounds. Supports password-protected PDFs, mixed page orientations, offline use and annotated exports.
 - **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
@@ -139,8 +140,8 @@ The file `examples/creative-demo.winds-notes` is an editable sample containing s
 
 `examples/pdf-annotation-demo.pdf` is a small three-page worksheet for trying PDF import, handwriting and highlights, with portrait, landscape and rotated pages.
 
-**Page scrolling:** Choose **Notebook options → Scroll pages…** to swipe or scroll vertically through the notebook. Tap **Write on this page** to annotate a selected page, or **Back to writing** to resume. Only nearby page previews are rendered to bound memory.
+**Page scrolling:** Notebook pages form a continuous vertical stack in the writing workspace. Choose the hand tool or **Notebook options → Scroll pages…** to drag between pages without drawing. Tap **Pen** to write; page headings activate/focus a page. Only nearby inactive page previews are rendered.
 
-**Notebook scrolling:** On any notebook's three-dot Actions menu choose **Scroll pages…**, or use the same command in Notebook options while writing. It works with handwritten pages, PDF pages and mixed notebooks. Choose **Write on this page** to resume annotation.
+**Notebook scrolling:** A notebook's three-dot **Scroll pages…** action opens the same continuous workspace with the hand tool selected. It works with handwritten pages, PDFs and mixed notebooks.
 
 **Sharing access recovery:** A Drive “File not found” response now opens account/access recovery with a direct Drive check, authorization and retry. If Google requires app authorization, enable Google Picker API and add your project's public browser key in `google-config.js`. See [Sharing recovery and setup](docs/NOTEBOOK_SHARING.md#google-picker-configuration-needed-for-the-authorization-button). The source includes the full recovery flow; no project-specific key or real-account verification is supplied.

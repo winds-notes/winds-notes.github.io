@@ -16,18 +16,18 @@
   const typing=target=>Boolean(target?.closest?.('input,textarea,select,[contenteditable="true"],[contenteditable=""]'));
   function close(){const open=!$('clipboardBackdrop').hidden;epoch++;pasteScope=null;$('clipboardBackdrop').hidden=true;$('clipboardText').value='';if(open){const target=pasteTrigger?.isConnected&&pasteTrigger.offsetParent!==null?pasteTrigger:$('moreOptionsBtn');if(target?.offsetParent!==null)target?.focus();}pasteTrigger=null;}
   function clear(){memory=null;close();}
-  function capture(){if(!api.enabled())throw Error('Open a notebook and finish the current interaction first.');const snapshot=api.capture();if(!snapshot)throw Error('Use Select to choose an object first.');const text=encode([snapshot.item]);memory={text,account:snapshot.scope.account};return {...snapshot,text};}
+  function capture(){if(!api.enabled())throw Error('Open a notebook and finish the current interaction first.');const snapshot=api.capture();if(!snapshot)throw Error('Use Select to choose an object first.');const text=encode(snapshot.items||[snapshot.item]);memory={text,account:snapshot.scope.account};return {...snapshot,text};}
   function same(scope){return api.matches(scope);}
   async function copy(cut=false){
     let snapshot;try{snapshot=capture();}catch(error){api.toast(error.message);return;}
     let external=false;
     try{
       if(navigator.clipboard?.write&&global.ClipboardItem){
-        const data={'text/plain':new Blob([plain([snapshot.item])],{type:'text/plain'})};
+        const data={'text/plain':new Blob([plain(snapshot.items||[snapshot.item])],{type:'text/plain'})};
         if(global.ClipboardItem.supports?.(WEB_MIME))data[WEB_MIME]=new Blob([snapshot.text],{type:MIME});
-        if(snapshot.item.type!=='text'){const png=api.png(snapshot);png.catch(()=>{});data['image/png']=png;}
+        if((snapshot.items?.length||1)>1||snapshot.item.type!=='text'){const png=api.png(snapshot);png.catch(()=>{});data['image/png']=png;}
         await navigator.clipboard.write([new global.ClipboardItem(data)]);external=true;
-      }else if(snapshot.item.type==='text'&&navigator.clipboard?.writeText){await navigator.clipboard.writeText(snapshot.item.text);external=true;}
+      }else if((snapshot.items?.length||1)===1&&snapshot.item.type==='text'&&navigator.clipboard?.writeText){await navigator.clipboard.writeText(snapshot.item.text);external=true;}
     }catch{}
     if(!same(snapshot.scope))return;
     if(cut&&!api.remove(snapshot)){api.toast('Selection changed. Copied content is retained; nothing was cut.');return;}
@@ -36,7 +36,7 @@
   function nativeCopy(event,cut){
     if(typing(event.target)||!api.enabled()||!event.clipboardData)return;
     let snapshot;try{snapshot=capture();}catch{return;}
-    try{event.clipboardData.setData('text/plain',plain([snapshot.item]));try{event.clipboardData.setData(MIME,snapshot.text);}catch{}event.preventDefault();
+    try{event.clipboardData.setData('text/plain',plain(snapshot.items||[snapshot.item]));try{event.clipboardData.setData(MIME,snapshot.text);}catch{}event.preventDefault();
       if(cut&&!api.remove(snapshot)){api.toast('Selection changed; nothing was cut.');return;}api.toast(cut?'Cut selection':'Copied selection');
     }catch(error){api.toast(error.message);}
   }
