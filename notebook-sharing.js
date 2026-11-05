@@ -6,18 +6,22 @@
   const validFile=id=>typeof id==='string'&&/^[\w-]{5,200}$/.test(id);
   const uuid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
   let api=null,selected=null,context=-1,discovered=0,pendingLink='',busy=false,backgroundCursor=0;
-  let pendingDiscoveries=[];
+  let pendingDiscoveries=[],accessRecovery=null;
   const cache=new Map(),failures=new Map();
   function deferred(){const error=Error('Writing resumed. Sharing will continue when idle.');error.syncDeferred=true;return error;}
   function status(text,error=false){$('shareStatus').textContent=text;$('shareStatus').classList.toggle('error',error);}
   function link(id){const url=new URL(global.location.pathname,global.location.origin);url.searchParams.set('shared',id);return url.href;}
-  function readLink(text){try{const url=new URL(text);return url.searchParams.get('shared')||'';}catch{return validFile(text)?text:'';}}
+  function readLink(text){try{const url=new URL(text);return url.searchParams.get('shared')||(url.hostname==='drive.google.com'?url.pathname.match(/\/folders\/([\w-]+)/)?.[1]||'':'');}catch{return validFile(text)?text:'';}}
   function session(){const current=api.session();if(!current.profile)throw Error('Sign in to Google Drive first.');return current;}
   function reset(s){if(context!==s.version){cache.clear();failures.clear();context=s.version;discovered=0;backgroundCursor=0;pendingDiscoveries=[];}}
   function check(s,manual=false){api.check(s,manual);reset(s);}
-  async function json(url,options,s,manual=false){const response=await api.request(url,options,s,manual);return api.read(response,s,manual);}
+  async function request(url,options,s,manual=false){
+    const target=new URL(url);target.searchParams.set('supportsAllDrives','true');
+    try{return await api.request(target.href,options,s,manual);}catch(error){error.resourceId=target.pathname.match(/\/files\/([\w-]+)/)?.[1]||'';throw error;}
+  }
+  async function json(url,options,s,manual=false){const response=await request(url,options,s,manual);return api.read(response,s,manual);}
   async function content(id,s,manual=false){
-    const response=await api.request(`${API}/${encodeURIComponent(id)}?alt=media`,{},s,manual);
+    const response=await request(`${API}/${encodeURIComponent(id)}?alt=media`,{},s,manual);
     if(Number(response.headers.get('content-length')||0)>LIMIT)throw Error('Shared notebook data exceeds the 100 MB limit.');
     const text=await response.text();check(s,manual);
     if(text.length>LIMIT)throw Error('Shared notebook data exceeds the 100 MB limit.');
@@ -26,7 +30,7 @@
   async function list(q,s,manual=false){
     const files=[];let page='';
     do{
-      const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,createdTime,appProperties)',pageSize:'1000',orderBy:'createdTime asc'});
+      const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,createdTime,appProperties)',pageSize:'1000',orderBy:'createdTime asc',includeItemsFromAllDrives:'true'});
       if(page)params.set('pageToken',page);
       const data=await json(`${API}?${params}`,{},s,manual);files.push(...(data.files||[]));page=data.nextPageToken||'';
       if(files.length>10000)throw Error('This shared notebook has too much history to load safely. Export a copy before continuing.');
@@ -41,11 +45,11 @@
     if(body.size<=5*1024*1024){
       const boundary='winds_'+uuid();
       const multipart=new Blob([`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n`,body,`\r\n--${boundary}--\r\n`]);
-      response=await api.request(`${UPLOAD}?uploadType=multipart&fields=id`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:multipart},s,manual);
+      response=await request(`${UPLOAD}?uploadType=multipart&fields=id`,{method:'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:multipart},s,manual);
     }else{
-      const start=await api.request(`${UPLOAD}?uploadType=resumable&fields=id`,{method:'POST',headers:{'Content-Type':'application/json','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(body.size)},body:JSON.stringify(metadata)},s,manual);
+      const start=await request(`${UPLOAD}?uploadType=resumable&fields=id`,{method:'POST',headers:{'Content-Type':'application/json','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(body.size)},body:JSON.stringify(metadata)},s,manual);
       const target=start.headers.get('Location');if(!target?.startsWith('https://www.googleapis.com/'))throw Error('Invalid Drive upload URL.');
-      response=await api.request(target,{method:'PUT',headers:{'Content-Type':'application/json'},body},s,manual);
+      response=await request(target,{method:'PUT',headers:{'Content-Type':'application/json'},body},s,manual);
     }
     return api.read(response,s,manual);
   }
@@ -204,17 +208,43 @@
     api.run(async s=>{
       if(s.version!==sessionAtStart||selectedAtStart!==selected||$('shareBackdrop').hidden)return;
       busy=true;$('shareSubmit').disabled=true;
-      try{await work(s);}catch(error){if(api.session().version===s.version&&selectedAtStart===selected)status(error.syncDeferred?'Finish writing, then try sharing again.':error.message||'Sharing failed. Your notebook remains saved locally.',true);}
+      try{await work(s);}catch(error){if(api.session().version===s.version&&selectedAtStart===selected){recoverAccess(error,api.bridge.notebooks().find(n=>n.id===selected)?._sharing?.folderId,s,()=>task(work));status(error.syncDeferred?'Finish writing, then try sharing again.':error.message||'Sharing failed. Your notebook remains saved locally.',true);}}
       finally{if(api.session().version===s.version){busy=false;$('shareSubmit').disabled=false;}}
     });
+  }
+  function recoverAccess(error,id,s,retry){
+    if(!(error.status===404||(error.status===403&&['appNotAuthorizedToFile','insufficientFilePermissions'].includes(error.reason)))||!validFile(id))return false;
+    if(api.session().version!==s.version)return false;
+    const local=api.bridge.notebooks().find(n=>n.id===selected&&n._sharing?.folderId===id);
+    accessRecovery={id,bookId:local?.id,fileId:validFile(error.resourceId)?error.resourceId:id,s,retry};
+    $('sharedAccessMessage').textContent=`Google cannot open this notebook for ${s.profile.email}. Check that this is the invited account and that the owner has granted editing access. The folder may also have been removed. If it opens in Drive but not here, authorize it for WiNDS Notes.`;
+    $('sharedAccessDrive').href=`https://drive.google.com/drive/folders/${encodeURIComponent(id)}`;
+    $('sharedAccessCopy').hidden=!local||!api.bridge.copyForSharing;
+    $('sharedAccessStatus').textContent='Your local notebooks and edits are retained.';
+    $('sharedAccessBackdrop').hidden=false;$('sharedAccessAuthorize').disabled=false;$('sharedAccessRetry').disabled=false;$('sharedAccessClose').focus();return true;
+  }
+  async function retryAccess(authorize){
+    const recovery=accessRecovery;if(!recovery)return;
+    $('sharedAccessAuthorize').disabled=true;$('sharedAccessRetry').disabled=true;
+    try{
+      if(api.session().version!==recovery.s.version)throw Error('The account changed. Reopen the invitation in the intended account.');
+      if(authorize){if(!api.authorize)throw Error('Google file authorization is unavailable. Update all application files.');const granted=await api.authorize(recovery.fileId,recovery.s);if(!granted){$('sharedAccessStatus').textContent='Authorization cancelled. Your notes are unchanged.';return;}}
+      if(accessRecovery!==recovery||api.session().version!==recovery.s.version)return;
+      cache.delete(recovery.id);failures.delete(recovery.id);$('sharedAccessBackdrop').hidden=true;accessRecovery=null;recovery.retry();
+    }catch(error){if(accessRecovery===recovery)$('sharedAccessStatus').textContent=error.message;}
+    finally{if(accessRecovery===recovery){$('sharedAccessAuthorize').disabled=false;$('sharedAccessRetry').disabled=false;}}
   }
   function resume(){
     if(!pendingLink||!api.session().profile)return;
     const id=pendingLink;
-    api.run(async s=>{try{await join(id,s);pendingLink='';sessionStorage.removeItem('winds-pending-shared-notebook');}catch(error){api.bridge.toast(error.syncDeferred?'Finish writing, then open the shared notebook link again.':error.message);}});
+    api.run(async s=>{try{await join(id,s);pendingLink='';sessionStorage.removeItem('winds-pending-shared-notebook');}catch(error){if(!recoverAccess(error,id,s,resume))api.bridge.toast(error.syncDeferred?'Finish writing, then open the shared notebook link again.':error.message);}});
   }
   function init(adapter){
     api=adapter;
+    $('sharedAccessCopy').onclick=async()=>{const recovery=accessRecovery,id=recovery?.bookId;if(!recovery||!id)return;$('sharedAccessCopy').disabled=true;try{if(api.session().version!==recovery.s.version)throw Error('The account changed.');const copy=await api.bridge.copyForSharing(id);if(accessRecovery!==recovery||api.session().version!==recovery.s.version)return;$('sharedAccessClose').click();open(copy);status('Independent copy saved. Enter an email to send a new invitation. The previous shared notebook is retained.');}catch(error){if(accessRecovery===recovery)$('sharedAccessStatus').textContent=error.message;}finally{$('sharedAccessCopy').disabled=false;}};
+    $('sharedAccessAuthorize').onclick=()=>retryAccess(true);$('sharedAccessRetry').onclick=()=>retryAccess(false);
+    $('sharedAccessClose').onclick=()=>{api.cancelAuthorization?.();accessRecovery=null;$('sharedAccessBackdrop').hidden=true;};
+    $('sharedAccessBackdrop').onkeydown=event=>{if(event.key==='Escape'){$('sharedAccessClose').click();event.preventDefault();}if(event.key==='Tab'){const controls=[...$('sharedAccessBackdrop').querySelectorAll('button,a')].filter(el=>!el.disabled&&!el.hidden),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}};
     const fromUrl=new URL(global.location.href).searchParams.get('shared');
     pendingLink=validFile(fromUrl)?fromUrl:sessionStorage.getItem('winds-pending-shared-notebook')||'';
     if(pendingLink)sessionStorage.setItem('winds-pending-shared-notebook',pendingLink);
@@ -224,6 +254,6 @@
     $('shareCopyLink').onclick=async()=>{try{await navigator.clipboard.writeText($('shareLink').value);status('Notebook link copied. Only invited accounts can open it.');}catch{$('shareLink').select();status('Select and copy this notebook link.');}};
     $('openSharedNotebook').onclick=()=>{const value=prompt('Paste the WiNDS shared notebook link:');if(!value)return;const id=readLink(value.trim());if(!validFile(id)){api.bridge.toast('Choose a valid shared notebook link.');return;}pendingLink=id;sessionStorage.setItem('winds-pending-shared-notebook',id);if(!api.session().profile)api.signIn();else resume();};
   }
-  function cancel(){cache.clear();failures.clear();selected=null;busy=false;context=-1;pendingDiscoveries=[];backgroundCursor=0;if(api){$('shareBackdrop').hidden=true;$('shareSubmit').disabled=false;}}
+  function cancel(){api?.cancelAuthorization?.();accessRecovery=null;if(api)$('sharedAccessBackdrop').hidden=true;cache.clear();failures.clear();selected=null;busy=false;context=-1;pendingDiscoveries=[];backgroundCursor=0;if(api){$('shareBackdrop').hidden=true;$('shareSubmit').disabled=false;}}
   global.WindsSharing=Object.freeze({init,open,sync,resume,cancel});
 })(window);

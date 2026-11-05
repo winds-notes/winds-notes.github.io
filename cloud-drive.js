@@ -262,15 +262,41 @@
     ensureIdle(expected,manual);
     if(!response.ok){
       const text=await response.text();ensureIdle(expected,manual);
-      let reason='';try{reason=JSON.parse(text).error?.message||'';}catch{}
+      let reason='',code='';try{const detail=JSON.parse(text).error;reason=detail?.message||'';code=detail?.errors?.[0]?.reason||'';}catch{}
       if(response.status===401){
         token=null;expires=0;rememberSession();persistSession();updateUI();
         if(SERVER_AUTH){forceRenewal=true;scheduleRenewal(1000);}
       }
       const error=new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
-      error.status=response.status;throw error;
+      error.status=response.status;error.reason=code;throw error;
     }
     return response;
+  }
+  let pickerLoader=null,activeAccessPicker=null,cancelAccessPicker=null;
+  function closeAccessPicker(){cancelAccessPicker?.();cancelAccessPicker=null;activeAccessPicker?.dispose();activeAccessPicker=null;}
+  async function authorizeSharedAccess(id,s){
+    const key=String(global.WINDS_GOOGLE_PICKER_API_KEY||'').trim();
+    if(!key)throw Error('The website owner must configure the public Google Picker API key in google-config.js to authorize shared files. See docs/NOTEBOOK_SHARING.md.');
+    ensureIdle(s.version,true);
+    if(!pickerLoader)pickerLoader=new Promise((resolve,reject)=>{
+      const load=()=>global.gapi.load('picker',{callback:resolve,onerror:()=>reject(Error('Google Picker could not load.')),timeout:15000,ontimeout:()=>reject(Error('Google Picker timed out.'))});
+      if(global.gapi?.load){load();return;}
+      const script=document.createElement('script');script.src='https://apis.google.com/js/api.js';script.onload=load;script.onerror=()=>reject(Error('Google Picker could not load. Check your connection.'));document.head.appendChild(script);
+    }).catch(error=>{pickerLoader=null;throw error;});
+    await pickerLoader;ensureIdle(s.version,true);
+    const picker=global.google.picker,project=String(global.WINDS_GOOGLE_CLIENT_ID||'').split('-')[0];
+    if(!/^\d+$/.test(project))throw Error('The Google OAuth client ID must belong to the Picker API project.');
+    return new Promise((resolve,reject)=>{
+      const finish=(error,value)=>{cancelAccessPicker=null;activeAccessPicker?.dispose();activeAccessPicker=null;error?reject(error):resolve(value);};
+      cancelAccessPicker=()=>finish(Error('Account changed or authorization cancelled.'));
+      const view=new picker.DocsView(picker.ViewId.DOCS).setIncludeFolders(true).setSelectFolderEnabled(true).setFileIds(id);
+      activeAccessPicker=new picker.PickerBuilder().addView(view).setAppId(project).setDeveloperKey(key).setOAuthToken(token).setOrigin(global.location.origin)
+        .setTitle('Authorize this shared notebook for WiNDS Notes').setCallback(data=>{
+          if(data.action===picker.Action.CANCEL){finish(null,false);return;}
+          if(data.action!==picker.Action.PICKED)return;
+          try{ensureIdle(s.version,true);if(data.docs?.length!==1||data.docs[0].id!==id)throw Error('Select the notebook file shown in the invitation.');finish(null,true);}catch(error){finish(error);}
+        }).build();activeAccessPicker.setVisible(true);
+    });
   }
   async function getProfile(accessToken){
     const response=await fetch('https://openidconnect.googleapis.com/v1/userinfo',{
@@ -685,7 +711,7 @@
     if(bridge.live)global.WindsLive?.init({bridge:bridge.live,session:()=>({profile:SERVER_AUTH&&!remoteSignedOut&&!authorizationRequired?profile:null,auto}),
       catchup:()=>schedule(),authLost:()=>{forceRenewal=true;scheduleRenewal(0);}});
     if(bridge.sharing)global.WindsSharing?.init({bridge:bridge.sharing,session:sharingSession,check:(s,manual)=>ensureIdle(s.version,manual),
-      request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open,
+      authorize:authorizeSharedAccess,cancelAuthorization:closeAccessPicker,request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open,
       received:()=>{syncDetails.received=Date.now();updateSyncDetails();},uploaded:()=>{syncDetails.uploaded=Date.now();updateSyncDetails();}});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
     if($('cloudSyncDetails'))$('cloudSyncDetails').ontoggle=updateSyncDetails;

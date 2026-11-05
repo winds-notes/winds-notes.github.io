@@ -11,6 +11,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Two-finger gestures:** pinch zoom and pan (**35%–800%**), preset zoom menu, portrait and landscape notebook pages.
 - **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill.
 - **Artist Studio:** 25 materials in Graphite, Ink and Pigment collections, with pressure previews, size and flow controls. Technical/fountain pens, dry brush, pastels, chalk and expanded graphite retain editable strokes and consistent exports.
+- **Copy/paste:** External text and images, editable internal ink/shapes/text/images/stickers, keyboard shortcuts, Copy/Cut selection controls, and a touch paste box with undo/redo. See [Copy and paste](docs/COPY_PASTE.md).
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
 - **PDF annotation:** Import selected PDF pages into a new or existing notebook, then write, highlight, draw or add text over fixed page backgrounds. Supports password-protected PDFs, mixed page orientations, offline use and annotated exports.
 - **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
@@ -67,9 +68,9 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Deploy on GitHub Pages
 
-The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
+The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
-If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v34** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v36** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 
 ## Share a notebook
 
@@ -105,6 +106,7 @@ Each signed-in user's Drive files belong to that Google account, not to a shared
 | `styles.css` | Visual design and responsive iPad/phone layout |
 | `app.js` | Notebook UI, pointer/gesture input, local storage and exports |
 | `creative-tools.js` | Figure geometry/fills and artist graphite rendering (independently testable) |
+| `clipboard.js` | Scoped editable clipboard, system clipboard and touch paste fallback |
 | `native-file.js` | `.winds-notes` validation, imports and serialization |
 | `cloud-drive.js` | Google OAuth and per-account Drive workspace logic |
 | `notebook-sharing.js` / `shared-notebook-model.js` | Per-notebook Drive invitations, durable outgoing edits and shared history replay |
@@ -134,3 +136,9 @@ The file `examples/creative-demo.winds-notes` is an editable sample containing s
 `examples/artist-studio-pro.winds-notes` contains three editable reference pages for all **25 Artist Studio materials**.
 
 `examples/pdf-annotation-demo.pdf` is a small three-page worksheet for trying PDF import, handwriting and highlights, with portrait, landscape and rotated pages.
+
+**Page scrolling:** Choose **Notebook options → Scroll pages…** to swipe or scroll vertically through the notebook. Tap **Write on this page** to annotate a selected page, or **Back to writing** to resume. Only nearby page previews are rendered to bound memory.
+
+**Notebook scrolling:** On any notebook's three-dot Actions menu choose **Scroll pages…**, or use the same command in Notebook options while writing. It works with handwritten pages, PDF pages and mixed notebooks. Choose **Write on this page** to resume annotation.
+
+**Sharing access recovery:** A Drive “File not found” response now opens account/access recovery with a direct Drive check, authorization and retry. If Google requires app authorization, enable Google Picker API and add your project's public browser key in `google-config.js`. See [Sharing recovery and setup](docs/NOTEBOOK_SHARING.md#google-picker-configuration-needed-for-the-authorization-button). The source includes the full recovery flow; no project-specific key or real-account verification is supplied.
