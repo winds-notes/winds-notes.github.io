@@ -991,7 +991,7 @@
     $('selectionActions').hidden=!show;
     $('clearAreaSelection').hidden=!group;
     $('editSelectedText').hidden=!show||Boolean(group)||item.type!=='text';
-    $('cropSelectedImage').hidden=!show||Boolean(group)||item.type!=='image';
+    $('cropSelectedImage').hidden=!show||Boolean(group)||item.type!=='image'||!$('imageCropOverlay');
     $('rotationControls').hidden=!show||Boolean(group)||!CREATIVE.rotatable(item);
     positionRotationHandle(show&&!group&&state.tool==='select'?item:null);
     if(!show)return;
@@ -1005,6 +1005,7 @@
   }
   function positionRotationHandle(item){
     const frame=$('objectRotationFrame');
+    if(!frame)return;
     frame.hidden=!CREATIVE.rotatable(item);
     if(!frame.hidden)positionObjectOverlay(frame,itemBounds(item),CREATIVE.objectRotation(item));
   }
@@ -1186,6 +1187,48 @@
     if(ev.type==='pointerup')moveImageCropDrag(ev);
     else{session.crop=drag.crop;queueImageCropPreview(session);}
     session.drag=null;
+  }
+  function bindObjectTransformHandles(){
+    // A previous HTML shell can arrive with newer scripts during a release.
+    // Keep the editor and account controls usable until the new shell arrives.
+    const rotationHandle=$('objectRotationHandle');
+    if(rotationHandle){
+      rotationHandle.addEventListener('pointerdown',beginObjectRotation);
+      rotationHandle.addEventListener('pointermove',moveObjectRotation);
+      for(const event of ['pointerup','pointercancel','lostpointercapture']){
+        rotationHandle.addEventListener(event,endObjectRotation);
+      }
+      rotationHandle.onclick=event=>{
+        if(event.detail===0){
+          const angle=CREATIVE.objectRotation(page()?.items[state.selected]);
+          rotateSelectedTo(angle+(event.shiftKey?-15:15));
+        }
+      };
+    }
+    if(!$('imageCropOverlay'))return;
+
+    $('cropSelectedImage').onclick=openImageCrop;
+    $('cancelImageCrop').onclick=closeImageCrop;
+    $('applyImageCrop').onclick=applyImageCrop;
+    $('resetImageCrop').onclick=()=>{
+      if(!imageCropSession)return;
+      imageCropSession.crop=CREATIVE.imageCrop();
+      updateImageCropPreview();
+    };
+    for(const [id,key] of [['cropLeft','x'],['cropTop','y'],['cropWidth','w'],['cropHeight','h']]){
+      $(id).onchange=event=>{
+        if(!imageCropSession)return;
+        const value=event.target.valueAsNumber;
+        if(Number.isFinite(value))imageCropSession.crop=CREATIVE.imageCrop({...imageCropSession.crop,[key]:value/100});
+        updateImageCropPreview();
+      };
+    }
+    const cropPreview=$('imageCropPreview');
+    cropPreview.addEventListener('pointerdown',beginImageCropDrag);
+    cropPreview.addEventListener('pointermove',moveImageCropDrag);
+    for(const event of ['pointerup','pointercancel','lostpointercapture']){
+      cropPreview.addEventListener(event,endImageCropDrag);
+    }
   }
   function resizeObject(item,newWidth,newHeight,corner='se',bounds=itemBounds(item)){
     const original={type:item.type,x:item.x,y:item.y,w:item.w,h:item.h,size:item.size,rotation:item.rotation};
@@ -1762,23 +1805,7 @@
     $('selectedRotation').onchange=e=>rotateSelectedTo(e.target.valueAsNumber);
     $('rotateSelectedLeft').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])-90);
     $('rotateSelectedRight').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])+90);
-    const rotationHandle=$('objectRotationHandle');
-    rotationHandle.addEventListener('pointerdown',beginObjectRotation);
-    rotationHandle.addEventListener('pointermove',moveObjectRotation);
-    for(const event of ['pointerup','pointercancel','lostpointercapture'])rotationHandle.addEventListener(event,endObjectRotation);
-    rotationHandle.onclick=event=>{
-      if(event.detail===0)rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])+(event.shiftKey?-15:15));
-    };
-    $('cropSelectedImage').onclick=openImageCrop;
-    $('cancelImageCrop').onclick=closeImageCrop;
-    $('applyImageCrop').onclick=applyImageCrop;
-    $('resetImageCrop').onclick=()=>{if(imageCropSession){imageCropSession.crop=CREATIVE.imageCrop();updateImageCropPreview();}};
-    for(const [id,key] of [['cropLeft','x'],['cropTop','y'],['cropWidth','w'],['cropHeight','h']]){
-      $(id).onchange=e=>{if(!imageCropSession)return;const value=Number(e.target.value);if(Number.isFinite(value))imageCropSession.crop=CREATIVE.imageCrop({...imageCropSession.crop,[key]:value/100});updateImageCropPreview();};
-    }
-    $('imageCropPreview').addEventListener('pointerdown',beginImageCropDrag);
-    $('imageCropPreview').addEventListener('pointermove',moveImageCropDrag);
-    for(const event of ['pointerup','pointercancel','lostpointercapture'])$('imageCropPreview').addEventListener(event,endImageCropDrag);
+    bindObjectTransformHandles();
     $('removeSelected').onclick=deleteSelection;
     $('clearAreaSelection').onclick=()=>{groupSelection=null;state.selected=-1;renderCanvas();};
     $('eraserMode').onchange=e=>{state.eraserInkOnly=e.target.value==='ink';syncEraserControls();persistEraserPreferences();prepareEraserPreview(true);};
