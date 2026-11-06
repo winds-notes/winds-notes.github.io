@@ -575,7 +575,8 @@
     if(!manual&&activeId&&lastSyncedVersion===localVersion)return;
     const versionAtStart=localVersion;
     const snapshot=bridge.getData();
-    if(!snapshot.notebooks.length&&!Object.keys(snapshot.deleted||{}).length){
+    const count=snapshot.notebooks.length;
+    if(!count&&!Object.keys(snapshot.deleted||{}).length){
       lastSyncedVersion=versionAtStart;
       if(manual)message('There are no notebooks to sync in this account.');
       return;
@@ -587,7 +588,7 @@
     remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
     lastSync=Date.now();syncDetails.uploaded=lastSync;lastSyncedVersion=versionAtStart;
     publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
-    if(manual){message(`Synced ${snapshot.notebooks.length} notebook${snapshot.notebooks.length===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
+    if(manual){message(`Synced ${count} notebook${count===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
     else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
   }
   async function sync(manual=false){
@@ -615,7 +616,7 @@
         await global.WindsSharing?.sync(sharingSession(),false,{exclude:priority,limit:1});
       }
     }catch(err){
-      nextDelay=err.syncDeferred?Math.max(1000,idleDelay()):AUTO_RETRY_MS;
+      nextDelay=err.syncDeferred?Math.max(100,idleDelay()):AUTO_RETRY_MS;
       if(expected===generation&&!err.syncDeferred){
         console.error('WiNDS Drive sync:',err);
         if(expected===generation){message('Google Drive sync will retry automatically. Your notes remain saved on this device.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}

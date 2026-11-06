@@ -4,7 +4,7 @@
   const ENABLED=global.WINDS_REALTIME_ENABLED===true,IDLE=150,MAX_BYTES=32768;
   const uuid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const clientId=uuid(),streams=new Map(),outgoing=new Map(),previews=new Map();
-  let api=null,generation=0,controller=null,timer=0,inbox=[],inboxBytes=0,sending=false,fresh=null,needsCatchup=false,paintNeeded=false,retryAfter=0;
+  let api=null,generation=0,controller=null,timer=0,dueAt=0,inbox=[],inboxBytes=0,sending=false,fresh=null,needsCatchup=false,paintNeeded=false,retryAfter=0;
   const allowed=()=>ENABLED&&typeof global.EventSource==='function'&&api?.session().profile&&api.session().auto;
   function status(){
     const el=document.getElementById('liveSyncStatus');if(!el)return;
@@ -12,14 +12,22 @@
     const text=!api?.session().auto?'Live previews paused with automatic sync.':!allowed()?'Sign in to enable live handwriting previews.':[...streams.values()].some(s=>s.connected)?'Live handwriting previews connected. Drive backup saves separately.':'Live previews waiting for connection. Drive backup remains available.';
     if(el.textContent!==text)el.textContent=text;
   }
-  function schedule(delay=IDLE){clearTimeout(timer);if(allowed())timer=setTimeout(flush,delay);}
+  function schedule(delay=IDLE){
+    if(!allowed())return;
+    const deadline=Date.now()+delay;
+    // A burst of events should never push an already scheduled flush back.
+    if(timer&&dueAt<=deadline)return;
+    clearTimeout(timer);
+    dueAt=deadline;
+    timer=setTimeout(()=>{timer=0;return flush();},delay);
+  }
   function roomFor(bookId){return api.bridge.room(bookId);}
   function receive(type,event,room,version){
     if(version!==generation||!allowed())return;
     const data=event.data||'';
     if(inbox.length>=64||inboxBytes+data.length>262144){inbox=[];inboxBytes=0;previews.clear();needsCatchup=true;paintNeeded=true;}
     else{inbox.push({type,data,room,cursor:event.lastEventId,version});inboxBytes+=data.length;}
-    schedule();
+    schedule(0);
   }
   function open(room){
     const record=streams.get(room);if(!record||record.source||api.bridge.busy(IDLE))return;
@@ -99,7 +107,7 @@
   }
   function render(){if(allowed()){paintNeeded=true;schedule();}}
   function start(){if(!allowed()){stop();status();return;}if(!controller)controller=new AbortController();refreshRooms();status();}
-  function stop(){generation++;controller?.abort();controller=null;clearTimeout(timer);for(const s of streams.values())s.source?.close();streams.clear();outgoing.clear();previews.clear();inbox=[];inboxBytes=0;sending=false;fresh=null;paintNeeded=false;needsCatchup=false;retryAfter=0;api?.bridge.clear();status();}
+  function stop(){generation++;controller?.abort();controller=null;clearTimeout(timer);timer=0;for(const s of streams.values())s.source?.close();streams.clear();outgoing.clear();previews.clear();inbox=[];inboxBytes=0;sending=false;fresh=null;paintNeeded=false;needsCatchup=false;retryAfter=0;api?.bridge.clear();status();}
   function init(adapter){api=adapter;status();}
   global.WindsLive=Object.freeze({init,start,stop,append,changed,render,refreshRooms});
 })(window);

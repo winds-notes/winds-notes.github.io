@@ -12,7 +12,7 @@
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css" rel="stylesheet"/>
+<link href="./styles.css?v=49" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -50,7 +50,7 @@
 <div class="tool-group" id="toolsGroup">
 <button aria-label="Pen" aria-pressed="true" class="tool-button active" data-tool="pen" title="Pen (P)"></button>
 <button aria-label="Highlighter" aria-pressed="false" class="tool-button" data-tool="highlighter" title="Highlighter (H)"></button>
-<span class="eraser-tool-group"><button aria-label="Eraser" aria-pressed="false" id="eraserBtn" class="tool-button eraser-trigger" data-tool="eraser" title="Area eraser (E)"></button><button type="button" id="eraserSettingsBtn" class="eraser-settings-button" aria-label="Eraser settings" aria-expanded="false" aria-haspopup="dialog" aria-controls="eraserMenu" title="Change saved eraser size">⌄</button></span>
+<span class="eraser-tool-group"><button aria-label="Eraser" aria-pressed="false" id="eraserBtn" class="tool-button eraser-trigger" data-tool="eraser" title="Erase all editable objects (E)"></button><button type="button" id="eraserSettingsBtn" class="eraser-settings-button" aria-label="Eraser settings" aria-expanded="false" aria-haspopup="dialog" aria-controls="eraserMenu" title="Change eraser size or target">⌄</button></span>
 <button aria-label="Scroll notebook pages" aria-pressed="false" class="tool-button" data-tool="pan" title="Scroll pages · drag without drawing (S)">✋</button><button aria-label="Area select handwriting" aria-pressed="false" class="tool-button" data-tool="area" title="Select handwriting · drag a box around multiple strokes (L)">▧</button><button aria-label="Select and move" aria-pressed="false" class="tool-button" data-tool="select" title="Select and move (V)"></button>
 <button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
 <button aria-label="Rectangle" aria-pressed="false" class="tool-button" data-tool="rectangle" title="Rectangle"></button>
@@ -156,26 +156,6 @@
   <div class="pencil-diag-footer"><span>Private, local diagnostics</span><button id="copyPencilDiagnostics" type="button">Copy report</button></div>
 </aside>
 <div class="modal-backdrop" hidden="" id="modalBackdrop"><div aria-labelledby="modalTitle" aria-modal="true" class="modal" role="dialog"><button aria-label="Close dialog" class="modal-close" id="closeModal"></button><div class="modal-eyebrow">A FRESH START ✦</div><h2 id="modalTitle">Create a notebook</h2><p>Give your ideas a home. You can change everything later.</p><label class="field-label" for="newNotebookTitle">NOTEBOOK NAME</label><input class="modal-input" id="newNotebookTitle" maxlength="70" value="Untitled notebook"/><label class="field-label">CHOOSE A COVER</label><div class="cover-choices" id="coverChoices"></div><label class="field-label" for="newPaperStyle">PAPER STYLE</label><select class="modal-select" id="newPaperStyle"><option value="ruled">Ruled paper</option><option value="grid">Grid paper</option><option value="dots">Dotted paper</option><option value="blank">Blank paper</option></select><label class="field-label" for="newPageOrientation">PAGE ORIENTATION</label><select class="modal-select" id="newPageOrientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select><div class="modal-footer"><button class="btn btn-outline" id="cancelModal">Cancel</button><button class="btn btn-primary" id="createNotebookConfirm">Create notebook</button></div></div></div>
-<div class="modal-backdrop" id="imageCropBackdrop" hidden>
-  <section class="modal image-crop-modal" id="imageCropDialog" role="dialog" aria-modal="true" aria-labelledby="imageCropTitle" aria-describedby="imageCropHelp" tabindex="-1">
-    <button type="button" class="modal-close" id="closeImageCrop" aria-label="Close image crop">×</button>
-    <h2 id="imageCropTitle">Crop image</h2>
-    <p id="imageCropHelp">Drag the corners to crop, or drag inside to move the selection. Your original image is kept.</p>
-    <div class="image-crop-preview" id="imageCropPreview">
-      <img id="imageCropSource" alt="Image to crop" draggable="false"/>
-      <div class="image-crop-box" id="imageCropBox" aria-hidden="true">
-        <span data-crop-corner="nw"></span><span data-crop-corner="ne"></span><span data-crop-corner="sw"></span><span data-crop-corner="se"></span>
-      </div>
-    </div>
-    <div class="image-crop-fields">
-      <label>Left <input id="cropLeft" aria-label="Crop left percentage" type="number" min="0" max="99" step="0.1"/> %</label>
-      <label>Top <input id="cropTop" aria-label="Crop top percentage" type="number" min="0" max="99" step="0.1"/> %</label>
-      <label>Width <input id="cropWidth" aria-label="Crop width percentage" type="number" min="1" max="100" step="0.1"/> %</label>
-      <label>Height <input id="cropHeight" aria-label="Crop height percentage" type="number" min="1" max="100" step="0.1"/> %</label>
-    </div>
-    <div class="modal-footer"><button type="button" class="btn btn-outline" id="resetImageCrop">Reset</button><button type="button" class="btn btn-outline" id="cancelImageCrop">Cancel</button><button type="button" class="btn btn-primary" id="applyImageCrop">Apply crop</button></div>
-  </section>
-</div>
 <div id="notebookCardMenu" class="notebook-card-actions" role="menu" aria-label="Notebook actions" hidden>
   <button id="cardScrollNotebook" type="button" role="menuitem">Scroll pages…</button><button type="button" id="cardShareNotebook" role="menuitem">Share notebook…</button>
   <button type="button" id="cardDeleteNotebook" role="menuitem" class="danger-text">Delete notebook</button>
@@ -256,21 +236,21 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./creative-tools.js?v=42"></script>
-<script src="./interaction-tools.js?v=42"></script>
-<script src="./eraser-preview.js?v=42"></script>
+<script src="./creative-tools.js?v=49"></script>
+<script src="./interaction-tools.js?v=49"></script>
+<script src="./eraser-preview.js?v=49"></script>
 <script src="./page-stack.js"></script>
 <script src="./text-tools.js"></script>
 <script src="./pdf-export.js"></script>
 <script src="./pdf-import.js"></script>
-<script src="./native-file.js?v=42"></script>
+<script src="./native-file.js?v=49"></script>
 <script src="./clipboard.js"></script>
 <script src="./shared-notebook-model.js"></script>
 <script src="./notebook-sharing.js"></script>
 <script src="./google-config.js"></script>
-<script src="./live-sync.js"></script>
+<script src="./live-sync.js?v=50"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js"></script>
-<script defer="" src="./app.js?v=42"></script>
+<script defer src="./cloud-drive.js?v=50"></script>
+<script defer="" src="./app.js?v=50"></script>
 </body>
 </html>

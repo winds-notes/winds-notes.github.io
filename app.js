@@ -337,7 +337,8 @@
     $('searchNotebooks').value='';view('library');renderLibrary();
   }
   function workspaceSnapshot(){
-    return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:clone(state.notebooks),deleted:{...tombstones}};
+    // Drive serializes this view synchronously before starting the upload.
+    return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:state.notebooks,deleted:tombstones};
   }
   function cloudSyncDelay(){
     if(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
@@ -373,7 +374,9 @@
       if(!local || (n.updatedAt||'')>(local.updatedAt||''))merged.set(n.id,n);
     }
     const final=[...merged.values()].filter(n=>!(mergedDeleted[n.id] && mergedDeleted[n.id]>=(n.updatedAt||'')));
-    const hasChanges=JSON.stringify(state.notebooks)!==JSON.stringify(final) || JSON.stringify(tombstones)!==JSON.stringify(mergedDeleted);
+    // The merge retains the same notebook objects unless it accepts newer data.
+    const hasChanges=final.length!==state.notebooks.length||final.some((n,index)=>n!==state.notebooks[index])||
+      Object.keys(mergedDeleted).some(id=>mergedDeleted[id]!==tombstones[id]);
     // Newer remote notebooks are already the same objects in `final`; only
     // compare retained local notebooks. A read-only device must not echo the
     // whole workspace back to Drive, but local-only books/deletions still sync.

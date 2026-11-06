@@ -13,7 +13,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Artist Studio:** 25 materials in Graphite, Ink and Pigment collections, with pressure previews, size and flow controls. Technical/fountain pens, dry brush, pastels, chalk and expanded graphite retain editable strokes and consistent exports.
 - **Text editing and fonts:** Select a text box and tap **Edit text** to change its words, font, size, color, bold/italic/underline, alignment, spacing and width. Works with pasted and typed text, undo/redo, copying and exports. See [Text editing](docs/TEXT_EDITING.md).
 - **Copy/paste:** External text and images, editable internal ink/shapes/text/images/stickers, keyboard shortcuts, Copy/Cut selection controls, and a touch paste box with undo/redo. See [Copy and paste](docs/COPY_PASTE.md).
-- **Handwriting selection and eraser:** Eraser removes only the brushed area of handwriting, text, images and shapes. Tap it to erase immediately; its small arrow opens optional size settings (4–128). Size/target persist across reloads, with optional Ink only protection. Rectangle selection moves/copies/cuts/pastes multiple handwritten strokes. See [Eraser, selection and scrolling](docs/ERASER_SELECTION_SCROLLING.md).
+- **Handwriting selection and eraser:** Eraser removes only the brushed area of handwriting, text, images and shapes. Tap Eraser or press E to erase any editable object with your saved size (4–128). Use the small arrow for size settings and optional Ink only protection. Rectangle selection moves/copies/cuts/pastes multiple handwritten strokes. See [Eraser, selection and scrolling](docs/ERASER_SELECTION_SCROLLING.md).
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
 - **PDF annotation:** Import selected PDF pages into a new or existing notebook, then write, highlight, draw or add text over fixed page backgrounds. Supports password-protected PDFs, mixed page orientations, offline use and annotated exports.
 - **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
@@ -56,11 +56,11 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 **Choose your color:** The extra color palette contains filled light-color cells. Choosing another color replaces the previous selection and updates the current-color preview. Stronger writing colors remain available in the main toolbar.
 
-**Resize images and smileys:** Import an image or insert an emoji, then choose **Select** and tap the object. Drag one of its four corner handles to resize, or use the floating **Width** control / ± buttons for exact sizing. Images preserve their aspect ratio, while smileys stay square. Shapes also support corner resizing.
+**Resize images and smileys:** Import an image or insert an emoji, then choose **Select** and tap the object. Drag one of its four corner handles to resize, or choose **Notebook options → Size and angle** for an exact width. Images preserve their aspect ratio. Stickers have a square selection frame centered on the visible icon. Shapes also support corner resizing.
 
-**Rotate images and smileys:** Choose **Select** and tap the image or smiley. Use **↶ / ↷** in its floating controls to rotate by 90°, or enter an exact **Angle**. Enter **0** to straighten it. Rotation supports undo/redo, resizing, image cropping, save/reopen and exports.
+**Rotate an object:** Choose **Select**, tap an image, smiley or shape, then drag the round handle just below the bottom-right corner. Hold Shift to snap to 15° increments. The **Angle** field and 90° buttons are in **Notebook options → Size and angle**.
 
-**Crop images:** Choose **Select**, tap an added image and choose **Crop** in its floating controls. Drag the crop corners or enter percentages; drag inside the selection to move it. **Apply crop** updates the image; **Cancel** leaves it unchanged. **Reset → Apply crop** restores the full image. Crops support undo/redo, resizing, native files, backups, Drive workspace data and every export format. The original image is retained so you can adjust the crop later.
+**Crop images:** With an image selected, tap the round crop button beside it. Drag a corner or edge of the frame on the page, or drag inside the frame to reposition it. The shaded area will be removed from view. Choose **Apply crop**, **Cancel** or **Reset**. Expand **Exact crop** to enter percentages. The original image is retained for later adjustments.
 
 **Zoom:** Pinch with two fingers, tap ±, or tap the **zoom percentage** for presets from 50% through 800%. Zoom is only a viewing setting and does not change the saved page dimensions.
 
@@ -70,9 +70,9 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Deploy on GitHub Pages
 
-The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
+The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `eraser-preview.js`, `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
-If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v40** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v50** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 
 ## Share a notebook
 
