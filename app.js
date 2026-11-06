@@ -554,8 +554,9 @@
     requestAnimationFrame(()=>{$('editorToolbar').scrollLeft=0;updateToolbarArrows();});
     toast(orientation==='landscape'?'Landscape page selected':'Portrait page selected');
   }
-  function setTool(tool){
+  function setTool(tool,{inkOnly=false}={}){
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
+    if(tool==='eraser')state.eraserInkOnly=inkOnly;
     document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
     $('inkCanvas').classList.toggle('cursor-eraser',tool==='eraser');
     $('inkCanvas').classList.toggle('cursor-select',tool==='select');
@@ -695,7 +696,7 @@
     for(const id of ['eraserSize','eraserSizeNumber'])$(id).value=String(state.eraserSize);
     $('eraserSizeLabel').textContent=String(state.eraserSize);$('eraserBtn').dataset.size=String(state.eraserSize);
     $('eraserMode').value=state.eraserInkOnly?'ink':'all';
-    $('eraserHelp').textContent=state.eraserInkOnly?'Erases only the brushed area of handwriting. Choose All objects to include pasted text and images.':'Erases only the brushed area, including pasted text and images. PDF backgrounds stay fixed.';
+    $('eraserHelp').textContent=state.eraserInkOnly?'Erases only the brushed area of handwriting. Tap Eraser or choose All objects to include pasted text and images.':'Erases only the brushed area, including pasted text and images. PDF backgrounds stay fixed.';
     document.querySelectorAll('[data-eraser-size]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.eraserSize)===state.eraserSize)));
   }
   function historyForPage(){const key=page()?.id;if(!key)return null;if(!history.has(key))history.set(key,{undo:[],redo:[]});return history.get(key);}
@@ -1596,7 +1597,11 @@
     document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#artistBtn')&&!e.target.closest('#zoomValue')&&!e.target.closest('#eraserBtn')&&!e.target.closest('#eraserSettingsBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>{if(!['artist','eraser'].includes(btn.dataset.tool))btn.onclick=()=>setTool(btn.dataset.tool);});
     $('eraserBtn').onclick=event=>{event.stopPropagation();setTool('eraser');closeMenus();};
-    $('eraserSettingsBtn').onclick=event=>{event.stopPropagation();setTool('eraser');toggleMenu('eraserSettingsBtn','eraserMenu');};
+    $('eraserSettingsBtn').onclick=event=>{
+      event.stopPropagation();
+      setTool('eraser',{inkOnly:state.eraserInkOnly});
+      toggleMenu('eraserSettingsBtn','eraserMenu');
+    };
     $('eraserSize').oninput=event=>setEraserSize(event.target.value);
     $('eraserSizeNumber').oninput=event=>{const size=Number(event.target.value);if(size>=4&&size<=128)setEraserSize(size);};
     $('eraserSizeNumber').onchange=$('eraserSizeNumber').onblur=event=>{setEraserSize(event.target.value);syncEraserControls();};
