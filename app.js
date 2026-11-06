@@ -42,10 +42,12 @@
     search:'<circle cx="10.8" cy="10.8" r="7"/><path d="m16 16 5 5"/>',
     pen:'<path d="m13 6 5 5M4 20l5-.9L20 7a2.1 2.1 0 0 0-3-3L5 16z"/>',
     highlighter:'<path d="m3 17 4 4 4-4-4-4zM7 13 17.4 2.6l4 4L11 17M2 22h13"/>',
-    eraser:'<path d="m20 16-4 4H9L2.7 13.7a2 2 0 0 1 0-2.8l8.2-8.2a2 2 0 0 1 2.8 0l7.6 7.6a2 2 0 0 1 0 2.8L18 16M7 18l8-8M14 20h8"/>',
+    eraser:'<path d="m4 12 8.2-8.2a2 2 0 0 1 2.8 0L21 9.7a2 2 0 0 1 0 2.8L13.5 20h-5L4 15a2 2 0 0 1 0-3Z"/><path d="m8 8 8.5 8.5M13.5 20H22"/>',
     pan:'<path d="M8 12V5a2 2 0 0 1 4 0v6-8a2 2 0 0 1 4 0v8-5a2 2 0 0 1 4 0v10c0 4-3 6-7 6-3 0-5-2-7-5l-3-4a2 2 0 0 1 3-2l2 2z"/>',
     area:'<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 3"/><path d="M8 12h8m-4-4v8"/>',
-    select:'<path d="m5 3 14 9-8 1-3 7z"/>',
+    select:'<path d="M4 8V4h4m8 0h4v4m0 8v4h-4M8 20H4v-4"/><path d="m8 7 9 6-4.3.8-2.2 3.6Z" fill="currentColor" stroke-width="1"/>',
+    copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 5V4H6a2 2 0 0 0-2 2v10h1"/>',
+    cut:'<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8.2 8.2 12.3 12.3M8.2 15.8 20.5 3.5"/>',
     text:'<path d="M4 5h16M12 5v15M7 20h10M4 5v3M20 5v3"/>',
     rectangle:'<rect x="4" y="5" width="16" height="14" rx="1"/>',
     square:'<rect x="5" y="5" width="14" height="14" rx="1"/>',
@@ -170,6 +172,7 @@
 
   function initIcons(){
     const set = (id, name) => {const el=$(id);if(el)el.innerHTML=icon(name)};
+    set('copySelected','copy');set('cutSelected','cut');
     Object.entries({openFileIcon:'upload',heroPlus:'plus',newPlus:'plus',searchIcon:'search',goLibrary:'back',undoBtn:'undo',redoBtn:'redo',moreOptionsBtn:'more',exportIcon:'download',togglePages:'pages',pencilOnlyIcon:'pencil',insertImageBtn:'image',paperStyleBtn:'paper',pageOrientationBtn:'orientation',addPageSidebar:'plus',addPageTop:'plus',addPageBottomIcon:'plus',zoomOut:'zoomOut',zoomIn:'zoomIn',floatPlus:'plus',prevPage:'chevronLeft',nextPage:'chevronRight',closeModal:'x'}).forEach(([id,name])=>set(id,name));
     document.querySelectorAll('[data-tool]').forEach(btn => {if(btn.dataset.tool!=='artist')btn.innerHTML=icon(btn.dataset.tool);});
     $('shapeFillSwatches').innerHTML=['#b9adff','#f6b4c4','#f8db8e','#a2e8d1','#a7d6fa','#f7f7f7','#2b2d4c','#f3a75f'].map(c=>`<button class="fill-swatch" type="button" data-fill-color="${c}" title="${c}" aria-label="Use fill color ${c}" style="--fill-color:${c}"></button>`).join('');
@@ -992,16 +995,16 @@
     return null;
   }
   function updateSelectionActions(){
-    const item=page()?.items[state.selected];const group=activeGroup(),show=Boolean(!imageCropSession&&item&&['select','area'].includes(state.tool));
-    document.querySelectorAll('[data-resize-control]').forEach(control=>control.hidden=Boolean(group)||!resizable(item));
+    const item=page()?.items[state.selected],group=activeGroup();
+    const show=Boolean(!imageCropSession&&item&&['select','area'].includes(state.tool));
+    const precision=show&&!group&&resizable(item);
     $('selectionActions').hidden=!show;
-    $('clearAreaSelection').hidden=!group;
-    $('editSelectedText').hidden=!show||Boolean(group)||item.type!=='text';
-    $('cropSelectedImage').hidden=!show||Boolean(group)||item.type!=='image'||!$('imageCropOverlay');
-    $('rotationControls').hidden=!show||Boolean(group)||!CREATIVE.rotatable(item);
+    $('clearAreaSelection').hidden=!show||!group;
+    $('removeSelected').hidden=!show;
+    $('selectionPrecision').hidden=!precision;
+    $('rotationControls').hidden=!precision||!CREATIVE.rotatable(item);
     positionRotationHandle(show&&!group&&state.tool==='select'?item:null);
-    if(!show)return;
-    $('selectedObjectType').textContent=group?`${group.ids.size} selected`:({image:'Image',sticker:'Sticker',shape:'Shape',stroke:'Ink',text:'Text'})[item.type]||'Object';
+    if(!precision)return;
     $('selectedWidth').value=String(Math.round(itemBounds(item).w));
     $('selectedRotation').value=String(Math.round(CREATIVE.objectRotation(item)*10)/10);
   }
@@ -1152,7 +1155,7 @@
     $('imageCropOverlay').hidden=$('imageCropControls').hidden=true;
     const canvas=$('imageCropSource');canvas.width=canvas.height=1;
     renderCanvas();
-    if(!$('cropSelectedImage').hidden)$('cropSelectedImage').focus({preventScroll:true});
+    if(!$('objectRotationFrame').hidden&&!$('objectCropHandle').hidden)$('objectCropHandle').focus({preventScroll:true});
   }
   function applyImageCrop(){
     const session=imageCropSession;
@@ -1260,7 +1263,6 @@
     }
     if(!$('imageCropOverlay'))return;
 
-    $('cropSelectedImage').onclick=openImageCrop;
     const cropHandle=$('objectCropHandle');
     if(cropHandle)cropHandle.onclick=openImageCrop;
     $('cancelImageCrop').onclick=closeImageCrop;
@@ -1768,7 +1770,27 @@
     prev.hidden=!overflow||strip.scrollLeft<=3;
     next.hidden=!overflow||strip.scrollLeft+strip.clientWidth>=strip.scrollWidth-3;
   }
+  function compactSelectionActions(){
+    // Reuse the controls from the HTML so an older cached shell gets the same bar.
+    const precision=document.createElement('details');
+    precision.id='selectionPrecision';
+    precision.hidden=true;
+    const summary=document.createElement('summary');
+    summary.textContent='Size and angle';
+    const widthRow=document.createElement('div');
+    widthRow.className='selection-width-row';
+    widthRow.append($('selectedShrink'),$('selectedWidth').closest('label'),$('selectedGrow'));
+    precision.append(summary,widthRow,$('rotationControls'));
+
+    const clear=$('clearAreaSelection'),remove=$('removeSelected');
+    clear.textContent='Clear selection';
+    remove.textContent='Delete selection';
+    remove.hidden=true;
+    $('moreMenu').querySelector('[data-action="scroll"]').before(precision,clear,remove);
+    $('selectionActions').replaceChildren($('copySelected'),$('cutSelected'));
+  }
   function bind(){
+    compactSelectionActions();
     $('heroCreate').onclick=$('newNotebook').onclick=showModal;
     $('importPdfHome').onclick=()=>$('pdfFileInput').click();
     $('pdfFileInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)window.WindsPDFImport.open(file);};
@@ -1868,8 +1890,8 @@
     $('rotateSelectedRight').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])+90);
     mountObjectTransformHandles();
     bindObjectTransformHandles();
-    $('removeSelected').onclick=deleteSelection;
-    $('clearAreaSelection').onclick=()=>{groupSelection=null;state.selected=-1;renderCanvas();};
+    $('removeSelected').onclick=()=>{closeMenus();deleteSelection();};
+    $('clearAreaSelection').onclick=()=>{closeMenus();groupSelection=null;state.selected=-1;renderCanvas();};
     $('eraserMode').onchange=e=>{state.eraserInkOnly=e.target.value==='ink';syncEraserControls();persistEraserPreferences();prepareEraserPreview(true);};
     // Critical iPadOS guard: the canvas must cancel its single-contact Touch
     // Events, not just PointerEvents. Without this, consecutive Apple Pencil
@@ -1882,7 +1904,6 @@
     for(const type of ['pointerdown','pointermove','pointerup','pointercancel','touchstart','touchmove','touchend'])
       window.addEventListener(type,recordInputEvent,{capture:true,passive:true});
     $('closePencilDiagnostics').onclick=()=>togglePencilDiagnostics(false);
-    $('editSelectedText').onclick=editSelectedText;
     $('inkCanvas').addEventListener('dblclick',event=>{if(state.tool!=='select'&&state.tool!=='text')return;const p=point(event),index=hitTest(p.x,p.y);if(page()?.items[index]?.type==='text'){state.selected=index;editSelectedText();}});
     $('copyPencilDiagnostics').onclick=copyPencilDiagnostics;
     $('inkCanvas').addEventListener('contextmenu',e=>e.preventDefault());

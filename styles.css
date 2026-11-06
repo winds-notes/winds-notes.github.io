@@ -316,34 +316,22 @@
   font-weight:800;color:#5b627a;background:#f8f9fd;
 }
 .editor-header .zoom-preset-grid button:hover{background:#e9e7fc;border-color:#c9c2f7}
+/* Keep the clipboard actions within easy reach without covering the page. */
 .selection-actions[hidden]{display:none!important}
 .selection-actions{
-  position:absolute;top:14px;right:15px;z-index:5;
-  display:flex;align-items:center;gap:7px;
-  padding:7px 9px;border-radius:12px;
-  background:rgba(255,255,255,.97);border:1px solid #e0e2ee;
-  box-shadow:0 6px 26px rgba(37,38,71,.12);
-  color:#575e76;font-size:11px;font-weight:800;
-  max-width:calc(100% - 30px);
+  position:absolute;top:12px;right:14px;z-index:5;
+  display:flex;align-items:center;gap:2px;padding:3px;
+  border:1px solid #e0e2ee;border-radius:12px;background:#fff;
+  box-shadow:0 4px 16px #25264714;color:#5143a0;
 }
-.selection-actions>span{color:#5c53c3;min-width:39px}
-.selection-actions button{width:29px;height:29px;border:1px solid #e5e4f1;border-radius:8px;
-  background:#f5f4fc;color:#5b51a5;display:grid;place-items:center;font-size:19px;font-weight:600;line-height:1}
-.selection-actions button:active{background:#e8e6fc}
-.selection-actions .selection-size-label{display:flex;align-items:center;gap:5px;white-space:nowrap}
-.selection-actions input[type=number]{font:inherit;font-size:12px;color:#40455e;text-align:right;
-  background:#fff;border:1px solid #dce0ec;border-radius:7px;padding:6px 4px;width:60px}
-.selection-actions label span{color:#a0a5b8;font-weight:600}
-#removeSelected{color:#b65d75;background:#fff6f8;border-color:#fae0e7}
-@media(max-width:620px){
-  .selection-actions{right:8px;top:8px;padding:6px;gap:4px}
-  .selection-actions button{width:27px;height:27px}
-  .selection-actions input[type=number]{width:51px}
-  .selection-actions>span{min-width:0}
+.selection-actions button{
+  display:grid;place-items:center;width:40px;height:40px;padding:0;
+  border:0;border-radius:8px;background:transparent;color:inherit;
 }
+.selection-actions button:hover,.selection-actions button:active{background:#f0edff;color:#5143c5}
+@media(max-width:620px){.selection-actions{right:8px;top:8px}}
 
 /* Selection handles follow the object while their touch targets stay in CSS pixels. */
-.selection-actions .crop-image-button{width:auto;padding:0 9px;font-size:11px;font-weight:800}
 .object-rotation-frame,.image-crop-overlay,.image-crop-preview{position:absolute;touch-action:none}
 .object-rotation-frame{z-index:4;pointer-events:none}
 #objectRotationHandle,#objectCropHandle{position:absolute;width:36px;height:36px;display:grid;place-items:center;border:1.5px solid #5143c5;border-radius:50%;background:white;color:#5143c5;box-shadow:0 2px 7px #29224b29;pointer-events:auto;touch-action:none}
@@ -383,11 +371,16 @@
 .image-crop-fields label{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px;font-weight:700}
 .image-crop-fields input{width:54px;max-width:100%;border:1px solid #e0e2ee;border-radius:6px;padding:5px;font-size:12px}
 @media(max-width:620px){.image-crop-controls{position:relative;top:auto;right:auto;flex:none;align-self:flex-end;margin:8px 8px 0;max-width:calc(100% - 16px)}}
-@media(max-width:450px){.image-crop-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selection-actions:has(.crop-image-button:not([hidden])){flex-wrap:wrap;justify-content:flex-end}}
+@media(max-width:450px){.image-crop-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
-.rotation-controls{display:flex;align-items:center;gap:4px;border-left:1px solid #e0e2ee;padding-left:7px;margin-left:2px}
-.selection-actions .rotation-controls input{width:51px}
-.selection-actions:has(.rotation-controls:not([hidden])){flex-wrap:wrap;justify-content:flex-end}
+#moreMenu{width:min(244px,calc(100vw - 16px))}
+#selectionPrecision{padding:6px 0;color:#55516c;font-size:12px}
+#selectionPrecision summary{padding:8px;cursor:pointer;font-weight:700}
+#selectionPrecision .selection-width-row,#selectionPrecision .rotation-controls{display:flex;align-items:center;gap:5px;margin:4px 8px 7px}
+#selectionPrecision label{display:flex;align-items:center;gap:4px;white-space:nowrap;font-weight:700}
+#selectionPrecision input{width:58px;padding:5px 4px;border:1px solid #e0e2ee;border-radius:7px;text-align:right;color:#34344a}
+#selectionPrecision button{display:grid;place-items:center;width:31px;min-width:31px;height:31px;padding:0;border:1px solid #e5e4f1;border-radius:7px;background:#f5f4fc;color:#5143a0}
+#moreMenu #removeSelected{color:#a53753}
 
 /* Artist cards preview the real material without changing the toolbar layout. */
 .artist-grade-list canvas.graphite-sample{display:block;width:100%;height:22px;border:0;opacity:1;transform:none;margin-top:3px}
@@ -477,15 +470,11 @@
 
 .page-reader{position:fixed;inset:0;z-index:100;background:#f4f6fa;display:flex;flex-direction:column}.page-reader[hidden]{display:none!important}.page-reader>header{display:flex;align-items:center;gap:18px;padding:12px 20px;background:white;border-bottom:1px solid #e7eaf1;flex-wrap:wrap}.page-reader>header span{color:#72728b;font-size:12px}.page-reader-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;padding:24px 16px 60px}.reader-page{max-width:840px;margin:0 auto 28px}.reader-page>button{margin-bottom:10px;font-size:12px}.reader-page canvas{display:block;width:100%;height:auto;background:white;box-shadow:0 3px 18px #25233f16;touch-action:pan-y}
 
-.clipboard-text{display:block;width:100%;min-height:180px;resize:vertical;border:1px solid #dddce9;border-radius:10px;padding:12px;font-size:15px;line-height:1.5;color:#35364d;background:#fafafe}.selection-actions #copySelected,.selection-actions #cutSelected{width:auto;min-width:39px;padding:0 8px;font-size:11px}.selection-actions [data-resize-control][hidden]{display:none!important}
-
-.selection-actions{flex-wrap:wrap}
-
-.selection-actions .edit-text-button{width:auto;min-width:70px;padding:0 10px;font-size:12px;background:#6557ed;color:white;border-color:#6557ed}
+.clipboard-text{display:block;width:100%;min-height:180px;resize:vertical;border:1px solid #dddce9;border-radius:10px;padding:12px;font-size:15px;line-height:1.5;color:#35364d;background:#fafafe}
 .text-edit-dialog{width:min(690px,100%);max-height:calc(100dvh - 32px)}.text-edit-dialog h2{margin-bottom:20px}.text-format-grid{display:grid;grid-template-columns:minmax(120px,1fr) 90px 64px;gap:12px}.text-edit-dialog label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:700;color:#716a83}.text-edit-dialog input,.text-edit-dialog select{width:100%;min-width:0;border:1px solid #dddce9;border-radius:9px;padding:10px;background:#fafafe;color:#343449;font-size:13px}.text-edit-dialog input[type=color]{height:39px;padding:4px;cursor:pointer}.text-format-row{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin:14px 0 20px}.text-format-row label{flex:1;min-width:95px}.text-emphasis{display:flex;gap:5px;padding-bottom:1px}.text-emphasis button{width:37px;height:37px;border:1px solid #dddce9;border-radius:9px;background:#fafafe;color:#55516c;font-size:17px}.text-emphasis button[aria-pressed=true]{background:#eee9ff;border-color:#8c7bdd;color:#5942b4}.text-edit-dialog #textEditContent{display:block;width:100%;height:220px;min-height:140px;max-height:40vh;resize:vertical;padding:15px;border:1px solid #dddce9;border-radius:12px;background:#fff;color:#343449;margin-top:8px}.text-edit-hint{font-size:11px;color:#938a9d;line-height:1.6}.text-edit-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:19px}#textEditStatus{color:#bd4561;font-size:12px;line-height:1.5}
 @media(max-width:500px){.text-edit-dialog{padding:24px 18px}.text-format-grid{grid-template-columns:minmax(100px,1fr) 74px 58px;gap:8px}.text-format-row{gap:10px}.text-format-row label{min-width:83px}.text-edit-actions .btn{flex:1}}
 
-.page-scroller{align-items:flex-start;gap:24px}.notebook-stack{display:flex;flex-direction:column;align-items:center;gap:28px;flex:none;min-width:100%;--stack-zoom:1}.notebook-stack-page{flex:none;width:calc(var(--page-base,840px)*var(--stack-zoom));max-width:none}.stack-page-heading{display:block;width:100%;padding:8px 6px 10px;background:transparent;border:0;text-align:left;color:#8b879c;font-size:11px;font-weight:700}.active-page>.stack-page-heading{color:#6557ed}.stack-page-body{position:relative;background:white;box-shadow:0 6px 25px #273b6516}.stack-page-body>canvas{display:block;width:100%;height:100%;position:absolute;inset:0;cursor:pointer;touch-action:pan-x pan-y}.active-page>.stack-page-body>canvas{display:none}.stack-page-body>.page-shell{margin:0;box-shadow:none}.page-scroller>.floating-add-page{align-self:center}.eraser-mode-control[hidden]{display:none!important}.eraser-mode-control select{font-size:11px;border:1px solid #e5e3ef;border-radius:8px;padding:6px;color:#655d7b;background:#faf9ff}.page-shell canvas.cursor-pan{cursor:grab}.page-shell canvas.cursor-area{cursor:crosshair}.selection-actions #clearAreaSelection{width:auto;padding:0 8px;font-size:11px}
+.page-scroller{align-items:flex-start;gap:24px}.notebook-stack{display:flex;flex-direction:column;align-items:center;gap:28px;flex:none;min-width:100%;--stack-zoom:1}.notebook-stack-page{flex:none;width:calc(var(--page-base,840px)*var(--stack-zoom));max-width:none}.stack-page-heading{display:block;width:100%;padding:8px 6px 10px;background:transparent;border:0;text-align:left;color:#8b879c;font-size:11px;font-weight:700}.active-page>.stack-page-heading{color:#6557ed}.stack-page-body{position:relative;background:white;box-shadow:0 6px 25px #273b6516}.stack-page-body>canvas{display:block;width:100%;height:100%;position:absolute;inset:0;cursor:pointer;touch-action:pan-x pan-y}.active-page>.stack-page-body>canvas{display:none}.stack-page-body>.page-shell{margin:0;box-shadow:none}.page-scroller>.floating-add-page{align-self:center}.eraser-mode-control[hidden]{display:none!important}.eraser-mode-control select{font-size:11px;border:1px solid #e5e3ef;border-radius:8px;padding:6px;color:#655d7b;background:#faf9ff}.page-shell canvas.cursor-pan{cursor:grab}.page-shell canvas.cursor-area{cursor:crosshair}
 
 /* Reparenting the active canvas must not move the user’s scroll position. */
 #pageScroller{overflow-anchor:none}
