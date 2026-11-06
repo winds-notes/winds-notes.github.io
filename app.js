@@ -800,9 +800,12 @@
     }else if(item.type==='shape'){
       CREATIVE.drawShape(ctx,item);
     }else if(item.type==='sticker'){
-      ctx.textBaseline='top';ctx.textAlign='left';
-      ctx.font=`${item.size||78}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
-      ctx.fillText(item.emoji,item.x,item.y);
+      if(CREATIVE.drawSticker)CREATIVE.drawSticker(ctx,item);
+      else{
+        ctx.textBaseline='top';ctx.textAlign='left';
+        ctx.font=`${item.size||78}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
+        ctx.fillText(item.emoji,item.x,item.y);
+      }
     }else if(item.type==='image'){
       if(!imageCache.has(item.src)){
         const img=new Image(),account=workspaceId;imageCache.set(item.src,img);img.onload=()=>{if(!document.hidden&&account===workspaceId)renderCloudChanges(account);};img.src=item.src;
@@ -860,7 +863,7 @@
     if(!withoutSelection){
       if(state.draft)drawItem(ctx,state.draft);
       if(state.selected>=0 && p.items[state.selected]){
-        const item=p.items[state.selected],b=itemBounds(item);ctx.save();CREATIVE.rotateContext(ctx,item);ctx.strokeStyle='#6557ed';ctx.lineWidth=1.7;ctx.setLineDash([8,6]);ctx.strokeRect(b.x-8,b.y-8,b.w+16,b.h+16);ctx.restore();
+        const item=p.items[state.selected],b=selectionBounds(item);ctx.save();CREATIVE.rotateContext(ctx,item);ctx.strokeStyle='#6557ed';ctx.lineWidth=1.7;ctx.setLineDash([8,6]);ctx.strokeRect(b.x-8,b.y-8,b.w+16,b.h+16);ctx.restore();
       }
     }
   }
@@ -897,7 +900,7 @@
     if(drawInteractionOverlay(ctx))return;
     const it=state.drag?.kind==='rotate'?state.drag.preview:page()?.items[state.selected];
     if(!it||imageCropSession)return;
-    const b=itemBounds(it);ctx.save();CREATIVE.rotateContext(ctx,it);ctx.strokeStyle='#6557ed';ctx.lineWidth=Math.max(1,handleSize()*.18);
+    const b=selectionBounds(it);ctx.save();CREATIVE.rotateContext(ctx,it);ctx.strokeStyle='#6557ed';ctx.lineWidth=Math.max(1,handleSize()*.18);
     const pad=resizable(it)?0:handleSize()*.65;
     if(pad)ctx.setLineDash([Math.max(4,pad),Math.max(3,pad*.75)]);
     ctx.strokeRect(b.x-pad,b.y-pad,b.w+pad*2,b.h+pad*2);ctx.setLineDash([]);
@@ -967,6 +970,9 @@
     const x=Math.min(item.x,item.x+item.w),y=Math.min(item.y,item.y+item.h);return{x,y,w:Math.abs(item.w),h:Math.abs(item.h)};
   }
   function resizable(item){return Boolean(item&&['image','sticker','shape'].includes(item.type));}
+  function selectionBounds(item){
+    return (item.type==='sticker'&&CREATIVE.stickerSelectionBounds?.(item))||itemBounds(item);
+  }
   function handleSize(){
     const width=$('inkCanvas').getBoundingClientRect().width||W;
     return Math.max(1.7,Math.min(14,8*W/width));
@@ -978,7 +984,7 @@
   function resizeHit(item,p){
     if(!resizable(item))return null;
     p=CREATIVE.objectPoint(item,p,true);
-    const positions=cornerPositions(itemBounds(item));
+    const positions=cornerPositions(selectionBounds(item));
     const tolerance=handleSize()*2.6;
     for(const [corner,[x,y]] of Object.entries(positions)){
       if(Math.hypot(p.x-x,p.y-y)<tolerance)return corner;
@@ -1009,7 +1015,9 @@
     frame.hidden=!CREATIVE.rotatable(item);
     if(frame.hidden)return;
     const angle=CREATIVE.objectRotation(item);
-    positionObjectOverlay(frame,itemBounds(item),angle);
+    const bounds=selectionBounds(item);
+    const center=CREATIVE.objectPoint(item,{x:bounds.x+bounds.w/2,y:bounds.y+bounds.h/2});
+    positionObjectOverlay(frame,{...bounds,x:center.x-bounds.w/2,y:center.y-bounds.h/2},angle);
     frame.style.setProperty('--object-action-angle',`${-angle}deg`);
     const cropHandle=$('objectCropHandle');
     if(cropHandle)cropHandle.hidden=item.type!=='image'||!$('imageCropOverlay');
@@ -1278,13 +1286,17 @@
     }
   }
   function resizeObject(item,newWidth,newHeight,corner='se',bounds=itemBounds(item)){
+    if(item.type==='sticker'&&CREATIVE.resizeSticker){
+      Object.assign(item,CREATIVE.resizeSticker(item,newWidth,corner));
+      return;
+    }
     const original={type:item.type,x:item.x,y:item.y,w:item.w,h:item.h,size:item.size,rotation:item.rotation};
     // Preserve aspect ratio for imported photos and emoji stickers.
     const ratio=Math.max(.01,bounds.w/Math.max(1,bounds.h));
     let width=Math.max(16,Math.min(2200,newWidth));
     let height=Math.max(16,Math.min(2200,newHeight));
     if(item.type==='image'){height=Math.max(16,Math.min(2200,width/ratio));}
-    if(item.type==='sticker'){width=height=Math.max(16,Math.min(1600,width));}
+    if(item.type==='sticker'){width=height=Math.min(1600,width);}
     if(item.type==='shape'){
       width=Math.max(4,width);height=Math.max(4,height);
     }
@@ -1307,15 +1319,17 @@
     const b=drag.bounds,corner=drag.corner;
     const anchorX=corner.includes('w')?b.x+b.w:b.x;
     const anchorY=corner.includes('n')?b.y+b.h:b.y;
-    let width=Math.max(16,Math.abs(p.x-anchorX));
-    let height=Math.max(16,Math.abs(p.y-anchorY));
+    const minSide=original.type==='sticker'?16*b.w/(original.size||78):16;
+    let width=Math.max(minSide,Math.abs(p.x-anchorX));
+    let height=Math.max(minSide,Math.abs(p.y-anchorY));
     if(original.type==='image'||original.type==='sticker'){
       const ratio=original.type==='sticker'?1:b.w/Math.max(1,b.h);
       if(width/ratio>height)height=width/ratio;else width=height*ratio;
     }
     const item=clone(original);
     // Opposite corner remains fixed, even while dragging outward.
-    resizeObject(item,width,height,corner,b);
+    const newWidth=original.type==='sticker'?width*(original.size||78)/b.w:width;
+    resizeObject(item,newWidth,height,corner,b);
     page().items[i]=item;
     updateSelectionActions();
     queueBaseRefresh();
@@ -1324,7 +1338,7 @@
   function nearItem(item,x,y,forEraser=false){
     if(!forEraser&&CREATIVE.erasedAt(item,itemBounds(item),{x,y}))return false;
     const local=CREATIVE.objectPoint(item,{x,y},true);x=local.x;y=local.y;
-    const b=itemBounds(item),tolerance=forEraser?14:9;
+    const b=selectionBounds(item),tolerance=forEraser?14:9;
     if(x<b.x-tolerance||x>b.x+b.w+tolerance||y<b.y-tolerance||y>b.y+b.h+tolerance)return false;
     if(item.type!=='stroke')return true;
     const pts=item.points||[];const reach=item.tool==='artist'?CREATIVE.artistBoundsPadding(item):item.size*(item.tool==='highlighter'?2.5:.7);
@@ -1447,7 +1461,7 @@
       const corner=resizeHit(existing,p);
       if(corner){
         state.drag={kind:'resize',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,
-          corner,bounds:itemBounds(existing),startItems:clone(page().items),changed:false};
+          corner,bounds:selectionBounds(existing),startItems:clone(page().items),changed:false};
         renderCanvas();return;
       }
       const idx=hitTest(p.x,p.y);state.selected=idx;
@@ -2041,7 +2055,7 @@
       if(!state.drag&&!state.pinch&&!state.editingText&&!state.pendingInteractions&&!imageCropSession&&!globalThis.WindsText?.isOpen()&&Date.now()-state.lastPenAt>=150)return;await delay(100);}
   }
   function clipboardBounds(item){
-    const b=itemBounds(item);if(!CREATIVE.objectRotation(item))return b;
+    const b=selectionBounds(item);if(!CREATIVE.objectRotation(item))return b;
     const corners=[[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]].map(([x,y])=>CREATIVE.objectPoint(item,{x,y}));
     const x=Math.min(...corners.map(p=>p.x)),y=Math.min(...corners.map(p=>p.y));return {x,y,w:Math.max(...corners.map(p=>p.x))-x,h:Math.max(...corners.map(p=>p.y))-y};
   }

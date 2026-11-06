@@ -78,6 +78,51 @@
   function objectRect(item) {
     return {x:item.x,y:item.y,w:item.type==='sticker'?(item.size||78):item.w,h:item.type==='sticker'?(item.size||78):item.h};
   }
+  function setStickerFont(ctx,size){
+    ctx.textBaseline='top';
+    ctx.textAlign='left';
+    ctx.font=`${size}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
+  }
+  function drawSticker(ctx,item){
+    setStickerFont(ctx,item.size||78);
+    ctx.fillText(item.emoji,item.x,item.y);
+  }
+  const stickerFrames=new Map();
+  let stickerMeasureContext;
+  function stickerSelectionBounds(item){
+    const bounds=objectRect(item);
+    if(!stickerFrames.has(item.emoji)){
+      if(stickerMeasureContext===undefined){
+        stickerMeasureContext=typeof document==='undefined'?null:document.createElement('canvas').getContext('2d');
+      }
+      if(!stickerMeasureContext)return bounds;
+      const referenceSize=128;
+      setStickerFont(stickerMeasureContext,referenceSize);
+      const {actualBoundingBoxLeft:left,actualBoundingBoxRight:right,
+        actualBoundingBoxAscent:ascent,actualBoundingBoxDescent:descent}=stickerMeasureContext.measureText(item.emoji);
+      const inkWidth=left+right,inkHeight=ascent+descent;
+      let frame=null;
+      if([left,right,ascent,descent].every(Number.isFinite)&&inkWidth>0&&inkHeight>0){
+        const side=Math.max(inkWidth,inkHeight)+2;
+        frame={x:(right-left-side)/2/referenceSize,y:(descent-ascent-side)/2/referenceSize,side:side/referenceSize};
+      }
+      if(stickerFrames.size>=128)stickerFrames.delete(stickerFrames.keys().next().value);
+      stickerFrames.set(item.emoji,frame);
+    }
+    const frame=stickerFrames.get(item.emoji);
+    if(!frame)return bounds;
+    const size=bounds.w;
+    return {x:item.x+frame.x*size,y:item.y+frame.y*size,w:frame.side*size,h:frame.side*size};
+  }
+  function resizeSticker(item,size,corner){
+    const resized={...item,size:clamp(size,16,1600)};
+    const anchor=sticker=>{
+      const b=stickerSelectionBounds(sticker);
+      return objectPoint(sticker,{x:corner.includes('w')?b.x+b.w:b.x,y:corner.includes('n')?b.y+b.h:b.y});
+    };
+    const before=anchor(item),after=anchor(resized);
+    return {...resized,x:item.x+before.x-after.x,y:item.y+before.y-after.y};
+  }
   function objectPoint(item,point,inverse=false) {
     const rotation=objectRotation(item);if(!rotation)return point;
     const b=objectRect(item),cx=b.x+b.w/2,cy=b.y+b.h/2;
@@ -494,5 +539,6 @@
   return Object.freeze({PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
-    rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag});
+    rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,
+    drawSticker,stickerSelectionBounds,resizeSticker});
 });
