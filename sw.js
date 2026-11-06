@@ -1,5 +1,5 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline. */
-const CACHE='winds-notes-shell-v50-sync';
+const CACHE='winds-notes-shell-v50-picker-config';
 importScripts('./vendor/pdfjs/assets.js');
 const ASSETS=['./eraser-preview.js','./eraser-preview.js?v=49','./app.js?v=50','./creative-tools.js?v=49','./native-file.js?v=49','./interaction-tools.js?v=49','./','./index.html','./styles.css','./styles.css?v=49','./privacy.html','./terms.html','./legal.css','./LICENSE','./creative-tools.js','./app.js','./pdf-export.js','./pdf-import.js','./clipboard.js','./text-tools.js','./interaction-tools.js','./page-stack.js','./vendor/pdfjs/assets.js','./native-file.js','./google-config.js','./cloud-drive.js','./cloud-drive.js?v=50','./live-sync.js','./live-sync.js?v=50','./notebook-sharing.js','./shared-notebook-model.js','./manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll([...ASSETS,...self.WINDS_PDF_ASSETS])).then(()=>self.skipWaiting()));});
