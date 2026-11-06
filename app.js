@@ -1007,7 +1007,12 @@
     const frame=$('objectRotationFrame');
     if(!frame)return;
     frame.hidden=!CREATIVE.rotatable(item);
-    if(!frame.hidden)positionObjectOverlay(frame,itemBounds(item),CREATIVE.objectRotation(item));
+    if(frame.hidden)return;
+    const angle=CREATIVE.objectRotation(item);
+    positionObjectOverlay(frame,itemBounds(item),angle);
+    frame.style.setProperty('--object-action-angle',`${-angle}deg`);
+    const cropHandle=$('objectCropHandle');
+    if(cropHandle)cropHandle.hidden=item.type!=='image'||!$('imageCropOverlay');
   }
   function rotateSelectedTo(angle){
     const item=page()?.items[state.selected];
@@ -1188,9 +1193,49 @@
     else{session.crop=drag.crop;queueImageCropPreview(session);}
     session.drag=null;
   }
+  function mountObjectTransformHandles(){
+    const shell=$('pageShell'),scroller=$('pageScroller');
+    if(!shell||!scroller)return;
+    // Mount from the editor script so cached pages can use the same handles.
+    if(!$('objectRotationFrame'))shell.insertAdjacentHTML('beforeend',`
+      <div class="object-rotation-frame" id="objectRotationFrame" hidden>
+        <button type="button" id="objectRotationHandle" aria-label="Rotate selected object" title="Drag to rotate. Hold Shift to snap to 15°.">
+          <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M20 11a8 8 0 1 0-1.5 5.7M20 5v6h-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    `);
+    if(!$('objectCropHandle'))$('objectRotationFrame').insertAdjacentHTML('beforeend',`
+      <button type="button" id="objectCropHandle" aria-label="Crop image on the page" title="Crop image" hidden>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3v14a1 1 0 0 0 1 1h14M3 6h14a1 1 0 0 1 1 1v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>`);
+    if($('imageCropOverlay'))return;
+    // The previous modal used the same input IDs as the crop controls.
+    $('imageCropBackdrop')?.remove();
+    scroller.insertAdjacentHTML('beforebegin',`
+      <section class="image-crop-controls" id="imageCropControls" aria-label="Crop image" hidden>
+        <div class="crop-command-row"><div><strong>Crop image</strong><p>Drag an edge or corner on the page.</p></div><button type="button" id="resetImageCrop">Reset</button><button type="button" id="cancelImageCrop">Cancel</button><button type="button" id="applyImageCrop">Apply crop</button></div>
+        <details><summary>Exact crop</summary><div class="image-crop-fields">
+          <label>Left <input id="cropLeft" aria-label="Crop left percentage" type="number" min="0" max="99" step="0.1"/> %</label>
+          <label>Top <input id="cropTop" aria-label="Crop top percentage" type="number" min="0" max="99" step="0.1"/> %</label>
+          <label>Width <input id="cropWidth" aria-label="Crop width percentage" type="number" min="1" max="100" step="0.1"/> %</label>
+          <label>Height <input id="cropHeight" aria-label="Crop height percentage" type="number" min="1" max="100" step="0.1"/> %</label>
+        </div></details>
+      </section>
+    `);
+    shell.insertAdjacentHTML('beforeend',`
+      <div class="image-crop-overlay" id="imageCropOverlay" hidden>
+        <div class="image-crop-preview" id="imageCropPreview">
+          <canvas id="imageCropSource" width="1" height="1" aria-hidden="true"></canvas>
+          <div class="image-crop-shade" aria-hidden="true"><div id="imageCropShadeBox"></div></div>
+          <div class="image-crop-box" id="imageCropBox" aria-hidden="true">
+            <span data-crop-corner="nw"></span><span data-crop-corner="ne"></span><span data-crop-corner="sw"></span><span data-crop-corner="se"></span>
+            <span data-crop-corner="n"></span><span data-crop-corner="s"></span><span data-crop-corner="w"></span><span data-crop-corner="e"></span>
+          </div>
+        </div>
+      </div>
+    `);
+  }
   function bindObjectTransformHandles(){
-    // A previous HTML shell can arrive with newer scripts during a release.
-    // Keep the editor and account controls usable until the new shell arrives.
     const rotationHandle=$('objectRotationHandle');
     if(rotationHandle){
       rotationHandle.addEventListener('pointerdown',beginObjectRotation);
@@ -1208,6 +1253,8 @@
     if(!$('imageCropOverlay'))return;
 
     $('cropSelectedImage').onclick=openImageCrop;
+    const cropHandle=$('objectCropHandle');
+    if(cropHandle)cropHandle.onclick=openImageCrop;
     $('cancelImageCrop').onclick=closeImageCrop;
     $('applyImageCrop').onclick=applyImageCrop;
     $('resetImageCrop').onclick=()=>{
@@ -1805,6 +1852,7 @@
     $('selectedRotation').onchange=e=>rotateSelectedTo(e.target.valueAsNumber);
     $('rotateSelectedLeft').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])-90);
     $('rotateSelectedRight').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])+90);
+    mountObjectTransformHandles();
     bindObjectTransformHandles();
     $('removeSelected').onclick=deleteSelection;
     $('clearAreaSelection').onclick=()=>{groupSelection=null;state.selected=-1;renderCanvas();};
