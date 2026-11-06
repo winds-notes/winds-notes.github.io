@@ -1266,9 +1266,11 @@
     if(ev.pointerType==='pen'){
       state.lastPenAt=Date.now();
       // Recover when a pressed stylus MOVE arrives without its DOWN event.
-      // Hover has pressure 0 and is never converted into handwriting.
-      if(!state.drag && !state.pinch && ev.pressure>0.01 &&
-         (ev.buttons&1) && ['pen','highlighter','artist'].includes(state.tool) &&
+      // A new Pencil eraser ID can also reveal a lost previous UP. Hover never
+      // starts a stroke or an erase; keep the existing pressed-contact guards.
+      const lostEraseStart=state.tool==='eraser'&&state.drag?.kind==='erase'&&state.drag.pointerType==='pen'&&state.drag.pointerId!==ev.pointerId;
+      if((!state.drag || lostEraseStart) && !state.pinch && ev.pressure>0.01 &&
+         (ev.buttons&1) && ['pen','highlighter','artist','eraser'].includes(state.tool) &&
          !state.editingText && page())pointerDown(ev);
     }
     if(ev.pointerType==='touch'&&state.pointers.has(ev.pointerId))state.pointers.set(ev.pointerId,{x:ev.clientX,y:ev.clientY});
@@ -1290,7 +1292,11 @@
       scroller.scrollTop-=ev.clientY-state.drag.lastY;state.drag.lastX=ev.clientX;state.drag.lastY=ev.clientY;return;
     }
     if(['area','areaMove'].includes(state.drag.kind)){state.drag.end=p;state.drag.dx=p.x-state.drag.start.x;state.drag.dy=p.y-state.drag.start.y;queueInteractionOverlay();return;}
-    if(state.drag.kind==='erase'){eraseAt(p.x,p.y);return;}
+    if(state.drag.kind==='erase'){
+      const events=ev.getCoalescedEvents?ev.getCoalescedEvents():[];
+      for(const sample of events){const q=clampPoint(point(sample));eraseAt(q.x,q.y);}
+      eraseAt(p.x,p.y);return;
+    }
     if(state.drag.kind==='resize'){
       if(!state.drag.changed){remember();state.drag.changed=true;}
       resizeDragItem(state.drag,p);return;
@@ -1320,7 +1326,19 @@
     state.pointers.delete(ev.pointerId);
     if(state.pinch){if(state.pointers.size<2){endPinch();state.pointers.clear();}return;}
     if(!state.drag||state.drag.pointerId!==ev.pointerId)return;
-    if(['erase','area','areaMove'].includes(state.drag.kind)){const gesture=state.drag;state.drag=null;if(!cancelled)deferInteraction(gesture);else if(gesture.kind==='erase'&&eraserPreview?.has(gesture)){gesture.cancelledPreview=true;deferInteraction(gesture);}else queueInteractionOverlay();return;}
+    if(['erase','area','areaMove'].includes(state.drag.kind)){
+      const gesture=state.drag;
+      if(gesture.kind==='erase'&&!cancelled&&Number.isFinite(ev.clientX)&&Number.isFinite(ev.clientY)){
+        const p=clampPoint(point(ev));eraseAt(p.x,p.y);
+      }
+      state.drag=null;
+      // Like handwriting, keep sampled Pencil contacts when WebKit omits an
+      // end event or drops capture. Finger cancellation still rolls back so a
+      // second finger can establish pinch without leaving an accidental edit.
+      if(!cancelled||(gesture.kind==='erase'&&gesture.pointerType==='pen'))deferInteraction(gesture);
+      else if(gesture.kind==='erase'&&eraserPreview?.has(gesture)){gesture.cancelledPreview=true;deferInteraction(gesture);}
+      else queueInteractionOverlay();return;
+    }
     if(state.drag.kind==='draw'&&state.draft){
       if(!cancelled && Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY)){
         const p=clampPoint(point(ev));
