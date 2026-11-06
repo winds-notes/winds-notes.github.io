@@ -3,6 +3,8 @@
   'use strict';
   const API='https://www.googleapis.com/drive/v3/files',UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
   const LIMIT=100*1024*1024,MODEL=global.WindsSharedModel,$=id=>document.getElementById(id);
+  const EDIT_PREFIX='WiNDS Notes edit v1\n',PART_SIZE=3000,MAX_PARTS=Math.ceil(LIMIT/PART_SIZE);
+  const JOURNAL_WRITES_PER_SYNC=8;
   const FOLDER='application/vnd.google-apps.folder';
   const validFile=id=>typeof id==='string'&&/^[\w-]{5,200}$/.test(id);
   const seedParent=file=>!file.trashed&&file.appProperties?.windsNotesSharedSeed==='1'&&file.parents?.length===1&&validFile(file.parents[0])?file.parents[0]:null;
@@ -90,8 +92,18 @@
     if(!seedFile)throw Object.assign(Error('Choose Notebook.json inside this shared folder.'),{needsSeed:true});
     const seed=await content(seedFile.id,s,manual);
     if(seed.format!=='winds-shared-notebook'||seed.version!==1)throw Error('Invalid shared notebook.');
-    const entry={folder:info,seedId:seedFile.id,seed:global.WindsFile.validateShared(seed.notebook),batches:new Map(),seen:new Set(),cursor:''};
-    await readEdits(entry,files,s,manual);cache.set(id,entry);return entry;
+    const entry={folder:info,seedId:seedFile.id,seed:global.WindsFile.validateShared(seed.notebook),batches:new Map(),seen:new Set(),cursor:'',
+      journal:{complete:new Set(),partial:new Map(),characters:0,cursor:0}};
+    await readEdits(entry,files,s,manual);
+    // An account can still open the existing notebook if Drive denies comments.
+    try{await readJournal(entry,s,manual);}catch(error){if(!deniedAccess(error))throw error;}
+    cache.set(id,entry);return entry;
+  }
+  function rememberBatch(entry,batch){
+    const previous=entry.batches.get(batch.id);
+    if(previous&&!MODEL.sameValue(previous,batch))throw Error('Conflicting shared edit identifiers. Your local changes are retained.');
+    entry.batches.set(batch.id,batch);
+    if(entry.batches.size>10000)throw Error('Shared history exceeds the safe replay limit. Export a copy and start a new shared notebook.');
   }
   async function readEdits(entry,files,s,manual){
     let cursor=entry.cursor;
@@ -99,11 +111,69 @@
       if(file.createdTime>cursor)cursor=file.createdTime;
       if(file.appProperties?.windsNotesSharedEdit!=='1'||entry.seen.has(file.id))continue;
       const batch=MODEL.validateBatch(await content(file.id,s,manual));
-      if(entry.batches.has(batch.id)&&JSON.stringify(entry.batches.get(batch.id))!==JSON.stringify(batch))throw Error('Conflicting shared edit identifiers. Your local changes are retained.');
-      entry.batches.set(batch.id,batch);entry.seen.add(file.id);
-      if(entry.batches.size>10000)throw Error('Shared history exceeds the safe replay limit. Export a copy and start a new shared notebook.');
+      rememberBatch(entry,batch);entry.seen.add(file.id);
     }
     entry.cursor=cursor;
+  }
+  function acceptJournalPart(entry,part){
+    const {id,index,total,data}=part||{},journal=entry.journal;
+    if(typeof id!=='string'||!id||id.length>200||journal.complete.has(id)||
+      !Number.isInteger(total)||total<1||total>MAX_PARTS||!Number.isInteger(index)||index<0||index>=total||
+      typeof data!=='string'||!data.length||data.length>PART_SIZE)return;
+    let batch=journal.partial.get(id);
+    if(!batch){
+      batch={total,parts:new Map(),characters:0};
+      journal.partial.set(id,batch);
+    }
+    const previous=batch.parts.get(index);
+    if(batch.total!==total||(previous!==undefined&&previous!==data))throw Error('Conflicting parts in the shared edit log.');
+    if(previous!==undefined)return;
+    journal.characters+=data.length;batch.characters+=data.length;
+    if(journal.characters>LIMIT)throw Error('The shared edit log exceeds the safe replay limit.');
+    batch.parts.set(index,data);
+    if(batch.parts.size!==total)return;
+    const edit=MODEL.validateBatch(JSON.parse(Array.from({length:total},(_,i)=>batch.parts.get(i)).join('')));
+    if(edit.id!==id)throw Error('Invalid shared edit log identifier.');
+    rememberBatch(entry,edit);
+    journal.complete.add(id);journal.partial.delete(id);journal.characters-=batch.characters;
+  }
+  async function readJournal(entry,s,manual){
+    const journal=entry.journal,url=`${API}/${entry.seedId}/comments`;
+    let page='',newest=journal.cursor,count=0;
+    do{
+      const params=new URLSearchParams({fields:'nextPageToken,comments(content,modifiedTime)',pageSize:'100'});
+      if(journal.cursor)params.set('startModifiedTime',new Date(Math.max(0,journal.cursor-60000)).toISOString());
+      if(page)params.set('pageToken',page);
+      const result=await json(`${url}?${params}`,{},s,manual);
+      for(const comment of result.comments||[]){
+        newest=Math.max(newest,Date.parse(comment.modifiedTime)||0);
+        if(typeof comment.content!=='string'||!comment.content.startsWith(EDIT_PREFIX)||comment.content.length>PART_SIZE*6+500)continue;
+        let part;
+        try{part=JSON.parse(comment.content.slice(EDIT_PREFIX.length));}catch{continue;}
+        acceptJournalPart(entry,part);
+      }
+      page=result.nextPageToken||'';
+      if(++count>500)throw Error('The shared edit log has too many records to open safely.');
+    }while(page);
+    journal.cursor=newest;
+  }
+  async function publishJournal(entry,pending,s,manual){
+    const journal=entry.journal,url=`${API}/${entry.seedId}/comments?fields=id`;
+    let remaining=JOURNAL_WRITES_PER_SYNC;
+    const batches=new Map(pending.map(batch=>[batch.id,batch]));
+    for(const [id,batch] of entry.batches)if(!batches.has(id)&&!journal.complete.has(id))batches.set(id,batch);
+    for(const batch of batches.values()){
+      if(journal.complete.has(batch.id))continue;
+      const text=JSON.stringify(MODEL.validateBatch(batch)),total=Math.ceil(text.length/PART_SIZE);
+      for(let index=0;index<total;index++){
+        if(journal.partial.get(batch.id)?.parts.has(index))continue;
+        if(!remaining)return;
+        const part={id:batch.id,index,total,data:text.slice(index*PART_SIZE,(index+1)*PART_SIZE)};
+        await json(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:EDIT_PREFIX+JSON.stringify(part)})},s,manual);
+        acceptJournalPart(entry,part);
+        remaining--;
+      }
+    }
   }
   async function join(id,s,manual=true,explicit=true,seedId){
     const entry=await load(id,s,manual,seedId);
@@ -148,12 +218,18 @@
       }
     }
     if(!pulled)await pull();
+    // Per-file authorization may hide another account's newly created edit files.
+    // Both editors already have access to the seed and can read its append-only log.
+    await readJournal(entry,s,manual);
+    await publishJournal(entry,sharing.pending||[],s,manual);
     check(s,manual);if(version!==api.bridge.version())throw deferred();
     const merged=MODEL.replay(entry.seed,entry.batches.values());
-    const nextSharing={...sharing,pending:[],baseline:MODEL.fingerprint(merged)};
+    const pending=(sharing.pending||[]).filter(batch=>!entry.journal.complete.has(batch.id));
+    const published=(sharing.pending?.length||0)-pending.length;
+    const nextSharing={...sharing,pending,baseline:MODEL.fingerprint(merged)};
     const received=JSON.stringify(clean)!==JSON.stringify(merged);
-    if(received||sharing.pending?.length)await put(merged,nextSharing,version,s,manual);
-    if(received)api.received?.();if(sharing.pending?.length)api.uploaded?.();
+    if(received||published)await put(merged,nextSharing,version,s,manual);
+    if(received)api.received?.();if(published)api.uploaded?.();
   }
   async function sync(s,manual=false,{only=null,exclude=null,limit=Infinity}={}){
     check(s,manual);
