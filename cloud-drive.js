@@ -103,6 +103,7 @@
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
     global.WindsSharing?.cancel();
     global.WindsLive?.stop();
+    $('cloudBackupList').hidden=true;
     driveController?.abort();
     driveController=global.AbortController?new global.AbortController():null;
     syncing=false;manualBusy=false;queuedAction=null;
@@ -212,6 +213,11 @@
     $('googleDisconnect').disabled=signingIn;
     for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl'])$(id).hidden=!yes;
     for(const id of ['googleSync','googleBackup','googleRestore'])$(id).disabled=signingIn||manualBusy;
+    const sharedButton=$('googleBrowseShared');
+    if(sharedButton){
+      sharedButton.hidden=!yes||!global.WindsSharing?.listAvailable;
+      sharedButton.disabled=signingIn||manualBusy;
+    }
     $('cloudAutoBackup').checked=auto;
     clearTimeout(expiryTimer);
     if(yes)expiryTimer=setTimeout(()=>{updateUI();if(SERVER_AUTH)renewServerSession();},expires-Date.now()-30000);
@@ -296,7 +302,7 @@
       };
       cancelAccessPicker=()=>finish(Error('Account changed or authorization cancelled.'));
       try{
-        const view=new picker.DocsView(picker.ViewId.DOCS).setIncludeFolders(!parent).setSelectFolderEnabled(!parent);
+        const view=new picker.DocsView(picker.ViewId.DOCS).setMode(picker.DocsViewMode.LIST).setIncludeFolders(!parent).setSelectFolderEnabled(!parent);
         if(id)view.setFileIds(id);
         else if(parent)view.setParent(parent).setMimeTypes('application/json');
         else view.setOwnedByMe(false).setMimeTypes('application/json,application/vnd.google-apps.folder');
@@ -304,11 +310,16 @@
         activeAccessPicker=new picker.PickerBuilder().addView(view).setAppId(project).setDeveloperKey(key).setOAuthToken(token).setOrigin(global.location.origin)
           .setTitle(title).setCallback(data=>{
             if(data.action===picker.Action.CANCEL){finish(null,false);return;}
+            if(data.action===picker.Action.ERROR){finish(Error('Google Drive could not open its file picker. Try opening it again.'));return;}
             if(data.action!==picker.Action.PICKED)return;
             try{
               ensureIdle(s.version,true);
-              const picked=data.docs?.length===1?data.docs[0].id:null;
+              const file=data.docs?.length===1?data.docs[0]:null,picked=file?.id;
               if(typeof picked!=='string'||!/^[-\w]{5,200}$/.test(picked)||(id&&picked!==id))throw Error(id?'Select the notebook file shown in the invitation.':'Select one shared WiNDS notebook folder or Notebook.json file.');
+              if(file.driveSuccess===false||file.driveError){
+                const code=typeof file.driveError==='string'&&/^[\w-]{1,50}$/.test(file.driveError)?` (${file.driveError})`:'';
+                throw Error(`Google Drive could not give WiNDS Notes access to the selected item${code}. Select it again in Google Drive.`);
+              }
               finish(null,id?true:picked);
             }catch(error){finish(error);}
           }).build();
@@ -671,24 +682,66 @@
     }catch(err){if(expected===generation){console.error(err);message(err.message||'Google Drive backup failed.',true);}}
     finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
   }
+  function showDriveList(files,action,choose,emptyMessage){
+    const list=$('cloudBackupList');
+    list.replaceChildren();
+    if(!files.length)list.textContent=emptyMessage;
+    for(const file of files){
+      const row=document.createElement('div');row.className='cloud-backup-item';
+      const title=document.createElement('div');title.textContent=file.name;
+      if(file.modifiedTime){
+        const time=document.createElement('small');time.textContent=new Date(file.modifiedTime).toLocaleString();
+        title.appendChild(time);
+      }
+      const button=document.createElement('button');button.textContent=action;button.type='button';button.onclick=()=>choose(file);
+      row.append(title,button);list.appendChild(row);
+    }
+    list.hidden=false;
+    return list;
+  }
   async function browse(){
     if(!connected()||signingIn||queueAfterSync(browse))return;
     const expected=generation;syncing=true;manualBusy=true;updateUI();
     try{
       message('Finding this Google account’s notebook backups…');
       const files=(await listFiles(expected,true,true)).filter(f=>f.appProperties?.windsNotesBackup==='1'&&f.mimeType==='application/json');
-      const list=$('cloudBackupList');list.replaceChildren();
-      if(!files.length){list.textContent='No dated backups in this account yet.';list.hidden=false;return;}
-      for(const file of files){
-        const row=document.createElement('div');row.className='cloud-backup-item';
-        const title=document.createElement('div');title.textContent=file.name;
-        const time=document.createElement('small');time.textContent=file.modifiedTime?new Date(file.modifiedTime).toLocaleString():'';title.appendChild(time);
-        const button=document.createElement('button');button.textContent='Import copy';button.type='button';button.onclick=()=>restore(file.id,file.name);
-        row.append(title,button);list.appendChild(row);
-      }
-      list.hidden=false;message(`Found ${files.length} dated backup(s). Import creates separate notebooks.`);
+      showDriveList(files,'Import copy',file=>{if(expected===generation)return restore(file.id,file.name);},'No dated backups in this account yet.');
+      if(files.length)message(`Found ${files.length} dated backup(s). Import creates separate notebooks.`);
     }catch(err){if(expected===generation)message(err.message||'Could not load backups.',true);}
     finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
+  }
+  function browseShared(){
+    open();
+    const sharing=global.WindsSharing,expected=generation;
+    if(!sharing?.listAvailable)return;
+    return runSharingTask(async s=>{
+      if(s.version!==expected||$('cloudBackdrop').hidden)return;
+      $('cloudBackupList').hidden=true;
+      message('Finding shared WiNDS notebooks in Google Drive…');
+      let files=[],listingError=null;
+      try{files=await sharing.listAvailable(s);}
+      catch(error){if(error.syncDeferred)throw error;listingError=error;}
+      ensureSession(expected);
+      if($('cloudBackdrop').hidden)return;
+      const list=showDriveList(files,'Open notebook',file=>{
+        if(expected!==generation)return;
+        return runSharingTask(current=>{
+          if(current.version!==expected||$('cloudBackdrop').hidden)return;
+          close();
+          return sharing.openListed(file.id,current);
+        });
+      },listingError?'The shared notebook list could not load.':'No shared WiNDS notebooks are visible to the app yet.');
+      const picker=document.createElement('button');
+      picker.type='button';picker.className='btn btn-outline btn-small';picker.textContent='Choose from Google Drive';
+      picker.onclick=()=>{
+        if(expected!==generation)return;
+        close();
+        return sharing.pickFromDrive();
+      };
+      list.appendChild(picker);
+      if(listingError)message(listingError.message||'Could not load shared notebooks.',true);
+      else message(files.length?'Choose a notebook to open the original and sync edits with its collaborators.':'Choose from Google Drive to grant WiNDS Notes access to a shared notebook.');
+    });
   }
   async function restore(id,name){
     if(!connected()||signingIn||queueAfterSync(()=>restore(id,name)))return;
@@ -730,7 +783,7 @@
     if(bridge.live)global.WindsLive?.init({bridge:bridge.live,session:()=>({profile:SERVER_AUTH&&!remoteSignedOut&&!authorizationRequired?profile:null,auto}),
       catchup:()=>schedule(),authLost:()=>{forceRenewal=true;scheduleRenewal(0);}});
     if(bridge.sharing)global.WindsSharing?.init({bridge:bridge.sharing,session:sharingSession,check:(s,manual)=>ensureIdle(s.version,manual),
-      authorize:authorizeSharedAccess,pick:(s,parent)=>authorizeSharedAccess(null,s,parent),cancelAuthorization:closeAccessPicker,request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open,
+      authorize:authorizeSharedAccess,pick:(s,parent)=>authorizeSharedAccess(null,s,parent),cancelAuthorization:closeAccessPicker,request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open,browse:browseShared,
       received:()=>{syncDetails.received=Date.now();updateSyncDetails();},uploaded:()=>{syncDetails.uploaded=Date.now();updateSyncDetails();}});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
     if($('cloudSyncDetails'))$('cloudSyncDetails').ontoggle=updateSyncDetails;
@@ -742,6 +795,7 @@
     $('googleSync').onclick=()=>sync(true);
     $('googleBackup').onclick=backup;
     $('googleRestore').onclick=browse;
+    if($('googleBrowseShared'))$('googleBrowseShared').onclick=browseShared;
     $('googleDisconnect').onclick=disconnect;
     $('cloudAutoBackup').onchange=e=>{
       auto=e.target.checked;

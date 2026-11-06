@@ -39,6 +39,10 @@
     }while(page);
     return files;
   }
+  async function listSharedFolders(s,manual=false){
+    const files=await list(`trashed = false and mimeType = '${FOLDER}' and appProperties has {key='windsNotesShared' and value='1'}`,s,manual);
+    return files.filter(file=>validFile(file.id)&&file.mimeType===FOLDER&&file.appProperties?.windsNotesShared==='1');
+  }
   async function upload(name,data,parent,properties,s,manual=false){
     check(s,manual);const body=new Blob([JSON.stringify(data)],{type:'application/json'});
     if(body.size>LIMIT)throw Error('This shared notebook exceeds the 100 MB limit.');
@@ -166,7 +170,7 @@
       return;
     }
     if(Date.now()-discovered>60000)await attempt('discovery',async()=>{
-      const folders=await list("trashed = false and mimeType = 'application/vnd.google-apps.folder' and appProperties has {key='windsNotesShared' and value='1'}",s,manual);
+      const folders=await listSharedFolders(s,manual);
       const known=new Set(api.bridge.notebooks().map(n=>n._sharing?.folderId));
       pendingDiscoveries=[...new Set([...pendingDiscoveries,...folders.filter(item=>!known.has(item.id)).map(item=>item.id)])];
       discovered=Date.now();
@@ -223,16 +227,20 @@
       finally{if(api.session().version===s.version){busy=false;$('shareSubmit').disabled=false;}}
     });
   }
-  function recoverAccess(error,id,s,retry){
-    if(!(error.needsSeed||error.status===404||(error.status===403&&['appNotAuthorizedToFile','insufficientFilePermissions'].includes(error.reason)))||!validFile(id))return false;
+  function deniedAccess(error){
+    return error.status===404||(error.status===403&&['appNotAuthorizedToFile','insufficientFilePermissions'].includes(error.reason));
+  }
+  function recoverAccess(error,id,s,retry,authorizedId){
+    if(!(error.needsSeed||deniedAccess(error))||!validFile(id))return false;
     if(api.session().version!==s.version)return false;
     const local=api.bridge.notebooks().find(n=>n.id===selected&&n._sharing?.folderId===id);
-    accessRecovery={id,bookId:local?.id,fileId:validFile(error.resourceId)?error.resourceId:id,needsSeed:error.needsSeed,s,retry};
-    $('sharedAccessMessage').textContent=error.needsSeed?'Google Drive opened the folder. Choose Notebook.json inside it to authorize the notebook.':`Google cannot open this notebook for ${s.profile.email}. Check that this is the invited account and that the owner has granted editing access. The folder may also have been removed. If it opens in Drive but not here, authorize it for WiNDS Notes.`;
-    $('sharedAccessAuthorize').textContent=error.needsSeed?'Choose Notebook.json':'Authorize this notebook';
+    const fileId=validFile(error.resourceId)?error.resourceId:id,resource=fileId===id?'shared folder':'notebook file inside the shared folder';
+    accessRecovery={id,bookId:local?.id,fileId,needsSeed:error.needsSeed,s,retry};
+    $('sharedAccessMessage').textContent=error.needsSeed?'WiNDS Notes can open the shared folder. Choose Notebook.json inside it to grant access to the notebook.':`WiNDS Notes could not read the ${resource} for ${s.profile.email}. If you can edit it in Google Drive, select it here to give WiNDS Notes access.`;
+    $('sharedAccessAuthorize').textContent=error.needsSeed?'Choose Notebook.json':fileId===id?'Choose shared folder':'Choose notebook file';
     $('sharedAccessDrive').href=`https://drive.google.com/drive/folders/${encodeURIComponent(id)}`;
     $('sharedAccessCopy').hidden=!local||!api.bridge.copyForSharing;
-    $('sharedAccessStatus').textContent='Your local notebooks and edits are retained.';
+    $('sharedAccessStatus').textContent=authorizedId===fileId&&!error.needsSeed?`Google Drive still denied access after selection (Drive ${error.status}). You can try again from My notebooks → Open shared from Drive.`:'';
     $('sharedAccessBackdrop').hidden=false;$('sharedAccessAuthorize').disabled=false;$('sharedAccessRetry').disabled=false;$('sharedAccessClose').focus();return true;
   }
   async function retryAccess(authorize){
@@ -242,29 +250,41 @@
       if(api.session().version!==recovery.s.version)throw Error('The account changed. Reopen the invitation in the intended account.');
       let seedId;
       if(authorize){
+        $('sharedAccessStatus').textContent='Opening Google Drive…';
         const granted=recovery.needsSeed?await api.pick(recovery.s,recovery.id):await api.authorize(recovery.fileId,recovery.s);
         if(accessRecovery!==recovery||api.session().version!==recovery.s.version)return;
         if(!granted){$('sharedAccessStatus').textContent='Authorization cancelled. Your notes are unchanged.';return;}
         if(recovery.needsSeed)seedId=granted;
       }
       if(accessRecovery!==recovery||api.session().version!==recovery.s.version)return;
-      cache.delete(recovery.id);failures.delete(recovery.id);$('sharedAccessBackdrop').hidden=true;accessRecovery=null;recovery.retry(seedId);
+      cache.delete(recovery.id);failures.delete(recovery.id);$('sharedAccessBackdrop').hidden=true;accessRecovery=null;
+      recovery.retry(seedId,authorize?(seedId||recovery.fileId):null);
     }catch(error){if(accessRecovery===recovery)$('sharedAccessStatus').textContent=error.message;}
     finally{if(accessRecovery===recovery){$('sharedAccessAuthorize').disabled=false;$('sharedAccessRetry').disabled=false;}}
   }
   function reportOpenError(error,s){
     if(api.session().version===s.version)api.bridge.toast(error.syncDeferred?'Finish writing, then open the shared notebook again.':error.message);
   }
-  async function openRequested(id,s,seedId){
+  async function afterPicker(work,s,authorizedId){
+    try{return await work();}
+    catch(error){
+      // A fresh Picker grant may not be visible to the Drive API immediately.
+      if(!authorizedId||!deniedAccess(error)||(error.resourceId&&error.resourceId!==authorizedId))throw error;
+      await new Promise(resolve=>setTimeout(resolve,750));
+      check(s,true);
+      return work();
+    }
+  }
+  async function openRequested(id,s,seedId,authorizedId=null){
     try{
-      await join(id,s,true,true,seedId);
+      await afterPicker(()=>join(id,s,true,true,seedId),s,authorizedId);
       if(pendingLink===id){pendingLink='';sessionStorage.removeItem('winds-pending-shared-notebook');}
       failures.delete(id);
     }catch(error){
-      const retry=pickedSeed=>api.run(current=>{
-        if(current.version===s.version)return openRequested(id,current,pickedSeed||seedId);
+      const retry=(pickedSeed,pickedId)=>api.run(current=>{
+        if(current.version===s.version)return openRequested(id,current,pickedSeed||seedId,pickedId);
       });
-      if(!recoverAccess(error,id,s,retry))reportOpenError(error,s);
+      if(!recoverAccess(error,id,s,retry,authorizedId))reportOpenError(error,s);
     }
   }
   function resume(){
@@ -283,11 +303,11 @@
       api.run(async current=>{
         if(current.version!==s.version)return;
         try{
-          const file=await fileInfo(fileId,current,true);
-          if(file.mimeType===FOLDER)return openRequested(fileId,current);
+          const file=await afterPicker(()=>fileInfo(fileId,current,true),current,fileId);
+          if(file.mimeType===FOLDER)return openRequested(fileId,current,undefined,fileId);
           const parent=seedParent(file);
           if(!parent)throw Error('Choose a WiNDS shared notebook folder or its Notebook.json file.');
-          return openRequested(parent,current,fileId);
+          return openRequested(parent,current,fileId,fileId);
         }catch(error){reportOpenError(error,current);}
       });
     }catch(error){reportOpenError(error,s);}
@@ -307,8 +327,13 @@
     $('shareForm').onsubmit=e=>{e.preventDefault();const email=$('shareEmail').value.trim(),id=selected;if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){status('Enter a valid Google account email.',true);return;}task(s=>invite(id,email,s));};
     $('shareCopyLink').onclick=async()=>{try{await navigator.clipboard.writeText($('shareLink').value);status('Notebook link copied. Only invited accounts can open it.');}catch{$('shareLink').select();status('Select and copy this notebook link.');}};
     $('openSharedNotebook').onclick=()=>{const value=prompt('Paste the WiNDS shared notebook link:');if(!value)return;const id=readLink(value.trim());if(!validFile(id)){api.bridge.toast('Choose a valid shared notebook link.');return;}pendingLink=id;sessionStorage.setItem('winds-pending-shared-notebook',id);if(!api.session().profile)api.signIn();else resume();};
-    $('openSharedFromDrive').onclick=openFromDrive;
+    $('openSharedFromDrive').onclick=api.browse;
   }
   function cancel(){api?.cancelAuthorization?.();accessRecovery=null;if(api)$('sharedAccessBackdrop').hidden=true;cache.clear();failures.clear();selected=null;busy=false;context=-1;pendingDiscoveries=[];backgroundCursor=0;if(api){$('shareBackdrop').hidden=true;$('shareSubmit').disabled=false;$('openSharedFromDrive').disabled=false;}}
-  global.WindsSharing=Object.freeze({init,open,sync,resume,cancel});
+  global.WindsSharing=Object.freeze({
+    init,open,sync,resume,cancel,
+    listAvailable:s=>listSharedFolders(s,true),
+    openListed:openRequested,
+    pickFromDrive:openFromDrive
+  });
 })(window);
