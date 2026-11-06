@@ -71,7 +71,7 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const midpoint = (a,b) => [(a[0]+b[0])*0.5, (a[1]+b[1])*0.5];
 
-  const rotatable = item => item?.type==='image'||item?.type==='sticker';
+  const rotatable = item => ['image','sticker','shape'].includes(item?.type);
   function objectRotation(item) {
     return rotatable(item)&&Number.isFinite(item.rotation)?((item.rotation%360)+360)%360:0;
   }
@@ -95,6 +95,13 @@
     const b=objectRect(resized),center=objectPoint(original,{x:b.x+b.w/2,y:b.y+b.h/2});
     return {...resized,x:center.x-b.w/2,y:center.y-b.h/2};
   }
+  function rotationFromDrag(item,start,point,snap=false){
+    const b=objectRect(item),cx=b.x+b.w/2,cy=b.y+b.h/2;
+    if(Math.hypot(point.x-cx,point.y-cy)<1)return objectRotation(item);
+    const delta=Math.atan2(point.y-cy,point.x-cx)-Math.atan2(start.y-cy,start.x-cx);
+    const degrees=objectRotation(item)+delta*180/Math.PI;
+    return objectRotation({...item,rotation:snap?Math.round(degrees/15)*15:degrees});
+  }
 
   const FULL_CROP = Object.freeze({x:0,y:0,w:1,h:1});
   function pageBackgroundRect(background,dimensions){
@@ -115,10 +122,10 @@
     if(corner.includes('s'))next.h=clamp(next.h+dy,.01,1-next.y);
     return next;
   }
-  function cropImage(item,crop) {
+  function cropImage(item,crop,maxDimension=2200) {
     const old=imageCrop(item.crop),next=imageCrop(crop);
     const fullWidth=item.w/old.w,fullHeight=item.h/old.h;
-    const scale=Math.min(1,2200/(fullWidth*next.w),2200/(fullHeight*next.h));
+    const scale=Math.min(1,maxDimension/(fullWidth*next.w),maxDimension/(fullHeight*next.h));
     const result={...item,x:item.x+(next.x-old.x)*fullWidth,y:item.y+(next.y-old.y)*fullHeight,
       w:fullWidth*next.w*scale,h:fullHeight*next.h*scale};
     if(item.erasures?.length)result.erasures=item.erasures.map(mask=>({rx:mask.rx*old.w/next.w,ry:mask.ry*old.h/next.h,points:mask.points.map(([u,v])=>[(old.x+u*old.w-next.x)/next.w,(old.y+v*old.h-next.y)/next.h])}));
@@ -487,5 +494,5 @@
   return Object.freeze({PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
-    rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect});
+    rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag});
 });

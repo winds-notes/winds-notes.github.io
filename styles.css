@@ -342,30 +342,46 @@
   .selection-actions>span{min-width:0}
 }
 
-/* Image editing stays in the existing contextual controls. */
+/* Selection handles follow the object while their touch targets stay in CSS pixels. */
 .selection-actions .crop-image-button{width:auto;padding:0 9px;font-size:11px;font-weight:800}
-#imageCropBackdrop{z-index:95}
-.image-crop-modal{width:min(720px,100%);max-height:calc(100dvh - 32px);overflow:auto}
-.image-crop-preview{position:relative;width:min(100%,calc(40vh * var(--crop-ratio,1)));aspect-ratio:var(--crop-ratio,1);margin:0 auto;overflow:hidden;background:#e9eaf1;touch-action:none;user-select:none;-webkit-user-select:none}
-.image-crop-preview img{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.image-crop-box{position:absolute;border:2px solid #fff;box-shadow:0 0 0 100vmax #17172880;cursor:move;touch-action:none}
-.image-crop-box span{position:absolute;width:36px;height:36px;touch-action:none}
-.image-crop-box span:after{content:'';position:absolute;width:18px;height:18px;background:#fff;border:2px solid #6557ed;border-radius:4px}
-.image-crop-box [data-crop-corner=nw]{left:-3px;top:-3px;cursor:nwse-resize}
-.image-crop-box [data-crop-corner=ne]{right:-3px;top:-3px;cursor:nesw-resize}
-.image-crop-box [data-crop-corner=sw]{left:-3px;bottom:-3px;cursor:nesw-resize}
-.image-crop-box [data-crop-corner=se]{right:-3px;bottom:-3px;cursor:nwse-resize}
-.image-crop-box [data-crop-corner=nw]:after{left:0;top:0}
-.image-crop-box [data-crop-corner=ne]:after{right:0;top:0}
-.image-crop-box [data-crop-corner=sw]:after{left:0;bottom:0}
-.image-crop-box [data-crop-corner=se]:after{right:0;bottom:0}
-.image-crop-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:18px}
-.image-crop-fields label{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:11px;font-weight:700;color:#74768d}
-.image-crop-fields input{width:66px;max-width:100%;border:1px solid #e0e2ee;border-radius:7px;padding:7px;font-size:12px;color:#34334d}
-.image-crop-modal .modal-footer{margin-top:20px;gap:8px}
-@media(max-width:450px){.image-crop-modal{padding:25px 18px}.image-crop-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.image-crop-modal .modal-footer .btn{padding:11px 12px}.selection-actions:has(.crop-image-button:not([hidden])){flex-wrap:wrap;justify-content:flex-end}}
+.object-rotation-frame,.image-crop-overlay,.image-crop-preview{position:absolute;touch-action:none}
+.object-rotation-frame{z-index:4;pointer-events:none}
+#objectRotationHandle{position:absolute;left:50%;top:calc(100% + 15px);transform:translateX(-50%);width:36px;height:36px;display:grid;place-items:center;border:1.5px solid #5143c5;border-radius:50%;background:white;color:#5143c5;box-shadow:0 2px 7px #29224b29;pointer-events:auto;touch-action:none;cursor:grab}
+#objectRotationHandle:before{content:'';position:absolute;left:50%;bottom:100%;height:16px;border-left:1.5px solid #5143c5;pointer-events:none}
+#objectRotationHandle:active{cursor:grabbing;background:#e7f9ed;border-color:#1c9253;color:#167743}
+.image-crop-overlay{inset:0;z-index:4}
+.image-crop-preview{user-select:none;-webkit-user-select:none}
+.image-crop-preview canvas{inset:0;pointer-events:none}
+.image-crop-shade{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+#imageCropShadeBox,.image-crop-box{position:absolute}
+#imageCropShadeBox{box-shadow:0 0 0 200vmax #1d183eb5}
+.image-crop-box{border:2px solid #fff;outline:1px solid #5143c5;cursor:move}
+.image-crop-box span{position:absolute;width:32px;height:32px;display:grid;place-items:center;touch-action:none;transform:translate(-50%,-50%)}
+.image-crop-box span:after{content:'';width:13px;height:13px;border:2px solid #5143c5;border-radius:2px;background:#fff;box-shadow:0 1px 4px #29224b45}
+.image-crop-box span:active:after{background:#54da8d}
+.image-crop-box [data-crop-corner=nw]{left:0;top:0;cursor:nwse-resize}
+.image-crop-box [data-crop-corner=ne]{left:100%;top:0;cursor:nesw-resize}
+.image-crop-box [data-crop-corner=sw]{left:0;top:100%;cursor:nesw-resize}
+.image-crop-box [data-crop-corner=se]{left:100%;top:100%;cursor:nwse-resize}
+.image-crop-box [data-crop-corner=n]{left:50%;top:0;cursor:ns-resize}
+.image-crop-box [data-crop-corner=s]{left:50%;top:100%;cursor:ns-resize}
+.image-crop-box [data-crop-corner=w]{left:0;top:50%;cursor:ew-resize}
+.image-crop-box [data-crop-corner=e]{left:100%;top:50%;cursor:ew-resize}
+.image-crop-box :is([data-crop-corner=n],[data-crop-corner=s]):after{width:16px;height:7px}
+.image-crop-box :is([data-crop-corner=w],[data-crop-corner=e]):after{width:7px;height:16px}
+.image-crop-controls{position:absolute;top:12px;right:12px;z-index:6;max-width:calc(100% - 24px);padding:9px 11px;border:1px solid #e0e2ee;border-radius:12px;background:#fff;box-shadow:0 6px 26px #25264720;color:#37334e;font-size:12px}
+.crop-command-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.crop-command-row p{margin:3px 8px 0 0;color:#716d85;font-size:11px}
+.crop-command-row button{min-height:32px;padding:0 8px;border:1px solid #e5e4f1;border-radius:7px;background:#f5f4fc;color:#5143a0;font-size:11px;font-weight:750}
+.crop-command-row #applyImageCrop{background:#5143c5;color:white;border-color:#5143c5}
+.image-crop-controls details{margin-top:5px;color:#716d85;font-size:11px}
+.image-crop-controls summary{cursor:pointer}
+.image-crop-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px}
+.image-crop-fields label{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px;font-weight:700}
+.image-crop-fields input{width:54px;max-width:100%;border:1px solid #e0e2ee;border-radius:6px;padding:5px;font-size:12px}
+@media(max-width:620px){.image-crop-controls{position:relative;top:auto;right:auto;flex:none;align-self:flex-end;margin:8px 8px 0;max-width:calc(100% - 16px)}}
+@media(max-width:450px){.image-crop-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.selection-actions:has(.crop-image-button:not([hidden])){flex-wrap:wrap;justify-content:flex-end}}
 
-/* Rotation is available only in the existing image/sticker selection controls. */
 .rotation-controls{display:flex;align-items:center;gap:4px;border-left:1px solid #e0e2ee;padding-left:7px;margin-left:2px}
 .selection-actions .rotation-controls input{width:51px}
 .selection-actions:has(.rotation-controls:not([hidden])){flex-wrap:wrap;justify-content:flex-end}
