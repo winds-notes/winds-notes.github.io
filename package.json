@@ -7,7 +7,7 @@
     "dev": "node tools/dev-server.mjs",
     "start": "node server/start.mjs",
     "test": "node --test tests/*.test.cjs",
-    "check": "node --check sw.js && node --check tools/dev-server.mjs && node --check app.js && node --check boundary-fill.js && node --check clipboard.js && node --check text-tools.js && node --check interaction-tools.js && node --check eraser-preview.js && node --check page-stack.js && node --check pdf-import.js && node --check creative-tools.js && node --check native-file.js && node --check cloud-drive.js && node --check live-sync.js && node --check server/live-relay.mjs && node --check notebook-sharing.js && node --check shared-notebook-model.js && node --check pdf-export.js && node --check server/google-auth.mjs && node --check server/start.mjs && npm test"
+    "check": "node --check sw.js && node --check tools/dev-server.mjs && node --check app.js && node --check boundary-fill.js && node --check mandala-tools.js && node --check clipboard.js && node --check text-tools.js && node --check interaction-tools.js && node --check eraser-preview.js && node --check page-stack.js && node --check pdf-import.js && node --check creative-tools.js && node --check native-file.js && node --check cloud-drive.js && node --check live-sync.js && node --check server/live-relay.mjs && node --check notebook-sharing.js && node --check shared-notebook-model.js && node --check pdf-export.js && node --check server/google-auth.mjs && node --check server/start.mjs && npm test"
   },
   "engines": {"node": ">=18"}
 }

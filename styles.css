@@ -530,3 +530,37 @@
 .editor-header .boundary-fill-active{background:#e9e4ff;color:var(--purple-dark);box-shadow:inset 0 0 0 1px #b9adff}
 #inkCanvas.cursor-fill{cursor:crosshair}
 .editor-header .fill-menu{max-height:calc(100dvh - 100px);overflow-y:auto;overscroll-behavior:contain}
+
+/* Coloring studio: page templates, contained in the existing Fill menu. */
+.editor-header .fill-menu .mandala-entry{justify-content:center;margin-top:12px;min-height:40px;background:#eeebff;color:var(--purple-dark);border:1px solid #ded8ff;text-align:center}
+.mandala-dialog{width:min(720px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:28px;border:1px solid var(--border);border-radius:24px;background:#fff;color:var(--ink);box-shadow:var(--shadow);overflow:auto}
+.mandala-dialog::backdrop{background:rgba(32,33,62,.42);backdrop-filter:blur(4px)}
+.mandala-eyebrow{margin:0 0 8px;color:var(--purple-dark);font-size:10px;font-weight:800;letter-spacing:1.7px}
+.mandala-dialog h2{margin:0 0 10px;font-size:27px;line-height:1.2;letter-spacing:-.6px}
+.mandala-dialog header>p:last-child{font-size:13px;line-height:1.6;color:#73778e;margin:0 0 20px}
+.mandala-designs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.mandala-designs button{display:flex;flex-direction:column;align-items:center;min-width:0;padding:10px;border:1px solid var(--border);border-radius:15px;background:#fafafe;color:var(--ink);text-align:center}
+.mandala-designs button[aria-pressed="true"]{border-color:var(--purple);box-shadow:0 0 0 2px #e7e2ff;background:#f6f3ff}
+.mandala-designs canvas{display:block;width:100%;height:auto;max-width:150px;background:white;border-radius:10px;margin-bottom:9px}
+.mandala-designs strong{font-size:12px;line-height:1.5}.mandala-designs span{font-size:10px;color:#7c8096;margin:4px 0 1px}
+.mandala-status{font-size:12px;line-height:1.5;color:#73778e;margin:17px 0;min-height:18px}
+.mandala-dialog footer{display:flex;justify-content:flex-end;gap:10px}
+@media(max-width:520px){.mandala-dialog{padding:20px}.mandala-dialog h2{font-size:23px}.mandala-designs{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.mandala-dialog footer .btn{padding:12px 13px;font-size:12px}}
+
+.mandala-dialog[open]{display:flex;flex-direction:column;overflow:hidden}
+.mandala-dialog header,.mandala-dialog footer,.mandala-dialog .mandala-status{flex-shrink:0}
+.mandala-designs{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:3px}
+
+.active-fill-color{flex:none;width:30px;height:30px;min-width:30px;padding:2px;border:1px solid #c8c1ff;border-radius:8px;background:#eeebff;cursor:pointer}
+.active-fill-color[hidden]{display:none!important}
+.active-fill-color::-webkit-color-swatch-wrapper{padding:2px}
+.active-fill-color::-webkit-color-swatch{border:0;border-radius:4px}
+
+.editor-header .fill-settings-trigger{min-width:18px;width:18px;padding:0;font-size:18px;line-height:1}
+
+.mandala-dialog .mandala-filters{display:flex;flex-shrink:0;gap:10px;margin:0 0 14px}
+.mandala-filters input,.mandala-filters select{min-width:0;border:1px solid var(--border);border-radius:10px;background:#f8f8fc;color:var(--ink);padding:10px 11px;font-size:12px}
+.mandala-filters input{flex:1}.mandala-filters select{width:160px}
+.mandala-dialog [hidden]{display:none!important}
+.mandala-empty{grid-column:1/-1;padding:22px 8px;color:#74788f;text-align:center;font-size:13px;line-height:1.6}
+@media(max-width:520px){.mandala-filters{gap:7px}.mandala-filters select{width:130px}.mandala-filters input,.mandala-filters select{padding:10px 8px;font-size:11px}}

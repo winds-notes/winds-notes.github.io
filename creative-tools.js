@@ -534,9 +534,127 @@
     for(let i=0;i<points.length;i++)drawArtistPart(ctx,item,points,i);
     drawArtistEnd(ctx,item,points);
   }
+  const mandalaDesign=(id,name,collection,level,detail,layers)=>Object.freeze({id,name,collection,level,detail,layers:Object.freeze(layers.map(layer=>Object.freeze(layer)))});
+  const MANDALA_DESIGNS=Object.freeze([
+    Object.freeze({id:'lotus',name:'Lotus Bloom',collection:'Floral',detail:'Eight petals and a delicate outer ring',level:'Calm'}),
+    Object.freeze({id:'sunflower',name:'Sunflower',collection:'Floral',detail:'Long petals around concentric circles',level:'Calm'}),
+    Object.freeze({id:'star',name:'Star Mosaic',collection:'Geometric',detail:'Layered stars and twelve radial sections',level:'Focused'}),
+    Object.freeze({id:'rose',name:'Rose Window',collection:'Ornamental',detail:'Overlapping circles and a petal border',level:'Intricate'}),
+    Object.freeze({id:'orbit',name:'Orbit Garden',collection:'Geometric',detail:'Circular paths, diamonds and eight orbits',level:'Focused'}),
+    Object.freeze({id:'peacock',name:'Peacock Bloom',collection:'Nature',detail:'Nested petals with small jewel-like centers',level:'Intricate'}),
+    mandalaDesign("daisy","Daisy Chain","Floral","Calm","Rounded petals and a ring of small flowers",[["ring",0.24],["petals",12,0.26,0.72,0.14],["circles",18,0.84,0.07]]),
+    mandalaDesign("marigold","Marigold Lace","Floral","Focused","Three alternating layers of scalloped petals",[["petals",8,0.13,0.43,0.16],["petals",16,0.42,0.73,0.1,0.196],["petals",24,0.73,0.92,0.055],["ring",0.74]]),
+    mandalaDesign("dahlia","Dahlia Crown","Floral","Intricate","Pointed petals, nested diamonds and a jeweled border",[["diamonds",12,0.14,0.53,0.1],["petals",24,0.48,0.86,0.065,0.131],["circles",24,0.9,0.025]]),
+    mandalaDesign("camellia","Camellia Layers","Floral","Focused","Broad overlapping petals in two offset rings",[["petals",6,0.13,0.58,0.26],["petals",12,0.55,0.9,0.11,0.262],["ring",0.6]]),
+    mandalaDesign("magnolia","Magnolia Embrace","Floral","Calm","Six generous petals with pearl-like centers",[["petals",6,0.16,0.88,0.3],["circles",6,0.56,0.1],["ring",0.18]]),
+    mandalaDesign("iris","Iris Compass","Floral","Focused","Four sweeping petals and fine diagonal leaves",[["petals",4,0.16,0.91,0.36],["leaves",4,0.28,0.78,0.12,0.785],["ring",0.23]]),
+    mandalaDesign("chrysanthemum","Chrysanthemum","Floral","Intricate","Fine inner petals inside a dense floral crown",[["petals",18,0.14,0.53,0.065],["petals",36,0.51,0.91,0.038,0.087],["ring",0.55],["ring",0.92]]),
+    mandalaDesign("waterlily","Water Lily","Floral","Focused","A double lotus floating within soft wave rings",[["petals",8,0.14,0.6,0.2],["petals",8,0.29,0.81,0.16,0.393],["wave",8,0.89,0.035],["ring",0.21]]),
+    mandalaDesign("jasmine","Jasmine Garland","Floral","Calm","Eight small blossoms around a gentle central flower",[["petals",8,0.14,0.47,0.13],["tiles",8,0.69,0.16,6,0.393],["circles",8,0.69,0.055,0.393],["ring",0.91]]),
+    mandalaDesign("cherry","Cherry Blossom","Floral","Calm","Five open petals and an ornamental diamond border",[["petals",5,0.14,0.73,0.34],["circles",5,0.48,0.075],["diamonds",15,0.78,0.91,0.045,0.209]]),
+    mandalaDesign("octagon","Octagon Sanctuary","Geometric","Calm","Rotated octagons and broad diamond cells",[["polygon",8,0.31,0.393],["polygon",8,0.59,0],["polygon",8,0.88,0.393],["diamonds",8,0.32,0.84,0.17]]),
+    mandalaDesign("honeycomb","Honeycomb Halo","Geometric","Focused","Hexagonal cells arranged around a six-pointed core",[["polygon",6,0.26,0],["tiles",6,0.48,0.21,6,0],["tiles",12,0.79,0.105,6,0.262],["ring",0.92]]),
+    mandalaDesign("prism","Prism Wheel","Geometric","Focused","Triangular prisms between nested polygon rings",[["polygon",12,0.25,0],["polygon",12,0.55,0.262],["polygon",12,0.9,0],["spokes",12,0.11,0.95],["star",12,0.56,0.9,0.262]]),
+    mandalaDesign("diamond-weave","Diamond Weave","Geometric","Intricate","Interlocking diamond rings and a square core",[["polygon",4,0.22,0.785],["diamonds",8,0.23,0.65,0.16],["diamonds",16,0.56,0.91,0.065,0.196],["ring",0.68]]),
+    mandalaDesign("mosaic-wheel","Mosaic Wheel","Geometric","Calm","Twelve clear sectors with diamond-shaped tiles",[["ring",0.29],["ring",0.62],["spokes",12,0.11,0.95],["diamonds",12,0.32,0.89,0.075,0.262]]),
+    mandalaDesign("compass-rose","Compass Rose","Geometric","Focused","Long cardinal points surrounded by shorter compass tips",[["star",4,0.18,0.87],["star",8,0.42,0.74,0.393],["polygon",8,0.9,0],["ring",0.32]]),
+    mandalaDesign("kaleidoscope","Kaleidoscope Glass","Geometric","Intricate","Overlaid stars, hexagons and triangular window panes",[["star",6,0.3,0.8],["star",6,0.42,0.9,0.524],["polygon",6,0.57,0],["spokes",12,0.11,0.95,0.262]]),
+    mandalaDesign("crystal","Crystal Facets","Geometric","Focused","Twelve elongated crystals with a fine polygon border",[["diamonds",12,0.16,0.83,0.12],["polygon",12,0.44,0.262],["polygon",12,0.91,0],["ring",0.26]]),
+    mandalaDesign("concentric-kites","Kite Carousel","Geometric","Focused","Three distinct rings of kite-shaped compartments",[["diamonds",6,0.14,0.4,0.1],["diamonds",12,0.4,0.68,0.07,0.262],["diamonds",18,0.69,0.92,0.045],["ring",0.69]]),
+    mandalaDesign("triangle-garden","Triangle Garden","Geometric","Intricate","Triangular flowers and a six-pointed mosaic rim",[["tiles",6,0.42,0.21,3,0],["tiles",12,0.76,0.13,3,0.262],["star",12,0.78,0.92],["ring",0.2]]),
+    mandalaDesign("solar-crown","Solar Crown","Celestial","Calm","A sun with broad rays and two central rings",[["ring",0.22],["ring",0.34],["diamonds",12,0.35,0.92,0.105],["circles",12,0.63,0.035]]),
+    mandalaDesign("lunar-halo","Lunar Halo","Celestial","Calm","Quiet circular orbits inside a scalloped lunar border",[["ring",0.23],["circles",8,0.47,0.22,0.393],["ring",0.72],["wave",16,0.87,0.045]]),
+    mandalaDesign("starlight","Starlight Medallion","Celestial","Focused","An eight-pointed star with two tiny star borders",[["star",8,0.31,0.75],["star",16,0.8,0.92,0.098],["polygon",8,0.25,0.393],["ring",0.77]]),
+    mandalaDesign("galaxy-rings","Galaxy Rings","Celestial","Focused","Three bands of orbital circles and a distant star ring",[["circles",6,0.3,0.15],["circles",12,0.58,0.105,0.262],["circles",24,0.84,0.045],["ring",0.45],["ring",0.72]]),
+    mandalaDesign("eclipse","Eclipse Geometry","Celestial","Calm","Large orbit windows separated by nested circular paths",[["ring",0.28],["circles",4,0.52,0.22,0.785],["ring",0.77],["spokes",8,0.77,0.95],["ring",0.87]]),
+    mandalaDesign("comet-wheel","Comet Wheel","Celestial","Focused","Slender comet petals around a sparkling central star",[["star",6,0.19,0.39],["petals",12,0.4,0.91,0.09,0.131],["circles",12,0.7,0.045,0.131],["ring",0.43]]),
+    mandalaDesign("aurora","Aurora Ribbons","Celestial","Intricate","Undulating rings divided into bright ribbon-like sections",[["wave",6,0.25,0.035],["wave",12,0.49,0.065],["wave",18,0.77,0.07],["spokes",12,0.11,0.95],["ring",0.91]]),
+    mandalaDesign("constellation","Constellation Crown","Celestial","Intricate","Small polygon stars arranged around a twelve-pointed core",[["star",12,0.23,0.48],["tiles",12,0.71,0.14,5,0],["circles",12,0.71,0.045],["ring",0.9]]),
+    mandalaDesign("cosmic-flower","Cosmic Flower","Celestial","Focused","Pointed stellar petals framed by luminous orbit circles",[["petals",10,0.13,0.7,0.16],["star",10,0.52,0.85,0.314],["circles",20,0.89,0.025],["ring",0.72]]),
+    mandalaDesign("moon-petals","Moon Petals","Celestial","Calm","Eight moon-shaped rings inside a lotus-like halo",[["circles",8,0.4,0.23],["petals",16,0.67,0.91,0.065,0.196],["ring",0.65],["ring",0.22]]),
+    mandalaDesign("lace-medallion","Lace Medallion","Ornamental","Intricate","Scalloped circles with a delicate double-petal fringe",[["circles",12,0.4,0.23],["petals",24,0.64,0.84,0.045],["circles",36,0.89,0.028],["ring",0.86]]),
+    mandalaDesign("royal-rosette","Royal Rosette","Ornamental","Focused","Bold diamonds, nested petals and a pearl-trimmed edge",[["diamonds",8,0.13,0.48,0.12],["petals",16,0.45,0.82,0.08,0.196],["circles",16,0.89,0.045],["ring",0.84]]),
+    mandalaDesign("cathedral","Cathedral Window","Ornamental","Intricate","Gothic-style petal windows inside polygon frames",[["polygon",12,0.91,0.262],["petals",12,0.16,0.85,0.17],["petals",12,0.35,0.74,0.09],["ring",0.29],["ring",0.57]]),
+    mandalaDesign("filigree","Filigree Bloom","Ornamental","Intricate","Alternating curls, diamonds and many small oval leaves",[["wave",8,0.3,0.055],["diamonds",16,0.34,0.69,0.055],["petals",32,0.7,0.92,0.035,0.098],["ring",0.69]]),
+    mandalaDesign("pearl-necklace","Pearl Necklace","Ornamental","Calm","Clear rings of large and small pearls around a flower",[["petals",8,0.13,0.45,0.13],["circles",12,0.59,0.1],["circles",24,0.85,0.055],["ring",0.74]]),
+    mandalaDesign("rangoli","Rangoli Festival","Ornamental","Intricate","Layered squares, diamonds and rounded petal flourishes",[["polygon",4,0.28,0.785],["polygon",4,0.46,0],["diamonds",8,0.3,0.8,0.18],["petals",16,0.74,0.92,0.055,0.196],["ring",0.84]]),
+    mandalaDesign("arabesque","Arabesque Garden","Ornamental","Focused","Curved leaves and alternating decorative diamond borders",[["leaves",8,0.16,0.67,0.19],["diamonds",16,0.7,0.9,0.055,0.196],["wave",16,0.91,0.015],["ring",0.25]]),
+    mandalaDesign("woven-ribbon","Woven Ribbons","Ornamental","Intricate","Interlaced wavy bands crossed by a fine radial lattice",[["wave",8,0.35,0.075],["wave",8,0.48,0.075,3.142],["wave",16,0.76,0.055],["spokes",16,0.11,0.95,0.196],["ring",0.91]]),
+    mandalaDesign("jewel-box","Jewel Box","Ornamental","Focused","Eight gemstone facets surrounded by tiny jewel frames",[["diamonds",8,0.13,0.57,0.18],["tiles",16,0.76,0.105,4,0.196],["circles",16,0.76,0.035,0.196],["polygon",8,0.91,0.393]]),
+    mandalaDesign("fern","Fern Fronds","Nature","Focused","Eight divided leaves framed by a fine beaded border",[["leaves",8,0.16,0.84,0.2],["circles",24,0.9,0.026],["ring",0.88]]),
+    mandalaDesign("seashell","Seashell Fan","Nature","Intricate","Nested fan-shaped shells around a circular center",[["petals",8,0.22,0.91,0.21],["petals",8,0.4,0.91,0.15],["petals",8,0.58,0.91,0.085],["ring",0.23]]),
+    mandalaDesign("butterfly","Butterfly Circle","Nature","Calm","Six small butterflies orbiting a central blossom",[["petals",6,0.13,0.36,0.12],["butterflies",6,0.61,0.22,0.095],["ring",0.88],["ring",0.4]]),
+    mandalaDesign("leaf-wreath","Leaf Wreath","Nature","Calm","Two rings of leaves with generous spaces for color",[["leaves",6,0.16,0.52,0.16],["leaves",12,0.54,0.9,0.095,0.262],["ring",0.54]]),
+    mandalaDesign("raindrop","Raindrop Ripples","Nature","Focused","Twelve drop-shaped petals inside soft water ripples",[["petals",12,0.23,0.86,0.11],["circles",12,0.61,0.04],["wave",12,0.9,0.025],["ring",0.21]])
+  ]);
+  function drawMandala(ctx,id,size){
+    const design=MANDALA_DESIGNS.find(design=>design.id===id);
+    if(!design||!Number.isFinite(size)||size<16||size>4096)throw Error('Choose a valid mandala design and size.');
+    ctx.save();
+    try{
+      ctx.translate(size/2,size/2);ctx.scale((size-8)/2,(size-8)/2);
+      ctx.strokeStyle='#30344c';ctx.lineWidth=.009;ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=1;ctx.setLineDash([]);
+      const circle=(r,x=0,y=0)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.closePath();ctx.stroke();};
+      const repeat=(count,draw,offset=0)=>{for(let i=0;i<count;i++){ctx.save();ctx.rotate(offset+i*Math.PI*2/count);draw();ctx.restore();}};
+      const petal=(inner,outer,width)=>{
+        const span=outer-inner;ctx.beginPath();ctx.moveTo(inner,0);
+        ctx.bezierCurveTo(inner+span*.3,-width,outer-span*.2,-width,outer,0);
+        ctx.bezierCurveTo(outer-span*.2,width,inner+span*.3,width,inner,0);ctx.closePath();ctx.stroke();
+      };
+      const diamond=(inner,outer,width)=>{ctx.beginPath();ctx.moveTo(inner,0);ctx.lineTo((inner+outer)/2,width);ctx.lineTo(outer,0);ctx.lineTo((inner+outer)/2,-width);ctx.closePath();ctx.stroke();};
+      const star=(count,inner,outer)=>{ctx.beginPath();for(let i=0;i<count*2;i++){const a=i*Math.PI/count,r=i%2?inner:outer;if(i)ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);else ctx.moveTo(r,0);}ctx.closePath();ctx.stroke();};
+      const polygon=(sides,radius,offset=0)=>{
+        ctx.beginPath();for(let i=0;i<sides;i++){const a=offset+i*Math.PI*2/sides,x=Math.cos(a)*radius,y=Math.sin(a)*radius;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);}ctx.closePath();ctx.stroke();
+      };
+      const wave=(count,radius,amplitude,phase=0)=>{
+        ctx.beginPath();for(let i=0;i<count*20;i++){const a=i*Math.PI*2/(count*20),r=radius+Math.sin(a*count+phase)*amplitude;if(i)ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);else ctx.moveTo(r,0);}ctx.closePath();ctx.stroke();
+      };
+      const leaf=(inner,outer,width)=>{
+        petal(inner,outer,width);ctx.beginPath();ctx.moveTo(inner,0);ctx.lineTo(outer,0);ctx.stroke();
+        const span=outer-inner;
+        for(const t of [.35,.65])for(const side of [-1,1]){
+          const u=1-t,x=u*u*u*inner+3*u*u*t*(inner+span*.3)+3*u*t*t*(outer-span*.2)+t*t*t*outer,y=side*3*width*t*u;
+          ctx.beginPath();ctx.moveTo(inner+span*(t+.12),0);ctx.lineTo(x,y);ctx.stroke();
+        }
+      };
+      if(design.layers){
+        for(const [kind,a,b,c,d=0,e=0] of design.layers){
+          if(kind==='ring')circle(a);
+          else if(kind==='petals')repeat(a,()=>petal(b,c,d),e);
+          else if(kind==='leaves')repeat(a,()=>leaf(b,c,d),e);
+          else if(kind==='diamonds')repeat(a,()=>diamond(b,c,d),e);
+          else if(kind==='circles')repeat(a,()=>circle(c,b,0),d);
+          else if(kind==='polygon')polygon(a,b,c||0);
+          else if(kind==='star'){ctx.save();ctx.rotate(d);star(a,b,c);ctx.restore();}
+          else if(kind==='spokes')repeat(a,()=>{ctx.beginPath();ctx.moveTo(b,0);ctx.lineTo(c,0);ctx.stroke();},d);
+          else if(kind==='wave')wave(a,b,c,d);
+          else if(kind==='tiles')repeat(a,()=>{ctx.save();ctx.translate(b,0);polygon(d,c);ctx.restore();},e);
+          else if(kind==='butterflies')repeat(a,()=>{ctx.save();ctx.translate(b,0);for(const angle of [-2.25,-.70,.70,2.25]){ctx.save();ctx.rotate(angle);petal(0,c,d);ctx.restore();}ctx.restore();});
+          else throw Error('Unsupported mandala layer');
+        }
+        circle(.11);circle(.95);
+      }else if(id==='lotus'){
+        repeat(8,()=>petal(.13,.69,.23));circle(.71);
+        repeat(16,()=>petal(.73,.93,.075),Math.PI/16);circle(.95);circle(.12);
+      }else if(id==='sunflower'){
+        repeat(16,()=>petal(.25,.9,.115));circle(.24);circle(.12);circle(.95);
+      }else if(id==='star'){
+        circle(.95);star(12,.62,.9);star(6,.27,.49);circle(.54);
+        repeat(12,()=>{ctx.beginPath();ctx.moveTo(.12,0);ctx.lineTo(.95,0);ctx.stroke();});circle(.12);
+      }else if(id==='rose'){
+        repeat(12,()=>circle(.30,.42,0));circle(.74);
+        repeat(24,()=>petal(.76,.93,.045),Math.PI/24);circle(.95);circle(.11);
+      }else if(id==='orbit'){
+        circle(.95);circle(.9);circle(.6);circle(.35);circle(.12);
+        repeat(8,()=>{circle(.2,.48,0);diamond(.15,.31,.055);ctx.beginPath();ctx.moveTo(.69,0);ctx.lineTo(.9,0);ctx.stroke();});
+      }else if(id==='peacock'){
+        repeat(10,()=>{petal(.17,.91,.20);petal(.34,.77,.105);circle(.055,.58,0);});circle(.14);circle(.95);
+      }
+    }finally{ctx.restore();}
+  }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
+  return Object.freeze({MANDALA_DESIGNS,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,

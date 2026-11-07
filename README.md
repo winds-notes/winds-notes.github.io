@@ -9,8 +9,9 @@ This is the **complete, editable Codex development workspace**, built from the l
 
 - **Handwriting:** Apple Pencil / stylus / touch / mouse, pressure samples, low-latency ink layer, smooth pen ribbons with rounded ends and continuous pressure widths, undo/redo, eraser and selection.
 - **Two-finger gestures:** pinch zoom and pan (**35%–800%**), preset zoom menu, portrait and landscape notebook pages.
-- **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill.
-- **Closed-area color fill:** Use **Fill → choose a color → Tap inside a closed area**, then tap inside a hand-drawn box or boundary. Open areas remain unchanged. Refill to recolor, adjust opacity, or Undo. Built-in closed shapes retain their editable borders.
+- **Shapes with fills and borders:** Rectangle, exact Square, Ellipse, exact Circle, Triangle, Diamond and Star. Choose separate fill color/opacity, **outline color**, **outline thickness (1–32)** and **solid/dashed/dotted/no-outline** styles. Existing figures can be updated using Select → Fill settings (⌄).
+- **Closed-area color fill:** Select **Fill** once, then keep tapping closed sections. Change color with the adjacent color chip, toolbar swatches or custom palette. The small **⌄ arrow beside Fill** opens opacity, border options and mandalas. Choose another tool or press Escape to finish. Open areas stay unchanged; recoloring and Undo/Redo remain supported.
+- **Mandala coloring studio:** 50 offline designs across Floral, Geometric, Celestial, Ornamental and Nature collections, with search and lazy previews. Choose **Fill settings (⌄) → Mandala coloring pages…**, select a design and **Add coloring page**. Each template goes on a new blank page; color its enclosed sections with Fill and use Undo/Redo to try different colors.
 - **Artist Studio:** 25 materials in Graphite, Ink and Pigment collections, with pressure previews, size and flow controls. Technical/fountain pens, dry brush, pastels, chalk and expanded graphite retain editable strokes and consistent exports.
 - **Text editing and fonts:** Select a text box and tap **Edit text** to change its words, font, size, color, bold/italic/underline, alignment, spacing and width. Works with pasted and typed text, undo/redo, copying and exports. See [Text editing](docs/TEXT_EDITING.md).
 - **Copy/paste:** External text and images, editable internal ink/shapes/text/images/stickers, keyboard shortcuts, Copy/Cut selection controls, and a touch paste box with undo/redo. See [Copy and paste](docs/COPY_PASTE.md).
@@ -37,6 +38,8 @@ npm test       # Pure rendering, save/reopen and compatibility tests
 npm run check  # JavaScript syntax checks and tests
 ```
 
+Browser export checks must disable file downloads or set `Browser.setDownloadBehavior` to an isolated temporary directory before testing exports. Inspect prepared blobs in-page when possible; do not use Chrome’s default Downloads folder for generated test notebooks.
+
 To work with the **Codex CLI**, open this folder in your terminal or IDE and run Codex from the project root (with Codex installed and authenticated):
 
 ```bash
@@ -52,7 +55,7 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 **Drawing width:** New pen strokes and shape outlines start at **7**. The thickness controls still support 1–32; existing saved strokes keep their original widths.
 
-**Filled figures:** In the editor's horizontal toolbar, click **Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, reopen **Fill** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
+**Filled figures:** In the editor's horizontal toolbar, click the **⌄ arrow beside Fill** → enable solid fill → choose fill color and opacity, then choose a separate border color, line width (up to 32) and border style. Draw a Square or Star. To edit an existing figure, choose **Select**, tap it, open **Fill settings (⌄)** and change fill/border properties. Line and Arrow remain unfilled (but can have outline styles).
 
 **Artist Studio:** Click **Artist**, browse **Graphite (12)**, **Ink (6)** or **Pigment (7)**, then choose a material. Set **Size (1–32)** and **Flow (10–100%)** for future strokes; width starts at 7. The large sample shows light-to-firm pressure. Technical Pen keeps a constant width, Fountain Pen and Ink Brush respond expressively, while charcoal, dry brush, pastel and chalk use distinct textures. Color applies to ink and pigments; graphite and charcoal keep their natural shades. Regular **Pen** returns to handwriting. Existing strokes retain their previous appearance. See [Artist Studio](docs/ARTIST_STUDIO.md).
 
@@ -72,9 +75,9 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Deploy on GitHub Pages
 
-The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `boundary-fill.js`, `eraser-preview.js`, `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
+The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `mandala-tools.js`, `boundary-fill.js`, `eraser-preview.js`, `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
-If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v59** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v62** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 
 ## Share a notebook
 

@@ -12,7 +12,7 @@
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=59" rel="stylesheet"/>
+<link href="./styles.css?v=62" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -62,7 +62,7 @@
 <button aria-label="Triangle" aria-pressed="false" class="tool-button" data-tool="triangle" title="Triangle"></button>
 <button aria-label="Diamond" aria-pressed="false" class="tool-button" data-tool="diamond" title="Diamond"></button>
 <button aria-label="Star" aria-pressed="false" class="tool-button" data-tool="star" title="Star"></button>
-<button aria-label="Fill colors and closed areas" aria-expanded="false" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button>
+<button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/>
 <button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist studio — 25 graphite, ink and pigment materials"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
@@ -127,7 +127,8 @@
   <div class="fill-option-row"><span>Fill color</span><input id="shapeFillColor" type="color" value="#b9adff" aria-label="Choose shape fill color"/></div>
   <div class="fill-swatches" id="shapeFillSwatches" aria-label="Quick fill colors"></div>
   <label class="fill-option-row" for="shapeFillOpacity"><span>Fill opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
-  <div class="boundary-fill-action"><button type="button" id="fillClosedArea" aria-pressed="false">Tap inside a closed area</button><p>Fill a hand-drawn box or closed boundary with the color above. Open boundaries stay unchanged.</p></div>
+  <button type="button" class="mandala-entry" id="openMandala">Mandala coloring pages…</button>
+  <div class="boundary-fill-action"><button type="button" id="fillClosedArea" aria-pressed="false">Use Fill tool</button><p>Keep tapping closed sections. Change color in the toolbar. Choose another tool or press Escape to finish.</p></div>
   <div class="fill-section-title">BORDER / OUTLINE</div>
   <div class="fill-option-row"><label for="shapeOutlineColor">Line color</label><input id="shapeOutlineColor" type="color" value="#2b2d4c" aria-label="Shape outline color"/></div>
   <label class="fill-option-row" for="shapeOutlineSize"><span>Line width</span><input id="shapeOutlineSize" type="range" min="1" max="32" step="0.5" value="7"/><strong id="shapeOutlineSizeLabel">7</strong></label>
@@ -238,7 +239,7 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./creative-tools.js?v=49"></script>
+<script src="./creative-tools.js?v=62"></script>
 <script src="./interaction-tools.js?v=49"></script>
 <script src="./eraser-preview.js?v=49"></script>
 <script src="./page-stack.js"></script>
@@ -253,7 +254,8 @@
 <script src="./live-sync.js?v=50"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
 <script defer src="./cloud-drive.js?v=56"></script>
-<script defer src="./boundary-fill.js?v=59"></script>
-<script defer="" src="./app.js?v=59"></script>
+<script defer src="./boundary-fill.js?v=61"></script>
+<script defer src="./mandala-tools.js?v=62"></script>
+<script defer="" src="./app.js?v=61"></script>
 </body>
 </html>

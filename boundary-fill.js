@@ -1,7 +1,7 @@
 /* Closed-area filling. Raster work is bounded and yields outside input callbacks. */
 (function(global){
   'use strict';
-  let active=false;
+  let active=false,selected=false;
   async function region(pixels,width,height,x,y,pause=async()=>{}){
     if(!Number.isInteger(width)||!Number.isInteger(height)||width<2||height<2||width*height>1500000||pixels.length!==width*height*4)throw Error('This page is too large to fill safely.');
     x=Math.floor(x);y=Math.floor(y);
@@ -57,7 +57,7 @@
     }
     return true;
   }
-  const api=Object.freeze({region,colorize,sameMask,setActive:value=>{active=Boolean(value);},isActive:()=>active});
+  const api=Object.freeze({region,colorize,sameMask,setActive:value=>{active=Boolean(value);},isActive:()=>active,setSelected:value=>{selected=Boolean(value);},isSelected:()=>selected});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.WindsBoundaryFill=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -394,7 +394,7 @@
     if(target===workspaceId)return;
     const unlock=lockInterface();
     try{
-      cancelBoundaryFill(true);globalThis.WindsText?.close();globalThis.WindsClipboard?.clear();closePageReader();clearPreparedExport();
+      globalThis.WindsMandala?.close();cancelBoundaryFill(true);globalThis.WindsText?.close();globalThis.WindsClipboard?.clear();closePageReader();clearPreparedExport();
       finishActiveStroke();composeInkNow();commitText();
       while(state.pendingInteractions)await delay(100);
       await saveNow(true);
@@ -428,7 +428,7 @@
     return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:state.notebooks,deleted:tombstones};
   }
   function cloudSyncDelay(){
-    if(globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
+    if(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
     const remaining=CLOUD_IDLE_MS-(Date.now()-lastInkAt);
     if(remaining>0)return remaining;
     return saving||dirtyAll||dirtyBooks.size||dirtyPages.size?1000:0;
@@ -443,7 +443,7 @@
   }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     const account=workspaceId;
-    if(globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
     }
@@ -652,7 +652,7 @@
     toast(orientation==='landscape'?'Landscape page selected':'Portrait page selected');
   }
   function setTool(tool,{inkOnly=false}={}){
-    if(boundaryFillSession&&tool!=='pan')cancelBoundaryFill();
+    if(boundaryFillSession)cancelBoundaryFill();
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
     if(tool==='eraser')state.eraserInkOnly=inkOnly;
     document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
@@ -666,20 +666,27 @@
   let boundaryFillSession=null;
   function cancelBoundaryFill(restore=false){
     const session=boundaryFillSession;boundaryFillSession=null;
-    globalThis.WindsBoundaryFill?.setActive(false);
+    globalThis.WindsBoundaryFill?.setActive(false);globalThis.WindsBoundaryFill?.setSelected?.(false);
+    $('activeFillColor')?.setAttribute('hidden','');
+    $('fillClosedArea')?.replaceChildren(document.createTextNode('Use Fill tool'));
+    $('shapeFillBtn').setAttribute('aria-pressed','false');
+    syncColorControls();syncFillControls();
     $('inkCanvas').classList.remove('cursor-fill');$('fillClosedArea')?.setAttribute('aria-pressed','false');
     $('shapeFillBtn').classList.remove('boundary-fill-active');
     if(restore&&session&&state.tool==='pan')setTool(session.previousTool);
   }
   function armBoundaryFill(){
-    if(boundaryFillSession){cancelBoundaryFill(true);return;}
+    if(boundaryFillSession){closeMenus();return;}
     if(!page()||!globalThis.WindsBoundaryFill)return;
     const previousTool=state.tool;setTool('pan');closeMenus();
     boundaryFillSession={previousTool,scope:clipboardContext(),version:saveVersion,color:state.shapeFillColor,opacity:state.shapeFillOpacity,pointers:new Set(),tap:null,pending:false};
-    globalThis.WindsBoundaryFill.setActive(true);
+    globalThis.WindsBoundaryFill.setSelected?.(true);globalThis.WindsBoundaryFill.setActive(false);
+    document.querySelectorAll('[data-tool]').forEach(button=>{button.classList.remove('active');button.setAttribute('aria-pressed','false');});
+    $('activeFillColor')?.removeAttribute('hidden');$('fillClosedArea').textContent='Continue filling';
+    $('shapeFillBtn').setAttribute('aria-pressed','true');syncColorControls();syncFillControls();
     $('inkCanvas').classList.add('cursor-fill');$('fillClosedArea').setAttribute('aria-pressed','true');
     $('shapeFillBtn').classList.add('boundary-fill-active');
-    toast('Tap inside a closed area to fill it. Escape or choose another tool to cancel.');
+    toast('Fill selected · tap closed areas. Use toolbar colors to change color.');
   }
   async function applyBoundaryFill(session,point){
     let surface,output;
@@ -704,7 +711,7 @@
         const local=CREATIVE.objectPoint(item,point,true);CREATIVE.shapePath(ctx,item);
         if(ctx.isPointInPath(local.x,local.y)){
           if(item.fillColor!==session.color||item.fillOpacity!==session.opacity){remember();item.fillColor=session.color;item.fillOpacity=session.opacity;scheduleSave();renderThumbs();}
-          cancelBoundaryFill(true);toast('Closed shape filled');return;
+          renderCanvas();toast('Closed shape filled · Fill remains selected');return;
         }
       }
       // Notebook ruling and PDF backgrounds are not barriers. Color stays below ink.
@@ -746,23 +753,39 @@
         }
         imageCache.set(src,image);scheduleSave();renderThumbs();
       }
-      cancelBoundaryFill(true);toast('Closed area filled · Undo restores the previous color');
+      renderCanvas();toast('Closed area filled · tap another section or change color');
     }catch(error){
-      if(boundaryFillSession===session){cancelBoundaryFill(true);toast(error.message||'This area could not be filled.');}
+      if(boundaryFillSession===session){
+        if(saveVersion!==session.version)session.queue=[];
+        if(!clipboardMatches(session.scope)||$('editorView').hidden)cancelBoundaryFill(true);
+        toast(error.message||'This area could not be filled.');
+      }
     }finally{
+      if(boundaryFillSession===session){
+        session.pending=false;session.version=saveVersion;
+        const next=session.queue?.shift();
+        if(next)queueBoundaryFill(session,next);else globalThis.WindsBoundaryFill.setActive(false);
+      }
       if(surface)surface.width=surface.height=1;
       if(output)output.width=output.height=1;
     }
   }
   function bindBoundaryFill(){
     let button=$('fillClosedArea');
-    if(!button){button=document.createElement('button');button.id='fillClosedArea';button.type='button';button.textContent='Tap inside a closed area';button.setAttribute('aria-pressed','false');$('fillMenu').append(button);}
+    if(!button){button=document.createElement('button');button.id='fillClosedArea';button.type='button';button.textContent='Use Fill tool';button.setAttribute('aria-pressed','false');$('fillMenu').append(button);}
     button.disabled=!globalThis.WindsBoundaryFill;button.onclick=armBoundaryFill;
+    $('shapeFillBtn').removeAttribute('aria-expanded');
+    if(!$('fillSettingsBtn')){
+      const settings=document.createElement('button');settings.type='button';settings.id='fillSettingsBtn';settings.className='tool-button fill-settings-trigger';settings.textContent='⌄';settings.setAttribute('aria-label','Fill settings and mandala coloring pages');settings.setAttribute('aria-expanded','false');$('shapeFillBtn').after(settings);
+    }
+    if(!$('activeFillColor')){
+      const input=document.createElement('input');input.type='color';input.id='activeFillColor';input.className='active-fill-color';input.hidden=true;input.setAttribute('aria-label','Current fill color');$('fillSettingsBtn').after(input);
+    }
     const canvas=$('inkCanvas');
     // Observe taps only. Existing Pencil, touch suppression and pinch handlers
     // retain their events; flood fill runs on a later task after input is idle.
     canvas.addEventListener('pointerdown',event=>{
-      const session=boundaryFillSession;if(!session||session.pending||event.pointerType==='mouse'&&event.button!==0)return;
+      const session=boundaryFillSession;if(!session||event.pointerType==='mouse'&&event.button!==0)return;
       if(event.pointerType==='touch'&&session.tap?.pointerType==='pen')return;
       if(event.pointerType==='pen')session.pointers.clear();
       session.pointers.add(event.pointerId);
@@ -776,12 +799,24 @@
     canvas.addEventListener('pointerup',event=>{
       const session=boundaryFillSession;if(!session)return;session.pointers.delete(event.pointerId);
       const tap=session.tap;
-      if(session.pending||!tap?.valid||tap.id!==event.pointerId||session.pointers.size||Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>6)return;
+      if(!tap?.valid||tap.id!==event.pointerId||session.pointers.size||Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>6)return;
       const rect=canvas.getBoundingClientRect(),point={x:(event.clientX-rect.left)/rect.width*W,y:(event.clientY-rect.top)/rect.height*H};
-      session.pending=true;setTimeout(()=>applyBoundaryFill(session,point),0);
+      session.tap=null;
+      queueBoundaryFill(session,{point,scope:clipboardContext(),color:state.shapeFillColor,opacity:state.shapeFillOpacity});
     },{capture:true,passive:true});
     canvas.addEventListener('pointercancel',event=>{const session=boundaryFillSession;if(session){session.pointers.delete(event.pointerId);if(session.tap?.id===event.pointerId)session.tap.valid=false;}},{capture:true,passive:true});
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&boundaryFillSession)cancelBoundaryFill(true);});
+  }
+  function queueBoundaryFill(session,request){
+    if(boundaryFillSession!==session)return;
+    if(session.pending){
+      session.queue=session.queue||[];
+      if(session.queue.length<32)session.queue.push(request);
+      return;
+    }
+    session.scope=request.scope;session.version=saveVersion;session.color=request.color;session.opacity=request.opacity;session.pending=true;
+    globalThis.WindsBoundaryFill.setActive(true);
+    setTimeout(()=>applyBoundaryFill(session,request.point),0);
   }
   function applyFillToSelected(){
     const item=page()?.items[state.selected];
@@ -803,8 +838,10 @@
     $('shapeOutlineSize').value=String(state.shapeOutlineSize);
     $('shapeOutlineSizeLabel').textContent=String(state.shapeOutlineSize);
     $('shapeOutlineStyle').value=state.shapeOutlineStyle;
-    $('shapeFillBtn').classList.toggle('has-fill',state.shapeFillEnabled);
-    $('shapeFillBtn').style.setProperty('--active-fill',state.shapeFillEnabled?state.shapeFillColor:'transparent');
+    $('shapeFillBtn').classList.toggle('has-fill',state.shapeFillEnabled||Boolean(boundaryFillSession));
+    $('shapeFillBtn').style.setProperty('--active-fill',state.shapeFillEnabled||boundaryFillSession?state.shapeFillColor:'transparent');
+    if($('activeFillColor'))$('activeFillColor').value=state.shapeFillColor;
+    if(boundaryFillSession)syncColorControls();
     document.querySelectorAll('[data-fill-color]').forEach(b=>b.classList.toggle('selected',b.dataset.fillColor===state.shapeFillColor));
   }
   function setFillOptions({enabled=state.shapeFillEnabled,color=state.shapeFillColor,
@@ -827,7 +864,7 @@
         outlineSize:item.size||state.shapeOutlineSize,
         outlineStyle:item.strokeStyle||'solid'});
     }
-    toggleMenu('shapeFillBtn','fillMenu');
+    toggleMenu('fillSettingsBtn','fillMenu');
   }
   function setArtistGrade(grade){
     if(!CREATIVE.PENCIL_GRADES[grade])return;
@@ -869,16 +906,24 @@
     document.querySelectorAll('[data-artist-preview]').forEach(canvas=>{if(!canvas.parentElement.hidden)sample(canvas,canvas.dataset.artistPreview,false);});
     sample($('artistActivePreview'),state.artistGrade,true);
   }
+  function syncColorControls(){
+    const filling=Boolean(boundaryFillSession),c=filling?state.shapeFillColor:state.color;
+    document.querySelectorAll('[data-color],[data-more-color]').forEach(button=>{
+      const color=button.dataset.color||button.dataset.moreColor;
+      const selected=color?.toLowerCase()===c.toLowerCase();
+      button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
+      button.setAttribute('aria-label',`Use ${filling?'fill':'ink'} color ${color}`);
+    });
+    $('colorPalette').setAttribute('aria-label',filling?'Fill colors':'Ink colors');
+    $('drawingSizeControl').hidden=filling||state.tool==='eraser';
+    $('sizePreview').style.background=c;$('customColorInput').value=c;
+    $('customColorBtn').style.setProperty('--chosen-color',c);
+    $('customColorBtn').setAttribute('aria-label',filling?'More fill colors':'More ink colors');
+  }
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
-    state.color=c;CREATIVE.prepareArtistColor(c);
-    document.querySelectorAll('[data-color],[data-more-color]').forEach(b=>{
-      const selected=(b.dataset.color||b.dataset.moreColor)?.toLowerCase()===c.toLowerCase();
-      b.classList.toggle('selected',selected);b.setAttribute('aria-pressed',String(selected));
-    });
-    $('sizePreview').style.background=c;
-    $('customColorInput').value=c;
-    $('customColorBtn').style.setProperty('--chosen-color',c);
+    if(boundaryFillSession){setFillOptions({color:c});return;}
+    state.color=c;CREATIVE.prepareArtistColor(c);syncColorControls();
   }
   function ensureStickerCollections(){
     const menu=$('emojiMenu');
@@ -1920,6 +1965,36 @@
       toast('Editable WiNDS Notes file saved · choose Save to Files on iPad');
     }catch(err){console.error(err);toast('Could not save this notebook');}
   }
+  async function createMandalaPage(designId,scope,valid){
+    const check=()=>{
+      if(!valid()||scope.workspace!==workspaceId||scope.bookId!==state.activeId)throw Error('The notebook changed. Reopen the coloring studio.');
+    };
+    check();while(inputBusy()||state.pendingInteractions){await delay(80);check();}
+    const target=notebook(),design=CREATIVE.MANDALA_DESIGNS.find(item=>item.id===designId);
+    if(!target||!design)throw Error('Choose an available mandala design.');
+    if(target.pages.length>=750)throw Error('This notebook has 750 pages. Create a new notebook for coloring.');
+    const index=target.pages.findIndex(item=>item.id===scope.pageId);
+    if(index<0)throw Error('The original page is no longer available.');
+    const canvas=document.createElement('canvas');canvas.width=canvas.height=1400;
+    try{
+      const ctx=canvas.getContext('2d');if(!ctx)throw Error('Not enough canvas memory. Close another notebook tab and try again.');
+      CREATIVE.drawMandala(ctx,designId,1400);
+      const src=canvas.toDataURL('image/png'),image=new Image();image.src=src;await image.decode();check();
+      const added=makePage('blank','portrait');
+      added.items=[
+        {id:uid(),type:'text',x:70,y:78,w:700,size:30,color:'#30344c',text:design.name},
+        {id:uid(),type:'text',x:70,y:128,w:700,size:15,color:'#74788f',text:'Choose Fill, then tap a closed section. Undo to try another color.'},
+        {id:uid(),type:'image',x:70,y:230,w:700,h:700,src}
+      ];
+      // Normal editable page objects keep native files and Drive data compatible.
+      const clean=window.WindsFile.validateShared({id:target.id,title:target.title,pages:[added]}).pages[0];
+      const proposed={...target,pages:[...target.pages.slice(0,index+1),clean,...target.pages.slice(index+1)]};
+      if(window.WindsFile.serialize(proposed).length>window.WindsFile.MAX_FILE_BYTES)throw Error('This notebook would exceed 100 MB. Add coloring pages to a new notebook instead.');
+      check();imageCache.set(src,image);target.pages.splice(index+1,0,clean);state.pageIndex=index+1;state.selected=-1;
+      syncPageGeometry();resizePage();renderEditor();scheduleSave(true);window.WindsPageStack.focus(clean.id);
+      return clean.id;
+    }finally{canvas.width=canvas.height=1;}
+  }
   async function commitPdfPages(result,context){
     if(context.workspace!==workspaceId)throw Error('The account changed. Reopen the PDF in the intended account.');
     const target=result.append?state.notebooks.find(n=>n.id===context.bookId):null;
@@ -2009,7 +2084,7 @@
   function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(n._sharing?`Remove "${n.title}" from this account's library? Other collaborators retain their shared notebook.`:`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=now();state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast(n._sharing?'Shared notebook removed from your library':'Notebook deleted');}
   function closeMenus(){
     ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu','fillMenu','artistMenu','zoomMenu','eraserMenu'].forEach(id=>$(id).hidden=true);
-    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['shapeFillBtn','fillMenu'],['artistBtn','artistMenu'],['zoomValue','zoomMenu'],['eraserSettingsBtn','eraserMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
+    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['fillSettingsBtn','fillMenu'],['artistBtn','artistMenu'],['zoomValue','zoomMenu'],['eraserSettingsBtn','eraserMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
   }
   function toggleMenu(buttonId,menuId){
     const wasClosed=$(menuId).hidden;
@@ -2078,7 +2153,10 @@
     $('pageOrientationBtn').onclick=e=>{e.stopPropagation();toggleMenu('pageOrientationBtn','orientationMenu');};
     $('emojiBtn').onclick=e=>{e.stopPropagation();toggleMenu('emojiBtn','emojiMenu');$('emojiSearch').value='';renderEmojiGrid('');};
     $('customColorBtn').onclick=e=>{e.stopPropagation();toggleMenu('customColorBtn','colorMenu');};
-    $('shapeFillBtn').onclick=event=>{if(boundaryFillSession)cancelBoundaryFill(true);else showFillMenu(event);};bindBoundaryFill();
+    bindBoundaryFill();
+    $('shapeFillBtn').onclick=event=>{event.stopPropagation();armBoundaryFill();};
+    $('fillSettingsBtn').onclick=showFillMenu;
+    $('activeFillColor').oninput=event=>setFillOptions({color:event.target.value});
     $('shapeFillEnabled').onchange=e=>{setFillOptions({enabled:e.target.checked});applyFillToSelected();};
     $('shapeFillColor').oninput=e=>setFillOptions({color:e.target.value,enabled:true});
     $('shapeFillColor').onchange=()=>applyFillToSelected();
@@ -2111,7 +2189,7 @@
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page()||page().background)return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
     document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
     $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='scroll'){setTool('pan');toast('Drag to scroll between notebook pages. Tap Pen to write.');}else if(a==='editText')editSelectedText();else if(a==='copy')window.WindsClipboard.copy();else if(a==='cut')window.WindsClipboard.copy(true);else if(a==='paste')window.WindsClipboard.paste();else if(a==='pasteInternal')window.WindsClipboard.paste(true);else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pdf')$('pdfFileInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='drive')window.WindsDrive?.open();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
-    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#artistBtn')&&!e.target.closest('#zoomValue')&&!e.target.closest('#eraserBtn')&&!e.target.closest('#eraserSettingsBtn'))closeMenus();});
+    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#fillSettingsBtn')&&!e.target.closest('#artistBtn')&&!e.target.closest('#zoomValue')&&!e.target.closest('#eraserBtn')&&!e.target.closest('#eraserSettingsBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>{if(!['artist','eraser'].includes(btn.dataset.tool))btn.onclick=()=>setTool(btn.dataset.tool);});
     $('eraserBtn').onclick=event=>{event.stopPropagation();setTool('eraser');closeMenus();};
     $('eraserSettingsBtn').onclick=event=>{
@@ -2454,6 +2532,11 @@
     if(stored && Array.isArray(stored.notebooks)){state.notebooks=stored.notebooks;tombstones=stored.deleted||{};}
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
     renderLibrary();view('library');window.WindsText.init({apply:applyEditedText});initClipboard();
+    globalThis.WindsMandala?.init({
+      context:()=>({workspace:workspaceId,bookId:state.activeId,pageId:page()?.id,version:saveVersion}),
+      prepare:async()=>{cancelBoundaryFill(true);closeMenus();finishActiveStroke();composeInkNow();commitText();while(state.pendingInteractions)await delay(80);},
+      commit:createMandalaPage,toast
+    });
     window.WindsPDFImport.init({context:()=>({workspace:workspaceId,bookId:state.activeId,bookTitle:notebook()?.title||''}),
       prepare:async()=>{cancelBoundaryFill();finishActiveStroke();composeInkNow();commitText();await saveNow(true);},commit:commitPdfPages,toast});
     window.WindsDrive?.init({
@@ -2462,11 +2545,11 @@
       mergeWorkspace,
       isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<CLOUD_IDLE_MS),
       isDrawingNow:()=>Boolean(state.drag||state.pinch),
-      isEditing:()=>Boolean(globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
+      isEditing:()=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
       sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id]),openNotebook,toast},
-      live:{busy:idle=>Boolean(globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
+      live:{busy:idle=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
         room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},
         rooms:()=>[...new Set([notebook(),...state.notebooks].filter(n=>n?._sharing).map(n=>'shared:'+n._sharing.folderId))],
         paint:items=>{livePreviewItems=items;if(!livePreviewRAF)livePreviewRAF=requestAnimationFrame(paintLiveLayer);},clear:clearLiveLayer},
