@@ -504,3 +504,10 @@
 .eraser-tool-group{display:flex;align-items:center;gap:0;flex-shrink:0}
 .eraser-settings-button{width:20px;height:34px;padding:0;border:0;background:transparent;border-radius:6px;color:#8b84a3;font-size:15px}
 .eraser-settings-button:hover,.eraser-settings-button[aria-expanded="true"]{background:#eeebff;color:#6557ed}
+
+/* Storage failures keep editing blocked until the saved workspace can be read. */
+.startup-recovery{width:min(460px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:28px;border:1px solid var(--border);border-radius:22px;color:var(--ink);background:white;box-shadow:var(--shadow)}
+.startup-recovery::backdrop{background:rgba(32,33,62,.45)}
+.startup-recovery h2{margin:0 0 14px;font-size:22px;line-height:1.3}
+.startup-recovery p{margin:0 0 24px;font-size:14px;line-height:1.65;color:#666980}
+.startup-recovery .btn{width:100%}

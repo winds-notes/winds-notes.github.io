@@ -184,8 +184,9 @@
   // v2 stores notebook metadata and individual pages separately. A stroke saves only
   // its page, rather than serializing every page of every notebook during writing.
   function storageOpen(){
-    return new Promise(resolve=>{
+    return new Promise((resolve,reject)=>{
       if(!window.indexedDB){persistence='localstorage';resolve();return;}
+      let settled=false;
       try{
         const req=indexedDB.open(workspaceDatabaseName(),1);
         req.onupgradeneeded=()=>{
@@ -194,8 +195,15 @@
           if(!db.objectStoreNames.contains('pages'))db.createObjectStore('pages',{keyPath:'id'});
           if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta');
         };
-        req.onsuccess=()=>{database=req.result;resolve();};
-        req.onerror=req.onblocked=()=>{persistence='localstorage';resolve();};
+        req.onsuccess=()=>{
+          if(settled){req.result.close();return;}
+          settled=true;database=req.result;resolve();
+        };
+        req.onerror=()=>{if(settled)return;settled=true;persistence='localstorage';resolve();};
+        req.onblocked=()=>{
+          if(settled)return;settled=true;
+          reject(new Error('Notebook storage is busy in another tab. Close that tab and try again.'));
+        };
       }catch(err){persistence='localstorage';resolve();}
     });
   }
@@ -218,9 +226,13 @@
   }
   function loadData(){
     if(persistence==='localstorage'){
-      try{return Promise.resolve(JSON.parse(localStorage.getItem(workspaceLocalStorageKey())||(workspaceId==='guest'?localStorage.getItem('folio-notes-data'):null)));}catch(err){return Promise.resolve(null);}
+      try{
+        const stored=JSON.parse(localStorage.getItem(workspaceLocalStorageKey())||(workspaceId==='guest'?localStorage.getItem('folio-notes-data'):null));
+        if(stored!==null&&(!Array.isArray(stored.notebooks)||stored.notebooks.some(n=>!n||!Array.isArray(n.pages)||!n.pages.length)))throw new Error('Saved notebook storage is damaged. Keep your website data and restore a backup.');
+        return Promise.resolve(stored);
+      }catch(err){return Promise.reject(err);}
     }
-    return new Promise(resolve=>{
+    return new Promise((resolve,reject)=>{
       try{
         const tx=database.transaction(['notebooks','pages','meta'],'readonly');
         const booksReq=tx.objectStore('notebooks').getAll();
@@ -228,14 +240,24 @@
         const initializedReq=tx.objectStore('meta').get('initialized');
         const deletionsReq=tx.objectStore('meta').get('deleted');
         tx.oncomplete=()=>{
-          const books=booksReq.result||[];
-          if(!books.length){resolve(initializedReq.result?{version:2,notebooks:[],deleted:deletionsReq.result||{}}:null);return;}
-          const byId=new Map((pagesReq.result||[]).map(p=>[p.id,p]));
-          const notebooks=books.map(n=>({...n,pages:(n.pages||[]).map(entry=>byId.get(typeof entry==='string'?entry:entry.id)).filter(Boolean)}));
-          resolve({version:2,notebooks,deleted:deletionsReq.result||{}});
+          try{
+            const books=booksReq.result||[];
+            if(!books.length){resolve(initializedReq.result?{version:2,notebooks:[],deleted:deletionsReq.result||{}}:null);return;}
+            const byId=new Map((pagesReq.result||[]).map(p=>[p.id,p]));
+            const notebooks=books.map(n=>{
+              if(!Array.isArray(n.pages)||!n.pages.length)throw new Error('Saved notebook pages could not be read. Keep your website data and restore a backup.');
+              return {...n,pages:n.pages.map(entry=>{
+                const saved=byId.get(typeof entry==='string'?entry:entry.id);
+                if(!saved)throw new Error('A saved notebook page could not be read. Keep your website data and restore a backup.');
+                return saved;
+              })};
+            });
+            resolve({version:2,notebooks,deleted:deletionsReq.result||{}});
+          }catch(error){reject(error);}
         };
-        tx.onerror=()=>resolve(null);
-      }catch(err){resolve(null);}
+        tx.onerror=()=>reject(tx.error||new Error('Unable to read saved notebooks'));
+        tx.onabort=()=>reject(tx.error||new Error('Reading saved notebooks was interrupted'));
+      }catch(err){reject(err);}
     });
   }
   function metadata(n){return {...n,pages:n.pages.map(p=>({id:p.id,template:p.template,orientation:p.orientation||'portrait'}))};}
@@ -287,9 +309,14 @@
     state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);
     if(state.tool==='eraser')queueEraserPreparation();
   }
+  let saveTask=null;
   async function saveNow(force=false,fromDrive=false){
     clearTimeout(state.saveTimer);
-    if(saving){state.saveTimer=setTimeout(()=>saveNow(force,fromDrive),600);return;}
+    while(saving){
+      if(!force){state.saveTimer=setTimeout(()=>saveNow(false,fromDrive),600);return;}
+      // Explicit saves must finish before an account can close this database.
+      await saveTask?.catch(()=>{});
+    }
     if(!force && (state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<SAVE_IDLE_MS-100)){
       const remaining=Math.max(1000,SAVE_IDLE_MS-(Date.now()-lastInkAt));
       state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
@@ -300,8 +327,8 @@
     dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();
     saving=true;
     try{
-      if(full)await writeData({version:2,notebooks:state.notebooks});
-      else await writeChanged(bookIds,pageIds);
+      saveTask=full?writeData({version:2,notebooks:state.notebooks}):writeChanged(bookIds,pageIds);
+      await saveTask;
       if(version===saveVersion)statusText('Saved');
       else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
       // Receiving a remote edit is not a new local edit. The merge reports
@@ -311,31 +338,61 @@
       dirtyAll=true;statusText('Not saved — back up your notes',true);
       toast('Saving failed. Export an editable backup to protect your notes.');
       console.error(err);
-    }finally{saving=false;}
+    }finally{saving=false;saveTask=null;}
   }
   // Each signed-in Google identity has a dedicated local IndexedDB.
   // The original installation remains the separate, unsigned guest workspace.
   // Tokens and user credentials are NEVER stored in IndexedDB.
-  async function switchWorkspace(accountSub){
+  let interfaceLocks=0;
+  function lockInterface(){
+    interfaceLocks++;document.body.inert=true;
+    let released=false;
+    return ()=>{
+      if(released)return;released=true;
+      interfaceLocks--;document.body.inert=interfaceLocks>0;
+    };
+  }
+  let workspaceTransition=Promise.resolve();
+  function switchWorkspace(accountSub){
+    const next=workspaceTransition.then(()=>activateWorkspace(accountSub));
+    workspaceTransition=next.catch(()=>{});
+    return next;
+  }
+  async function activateWorkspace(accountSub){
     if(accountSub!==null && !/^[a-zA-Z0-9_-]{5,200}$/.test(String(accountSub)))throw new Error('Invalid Google account identifier');
     const target=accountSub?`g-${accountSub}`:'guest';
     if(target===workspaceId)return;
-    globalThis.WindsText?.close();globalThis.WindsClipboard?.clear();closePageReader();clearPreparedExport();
-    finishActiveStroke();composeInkNow();commitText();
-    while(state.pendingInteractions)await delay(100);window.WindsPageStack.reset();eraserPreview?.reset();groupSelection=null;
-    await saveNow(true);
-    clearTimeout(state.saveTimer);clearTimeout(thumbnailTimer);clearTimeout(inkComposeTimer);clearTimeout(cloudRenderTimer);
-    state.drag=null;state.draft=null;state.pinch=null;state.pointers.clear();
-    database?.close();database=null;persistence='indexeddb';workspaceId=target;
-    dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();history.clear();
-    state.activeId=null;state.pageIndex=0;state.selected=-1;
-    await storageOpen();
-    const incoming=await loadData();
-    state.notebooks=Array.isArray(incoming?.notebooks)?incoming.notebooks:[];
-    tombstones=incoming?.deleted&&typeof incoming.deleted==='object'?incoming.deleted:{};
-    statusText('Saved');
-    $('searchNotebooks').value='';view('library');renderLibrary();
+    const unlock=lockInterface();
+    try{
+      globalThis.WindsText?.close();globalThis.WindsClipboard?.clear();closePageReader();clearPreparedExport();
+      finishActiveStroke();composeInkNow();commitText();
+      while(state.pendingInteractions)await delay(100);
+      await saveNow(true);
+      if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size)throw new Error('Your current notes could not be saved. Export a backup before switching accounts.');
+      clearTimeout(state.saveTimer);clearTimeout(thumbnailTimer);clearTimeout(inkComposeTimer);clearTimeout(cloudRenderTimer);
+      state.drag=null;state.draft=null;state.pinch=null;state.pointers.clear();
+      const previous={database,persistence,workspaceId};
+      database=null;persistence='indexeddb';workspaceId=target;
+      let incoming;
+      try{
+        await storageOpen();
+        incoming=await loadData();
+      }catch(error){
+        if(database!==previous.database)database?.close();
+        database=previous.database;persistence=previous.persistence;workspaceId=previous.workspaceId;
+        throw error;
+      }
+      previous.database?.close();
+      window.WindsPageStack.reset();eraserPreview?.reset();groupSelection=null;
+      dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();history.clear();
+      state.activeId=null;state.pageIndex=0;state.selected=-1;
+      state.notebooks=Array.isArray(incoming?.notebooks)?incoming.notebooks:[];
+      tombstones=incoming?.deleted&&typeof incoming.deleted==='object'?incoming.deleted:{};
+      statusText('Saved');
+      $('searchNotebooks').value='';view('library');renderLibrary();
+    }finally{unlock();}
   }
+
   function workspaceSnapshot(){
     // Drive serializes this view synchronously before starting the upload.
     return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:state.notebooks,deleted:tombstones};
@@ -355,6 +412,7 @@
     else{state.activeId=null;view('library');renderLibrary();}
   }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
+    const account=workspaceId;
     if(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
@@ -387,7 +445,7 @@
       dirtyAll=true;saveVersion++;await saveNow(true,report);
       // A new stroke may have started while the IndexedDB write was in flight.
       // Keep that stroke and canvas intact, and compose remote changes when idle.
-      renderCloudChanges();
+      renderCloudChanges(account);
     }
     return report?{changed:hasChanges,needsUpload}:hasChanges;
   }
@@ -1629,19 +1687,25 @@
   async function importImage(file){
     if(!file||!file.type.startsWith('image/')){toast('Please select an image file');return;}
     if(file.size>25*1024*1024){toast('Image too large. Use a file smaller than 25 MB.');return;}
+    const account=workspaceId,target=page(),scope=clipboardContext();
+    if(!target)return;
     try{
       const src=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
       const img=new Image();img.src=src;await img.decode();
+      await clipboardWait(scope);
+      if(account!==workspaceId||target!==page())throw new Error('The destination changed. Insert the image again on the intended page.');
+      if(!img.width||!img.height||img.width*img.height>100000000)throw new Error('This image is too large to insert. Use an image under 100 megapixels.');
       const scale=Math.min(1,1500/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
       c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-      const output=c.toDataURL('image/jpeg',.84);
+      const output=c.toDataURL(file.type==='image/jpeg'?'image/jpeg':'image/png',.9);
+      c.width=c.height=1;
       const w=Math.min(650,img.width/img.height*650,650),h=w*img.height/img.width;
       const maxH=900,ratio=Math.min(1,maxH/h);
       const item={id:uid(),type:'image',x:(W-w*ratio)/2,y:120,w:w*ratio,h:h*ratio,src:output};
       remember();page().items.push(item);state.selected=page().items.length-1;setTool('select');state.selected=page().items.length-1;
-      const cached=new Image();cached.src=output;imageCache.set(output,cached);cached.onload=renderCanvas;
+      const cached=new Image();cached.src=output;imageCache.set(output,cached);cached.onload=()=>renderCloudChanges(account);
       renderCanvas();renderThumbs();scheduleSave();toast('Image inserted. Use Select to move it.');
-    }catch(err){console.error(err);toast('Could not open image');}
+    }catch(err){console.error(err);toast(err?.message||'Could not open image');}
   }
   function clearPreparedExport(){
     clearTimeout(preparedExportTimer);if(preparedExport)URL.revokeObjectURL(preparedExport);preparedExport=null;
@@ -1653,7 +1717,18 @@
     const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
     preparedExportTimer=setTimeout(clearPreparedExport,300000);
   }
-  async function backup(){const account=workspaceId;finishActiveStroke();commitText();while(state.pendingInteractions)await delay(80);if(account!==workspaceId)return;await saveNow();const json=JSON.stringify({format:'winds-notes-backup',version:1,exportedAt:now(),notebooks:state.notebooks},null,2);downloadBlob(new Blob([json],{type:'application/json'}),'WiNDS-Notes-backup.json');toast('Backup downloaded');}
+  async function backup(){
+    const account=workspaceId;
+    finishActiveStroke();commitText();
+    while(state.pendingInteractions)await delay(80);
+    if(account!==workspaceId)return;
+    await saveNow();
+    while(inputBusy()||state.pendingInteractions)await delay(80);
+    if(account!==workspaceId)return;
+    const json=JSON.stringify({format:'winds-notes-backup',version:1,exportedAt:now(),notebooks:state.notebooks},null,2);
+    downloadBlob(new Blob([json],{type:'application/json'}),'WiNDS-Notes-backup.json');
+    toast('Backup downloaded');
+  }
   async function saveNativeNotebook(){
     const account=workspaceId;finishActiveStroke();while(state.pendingInteractions)await delay(80);if(account!==workspaceId)return;
     const n=notebook();if(!n)return;
@@ -1689,15 +1764,20 @@
     if(!file)return;
     if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){window.WindsPDFImport.open(file);return;}
     if(file.size>window.WindsFile.MAX_FILE_BYTES){toast('File is too large (100 MB maximum)');return;}
+    const account=workspaceId;
     try{
+      const source=await file.text();
+      while(inputBusy()||state.pendingInteractions)await delay(80);
+      if(account!==workspaceId)throw new Error('The account changed. Reopen the file in the intended account.');
       // Parsing validates each object before any current notebook is modified.
-      const data=window.WindsFile.parse(await file.text());
+      const data=window.WindsFile.parse(source);
       finishActiveStroke();commitText();
       // Re-key imported notebook/page/object IDs, preserving all other data.
       // This is non-destructive: importing never overwrites any existing notebook.
       state.notebooks.push(...data.notebooks);
       dirtyAll=true;saveVersion++;
       await saveNow(true);
+      if(account!==workspaceId)return;
       if(dirtyAll){toast('Notebook opened, but device storage could not save it. Export another copy.');}
       $('searchNotebooks').value='';
       if(data.single){openNotebook(data.notebooks[0].id);if(!dirtyAll)toast('Notebook opened · all pages remain editable');}
@@ -2169,6 +2249,20 @@
     if(document.readyState==='complete')register();
     else window.addEventListener('load',register,{once:true});
   }
+  function showStartupError(error){
+    console.error('Opening notebooks:',error);
+    statusText('Saved notes could not be opened',true);
+    const dialog=document.createElement('dialog');
+    dialog.className='startup-recovery';
+    dialog.setAttribute('aria-labelledby','startupRecoveryTitle');
+    dialog.setAttribute('aria-describedby','startupRecoveryMessage');
+    const title=document.createElement('h2');title.id='startupRecoveryTitle';title.textContent='Your notes could not be opened';
+    const message=document.createElement('p');message.id='startupRecoveryMessage';
+    message.textContent='Your saved notes have not been replaced. Close other WiNDS Notes tabs, then reload to try again. Keep this browser’s website data so your notebooks remain available for recovery.';
+    const retry=document.createElement('button');retry.type='button';retry.className='btn btn-primary';retry.textContent='Reload and try again';retry.onclick=()=>location.reload();
+    dialog.addEventListener('cancel',event=>event.preventDefault());
+    dialog.append(title,message,retry);document.body.append(dialog);dialog.showModal();retry.focus();
+  }
   async function boot(){
     restoreEraserPreferences();initEraserPreview();initPageStack();initIcons();bind();setColor(COLORS[0]);updateSize();syncFillControls();
     await storageOpen();const stored=await loadData();
@@ -2192,17 +2286,20 @@
         rooms:()=>[...new Set([notebook(),...state.notebooks].filter(n=>n?._sharing).map(n=>'shared:'+n._sharing.folderId))],
         paint:items=>{livePreviewItems=items;if(!livePreviewRAF)livePreviewRAF=requestAnimationFrame(paintLiveLayer);},clear:clearLiveLayer},
       importData:async text=>{
+        const account=workspaceId;
         if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
         const parsed=window.WindsFile.parse(text);
         finishActiveStroke();commitText();
         state.notebooks.push(...parsed.notebooks);
         dirtyAll=true;saveVersion++;
         await saveNow(true);
+        if(account!==workspaceId)throw new Error('The account changed after saving. Open the original account to find the imported notebooks.');
         $('searchNotebooks').value='';view('library');state.activeId=null;renderLibrary();
         return parsed.notebooks.length;
       },toast
     });
     registerOfflineShell();
   }
-  boot().catch(err=>{console.error(err);toast('Something went wrong loading notebooks');});
+  const unlockStartup=lockInterface();
+  boot().then(unlockStartup).catch(error=>{unlockStartup();showStartupError(error);});
 })();

@@ -273,6 +273,14 @@
     const entry=await load(book._sharing.folderId,s,manual,book._sharing.seedId);
     const current=api.bridge.notebooks().find(n=>n.id===book.id);
     if(!current||version!==api.bridge.version())throw deferred();
+    let refreshed=false;
+    // An idle poll needs metadata only. Avoid validating every point and
+    // replaying the entire edit history when neither side changed.
+    if(entry.syncedBook===current&&entry.syncedVersion===version&&!current._sharing.pending?.length){
+      await refreshSharedFile(entry,s,manual);refreshed=true;
+      check(s,manual);if(version!==api.bridge.version())throw deferred();
+      if(entry.syncedBatchCount===entry.batches.size&&![...entry.batches.keys()].some(id=>!entry.head.ids.has(id)))return;
+    }
     let sharing=MODEL.clone(current._sharing),clean=global.WindsFile.validateShared(current);
     if(!sharing.baseline)throw Error('This shared notebook has no saved edit baseline. Reopen its original sharing link.');
     const changes=MODEL.diff(clean,sharing.baseline);
@@ -282,7 +290,7 @@
       sharing.baseline=MODEL.fingerprint(clean);
       version=await put(clean,sharing,version,s,manual);
     }
-    await refreshSharedFile(entry,s,manual);
+    if(!refreshed)await refreshSharedFile(entry,s,manual);
     for(const batch of sharing.pending||[])rememberBatch(entry,MODEL.validateBatch(batch));
     check(s,manual);if(version!==api.bridge.version())throw deferred();
     const merged=MODEL.replay(entry.seed,entry.batches.values());
@@ -299,6 +307,8 @@
     const received=JSON.stringify(clean)!==JSON.stringify(merged);
     if(received||published)await put(merged,nextSharing,version,s,manual);
     if(received)api.received?.();if(missingEdits)api.uploaded?.();
+    entry.syncedBook=api.bridge.notebooks().find(n=>n.id===book.id);
+    entry.syncedVersion=api.bridge.version();entry.syncedBatchCount=entry.batches.size;
   }
   async function sync(s,manual=false,{only=null,exclude=null,limit=Infinity}={}){
     check(s,manual);
