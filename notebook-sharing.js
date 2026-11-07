@@ -4,7 +4,7 @@
   const API='https://www.googleapis.com/drive/v3/files',UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
   const LIMIT=100*1024*1024,MODEL=global.WindsSharedModel,$=id=>document.getElementById(id);
   const EDIT_PREFIX='WiNDS Notes edit v1\n',PART_SIZE=3000,MAX_PARTS=Math.ceil(LIMIT/PART_SIZE);
-  const JOURNAL_WRITES_PER_SYNC=8;
+  const REVISION_RECHECK_MS=15000,REVISION_CLEANUP_THRESHOLD=24;
   const FOLDER='application/vnd.google-apps.folder';
   const validFile=id=>typeof id==='string'&&/^[\w-]{5,200}$/.test(id);
   const seedParent=file=>!file.trashed&&file.appProperties?.windsNotesSharedSeed==='1'&&file.parents?.length===1&&validFile(file.parents[0])?file.parents[0]:null;
@@ -25,7 +25,10 @@
   }
   async function json(url,options,s,manual=false){const response=await request(url,options,s,manual);return api.read(response,s,manual);}
   async function content(id,s,manual=false){
-    const response=await request(`${API}/${encodeURIComponent(id)}?alt=media`,{},s,manual);
+    return readContent(`${API}/${encodeURIComponent(id)}?alt=media`,s,manual);
+  }
+  async function readContent(url,s,manual){
+    const response=await request(url,{},s,manual);
     if(Number(response.headers.get('content-length')||0)>LIMIT)throw Error('Shared notebook data exceeds the 100 MB limit.');
     const text=await response.text();check(s,manual);
     if(text.length>LIMIT)throw Error('Shared notebook data exceeds the 100 MB limit.');
@@ -61,6 +64,24 @@
     }
     return api.read(response,s,manual);
   }
+  async function writeSharedFile(entry,s,manual){
+    check(s,manual);
+    const body=new Blob([JSON.stringify({
+      format:'winds-shared-notebook',version:1,notebook:entry.seed,
+      syncVersion:1,edits:[...entry.batches.values()]
+    })],{type:'application/json'});
+    if(body.size>LIMIT)throw Error('This shared notebook exceeds the 100 MB limit.');
+    const target=`${UPLOAD}/${entry.seedId}`,query='keepRevisionForever=true&fields=id,headRevisionId';
+    if(body.size<=5*1024*1024){
+      await request(`${target}?uploadType=media&${query}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body},s,manual);
+      return;
+    }
+    const start=await request(`${target}?uploadType=resumable&${query}`,{method:'PATCH',
+      headers:{'X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(body.size)}},s,manual);
+    const location=start.headers.get('Location');
+    if(!location?.startsWith('https://www.googleapis.com/'))throw Error('Invalid Drive upload URL.');
+    await request(location,{method:'PUT',headers:{'Content-Type':'application/json'},body},s,manual);
+  }
   async function fileInfo(id,s,manual){
     if(!validFile(id))throw Error('Invalid shared notebook link.');
     const params=new URLSearchParams({fields:'id,name,mimeType,trashed,parents,appProperties,capabilities(canEdit,canShare)'});
@@ -82,7 +103,7 @@
   async function load(id,s,manual=false,seedId){
     check(s,manual);
     if(cache.has(id))return cache.get(id);
-    const info=await folder(id,s,manual);
+    await folder(id,s,manual);
     const files=await list(`'${id}' in parents and trashed = false`,s,manual);
     let seedFile=files.find(file=>file.appProperties?.windsNotesSharedSeed==='1');
     if(!seedFile&&validFile(seedId)){
@@ -90,12 +111,12 @@
       if(seedParent(file)===id)seedFile=file;
     }
     if(!seedFile)throw Object.assign(Error('Choose Notebook.json inside this shared folder.'),{needsSeed:true});
-    const seed=await content(seedFile.id,s,manual);
-    if(seed.format!=='winds-shared-notebook'||seed.version!==1)throw Error('Invalid shared notebook.');
-    const entry={folder:info,seedId:seedFile.id,seed:global.WindsFile.validateShared(seed.notebook),batches:new Map(),seen:new Set(),cursor:'',
+    const entry={seedId:seedFile.id,seed:null,batches:new Map(),
+      head:null,revisions:new Map(),revisionCheck:0,
       journal:{complete:new Set(),partial:new Map(),characters:0,cursor:0}};
+    await refreshSharedFile(entry,s,manual);
     await readEdits(entry,files,s,manual);
-    // An account can still open the existing notebook if Drive denies comments.
+    // Recover edits already written by v54. New sync never writes comments.
     try{await readJournal(entry,s,manual);}catch(error){if(!deniedAccess(error))throw error;}
     cache.set(id,entry);return entry;
   }
@@ -105,15 +126,94 @@
     entry.batches.set(batch.id,batch);
     if(entry.batches.size>10000)throw Error('Shared history exceeds the safe replay limit. Export a copy and start a new shared notebook.');
   }
-  async function readEdits(entry,files,s,manual){
-    let cursor=entry.cursor;
-    for(const file of files){
-      if(file.createdTime>cursor)cursor=file.createdTime;
-      if(file.appProperties?.windsNotesSharedEdit!=='1'||entry.seen.has(file.id))continue;
-      const batch=MODEL.validateBatch(await content(file.id,s,manual));
-      rememberBatch(entry,batch);entry.seen.add(file.id);
+  function readSnapshot(entry,data){
+    if(data?.format!=='winds-shared-notebook'||data.version!==1)throw Error('Invalid shared notebook.');
+    if(data.syncVersion!==undefined&&data.syncVersion!==1)throw Error('Update WiNDS Notes to open this version of the shared notebook.');
+    const seed=global.WindsFile.validateShared(data.notebook);
+    if(entry.seed&&!MODEL.sameValue(entry.seed,seed))throw Error('The shared notebook base changed in Drive. Local edits are retained.');
+    entry.seed=seed;
+    const ids=new Set(),managed=data.syncVersion===1;
+    if(managed){
+      if(!Array.isArray(data.edits)||data.edits.length>10000)throw Error('Invalid shared notebook edit history.');
+      for(const edit of data.edits){
+        const batch=MODEL.validateBatch(edit);
+        rememberBatch(entry,batch);
+        ids.add(batch.id);
+      }
     }
-    entry.cursor=cursor;
+    return {managed,ids};
+  }
+  async function listPinnedRevisions(url,s,manual){
+    const pinned=[];
+    let page='',pages=0;
+    do{
+      const params=new URLSearchParams({fields:'nextPageToken,revisions(id,keepForever,modifiedTime)',pageSize:'100'});
+      if(page)params.set('pageToken',page);
+      const result=await json(`${url}?${params}`,{},s,manual);
+      pinned.push(...(result.revisions||[]).filter(revision=>revision.keepForever));
+      page=result.nextPageToken||'';
+      if(++pages>50)throw Error('The shared notebook has too many Drive versions to check safely.');
+    }while(page);
+    return pinned;
+  }
+  async function refreshSharedFile(entry,s,manual){
+    const url=`${API}/${entry.seedId}`,revisionsUrl=`${url}/revisions`;
+    const meta=await json(`${url}?fields=headRevisionId,capabilities(canEdit)`,{},s,manual);
+    if(!meta.capabilities?.canEdit)throw Error('This Google account needs Editor access to Notebook.json.');
+    if(!meta.headRevisionId)throw Error('Google Drive did not return a version for Notebook.json.');
+    const headChanged=entry.head?.id!==meta.headRevisionId;
+    if(!headChanged&&Date.now()-entry.revisionCheck<REVISION_RECHECK_MS)return;
+    entry.revisionCheck=0;
+    const pinned=await listPinnedRevisions(revisionsUrl,s,manual);
+    const headRevision=pinned.find(revision=>revision.id===meta.headRevisionId);
+    if(headChanged){
+      const data=headRevision
+        ?await readContent(`${revisionsUrl}/${encodeURIComponent(headRevision.id)}?alt=media`,s,manual)
+        :await content(entry.seedId,s,manual);
+      entry.head={id:meta.headRevisionId,...readSnapshot(entry,data)};
+    }
+    const visible=new Set(pinned.map(revision=>revision.id));
+    for(const id of entry.revisions.keys())if(!visible.has(id))entry.revisions.delete(id);
+    for(const revision of pinned){
+      if(entry.revisions.has(revision.id))continue;
+      let snapshot;
+      try{
+        snapshot=revision.id===entry.head.id&&headChanged?entry.head
+          :readSnapshot(entry,await readContent(`${revisionsUrl}/${encodeURIComponent(revision.id)}?alt=media`,s,manual));
+      }catch(error){
+        if(error.status===404&&revision.id!==entry.head.id)continue;
+        throw error;
+      }
+      entry.revisions.set(revision.id,{...snapshot,modifiedTime:Date.parse(revision.modifiedTime)});
+    }
+    entry.revisionCheck=Date.now();
+  }
+  async function pruneCoveredRevisions(entry,s,manual){
+    if(entry.revisions.size<REVISION_CLEANUP_THRESHOLD)return;
+    const head=entry.revisions.get(entry.head.id);
+    if(!head?.managed)return;
+    let remaining=8;
+    for(const [id,revision] of entry.revisions){
+      // Only remove versions written by this app whose edits are all present
+      // in a strictly newer pinned version of the same file.
+      if(!revision.managed||!(revision.modifiedTime<head.modifiedTime)||![...revision.ids].every(edit=>head.ids.has(edit)))continue;
+      try{
+        await request(`${API}/${entry.seedId}/revisions/${encodeURIComponent(id)}`,{method:'DELETE'},s,manual);
+      }catch(error){
+        if(error.status===403)return;
+        if(error.status!==404)throw error;
+      }
+      entry.revisions.delete(id);
+      if(--remaining===0)break;
+    }
+  }
+  async function readEdits(entry,files,s,manual){
+    const seen=new Set();
+    for(const file of files){
+      if(file.appProperties?.windsNotesSharedEdit!=='1'||seen.has(file.id))continue;
+      const batch=MODEL.validateBatch(await content(file.id,s,manual));
+      rememberBatch(entry,batch);seen.add(file.id);
+    }
   }
   function acceptJournalPart(entry,part){
     const {id,index,total,data}=part||{},journal=entry.journal;
@@ -157,24 +257,6 @@
     }while(page);
     journal.cursor=newest;
   }
-  async function publishJournal(entry,pending,s,manual){
-    const journal=entry.journal,url=`${API}/${entry.seedId}/comments?fields=id`;
-    let remaining=JOURNAL_WRITES_PER_SYNC;
-    const batches=new Map(pending.map(batch=>[batch.id,batch]));
-    for(const [id,batch] of entry.batches)if(!batches.has(id)&&!journal.complete.has(id))batches.set(id,batch);
-    for(const batch of batches.values()){
-      if(journal.complete.has(batch.id))continue;
-      const text=JSON.stringify(MODEL.validateBatch(batch)),total=Math.ceil(text.length/PART_SIZE);
-      for(let index=0;index<total;index++){
-        if(journal.partial.get(batch.id)?.parts.has(index))continue;
-        if(!remaining)return;
-        const part={id:batch.id,index,total,data:text.slice(index*PART_SIZE,(index+1)*PART_SIZE)};
-        await json(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:EDIT_PREFIX+JSON.stringify(part)})},s,manual);
-        acceptJournalPart(entry,part);
-        remaining--;
-      }
-    }
-  }
   async function join(id,s,manual=true,explicit=true,seedId){
     const entry=await load(id,s,manual,seedId);
     check(s,manual);
@@ -200,36 +282,23 @@
       sharing.baseline=MODEL.fingerprint(clean);
       version=await put(clean,sharing,version,s,manual);
     }
-    async function pull(){
-      const cutoff=entry.cursor?new Date(Date.parse(entry.cursor)-60000).toISOString():'';
-      const files=await list(`'${entry.folder.id}' in parents and trashed = false${cutoff?` and createdTime >= '${cutoff}'`:''}`,s,manual);
-      await readEdits(entry,files,s,manual);
-    }
-    // Immutable edit files can be published before pulling other people's edits.
-    // An uncertain prior reply is reconciled first so retries do not create files again.
-    let pulled=false;
-    if(entry.uncertainUpload){await pull();entry.uncertainUpload=false;pulled=true;}
-    for(const batch of sharing.pending||[]){
-      MODEL.validateBatch(batch);
-      if(!entry.batches.has(batch.id)){
-        entry.uncertainUpload=true;
-        const uploaded=await upload(`Edit ${batch.id}.json`,batch,entry.folder.id,{windsNotesSharedEdit:'1'},s,manual);
-        entry.seen.add(uploaded.id);entry.batches.set(batch.id,batch);entry.uncertainUpload=false;pulled=false;
-      }
-    }
-    if(!pulled)await pull();
-    // Per-file authorization may hide another account's newly created edit files.
-    // Both editors already have access to the seed and can read its append-only log.
-    await readJournal(entry,s,manual);
-    await publishJournal(entry,sharing.pending||[],s,manual);
+    await refreshSharedFile(entry,s,manual);
+    for(const batch of sharing.pending||[])rememberBatch(entry,MODEL.validateBatch(batch));
     check(s,manual);if(version!==api.bridge.version())throw deferred();
     const merged=MODEL.replay(entry.seed,entry.batches.values());
-    const pending=(sharing.pending||[]).filter(batch=>!entry.journal.complete.has(batch.id));
-    const published=(sharing.pending?.length||0)-pending.length;
-    const nextSharing={...sharing,pending,baseline:MODEL.fingerprint(merged)};
+    const missingEdits=[...entry.batches.keys()].some(id=>!entry.head.ids.has(id));
+    if(missingEdits){
+      await pruneCoveredRevisions(entry,s,manual);
+      check(s,manual);if(version!==api.bridge.version())throw deferred();
+      await writeSharedFile(entry,s,manual);
+      entry.revisionCheck=0;
+      check(s,manual);if(version!==api.bridge.version())throw deferred();
+    }
+    const published=Boolean(sharing.pending?.length);
+    const nextSharing={...sharing,pending:[],baseline:MODEL.fingerprint(merged)};
     const received=JSON.stringify(clean)!==JSON.stringify(merged);
     if(received||published)await put(merged,nextSharing,version,s,manual);
-    if(received)api.received?.();if(published)api.uploaded?.();
+    if(received)api.received?.();if(missingEdits)api.uploaded?.();
   }
   async function sync(s,manual=false,{only=null,exclude=null,limit=Infinity}={}){
     check(s,manual);
