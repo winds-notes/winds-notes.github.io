@@ -70,7 +70,7 @@
       session.lib=await engine();check(session);
       const base=new URL('./vendor/pdfjs/',document.baseURI);session.lib.GlobalWorkerOptions.workerSrc=new URL('pdf.worker.min.mjs',base).href;
       const data=new Uint8Array(await file.arrayBuffer());check(session);
-      session.loading=session.lib.getDocument({data,isEvalSupported:false,enableXfa:false,stopAtErrors:true,
+      session.loading=session.lib.getDocument({data,isEvalSupported:false,enableScripting:false,enableXfa:false,stopAtErrors:true,
         cMapUrl:new URL('cmaps/',base).href,cMapPacked:true,standardFontDataUrl:new URL('standard_fonts/',base).href,
         wasmUrl:new URL('wasm/',base).href,iccUrl:new URL('iccs/',base).href,canvasMaxAreaInBytes:32*1024*1024});
       session.loading.onPassword=(unlock,reason)=>{

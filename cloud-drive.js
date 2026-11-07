@@ -254,10 +254,34 @@
       error.syncDeferred=true;throw error;
     }
   }
+  async function readDriveText(response,expected,manual=false){
+    ensureIdle(expected,manual);
+    if(Number(response.headers?.get('content-length')||0)>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
+    const reader=response.body?.getReader?.();
+    if(!reader){
+      const text=await response.text();ensureIdle(expected,manual);
+      if(text.length>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
+      return text;
+    }
+    const decoder=new TextDecoder(),parts=[];
+    let bytes=0,finished=false;
+    try{
+      while(true){
+        const chunk=await reader.read();ensureIdle(expected,manual);
+        if(chunk.done){finished=true;break;}
+        bytes+=chunk.value.byteLength;
+        if(bytes>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
+        parts.push(decoder.decode(chunk.value,{stream:true}));
+      }
+      parts.push(decoder.decode());
+      return parts.join('');
+    }finally{
+      if(!finished)try{await reader.cancel();}catch{}
+      reader.releaseLock();
+    }
+  }
   async function readDriveJson(response,expected,manual=false){
-    ensureIdle(expected,manual);
-    const text=await response.text();
-    ensureIdle(expected,manual);
+    const text=await readDriveText(response,expected,manual);
     return JSON.parse(text);
   }
   async function driveRequest(url,options={},expected=generation,manual=false){
@@ -540,10 +564,7 @@
   }
   async function fetchWorkspace(fileId,expected=generation,manual=false){
     const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}?alt=media`,{},expected,manual);
-    const length=Number(response.headers.get('content-length')||0);
-    if(length>MAX_BYTES)throw new Error('This Google Drive workspace is too large to open safely.');
-    const text=await response.text();ensureIdle(expected,manual);
-    if(text.length>MAX_BYTES)throw new Error('The Drive workspace exceeds the 100 MB safety limit.');
+    const text=await readDriveText(response,expected,manual);
     const data=JSON.parse(text);
     if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
     return data;
@@ -749,7 +770,7 @@
     const expected=generation;syncing=true;manualBusy=true;updateUI();
     try{
       const response=await driveRequest(`${API}/${encodeURIComponent(id)}?alt=media`,{},expected,true);
-      const text=await response.text();ensureIdle(expected,true);
+      const text=await readDriveText(response,expected,true);
       const count=await bridge.importData(text);
       ensureSession(expected);message(`Imported ${count} notebook(s) into ${profile.email}'s workspace.`);
       bridge.toast('Imported editable notebook copies from Google Drive');localVersion++;schedule();
@@ -783,7 +804,7 @@
     if(bridge.live)global.WindsLive?.init({bridge:bridge.live,session:()=>({profile:SERVER_AUTH&&!remoteSignedOut&&!authorizationRequired?profile:null,auto}),
       catchup:()=>schedule(),authLost:()=>{forceRenewal=true;scheduleRenewal(0);}});
     if(bridge.sharing)global.WindsSharing?.init({bridge:bridge.sharing,session:sharingSession,check:(s,manual)=>ensureIdle(s.version,manual),
-      authorize:authorizeSharedAccess,pick:(s,parent)=>authorizeSharedAccess(null,s,parent),cancelAuthorization:closeAccessPicker,request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),run:runSharingTask,signIn:open,browse:browseShared,
+      authorize:authorizeSharedAccess,pick:(s,parent)=>authorizeSharedAccess(null,s,parent),cancelAuthorization:closeAccessPicker,request:(url,options,s,manual)=>driveRequest(url,options,s.version,manual),read:(response,s,manual)=>readDriveJson(response,s.version,manual),text:(response,s,manual)=>readDriveText(response,s.version,manual),run:runSharingTask,signIn:open,browse:browseShared,
       received:()=>{syncDetails.received=Date.now();updateSyncDetails();},uploaded:()=>{syncDetails.uploaded=Date.now();updateSyncDetails();}});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
     if($('cloudSyncDetails'))$('cloudSyncDetails').ontoggle=updateSyncDetails;

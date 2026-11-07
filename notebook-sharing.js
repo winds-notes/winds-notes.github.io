@@ -30,7 +30,7 @@
   async function readContent(url,s,manual){
     const response=await request(url,{},s,manual);
     if(Number(response.headers.get('content-length')||0)>LIMIT)throw Error('Shared notebook data exceeds the 100 MB limit.');
-    const text=await response.text();check(s,manual);
+    const text=api.text?await api.text(response,s,manual):await response.text();check(s,manual);
     if(text.length>LIMIT)throw Error('Shared notebook data exceeds the 100 MB limit.');
     return JSON.parse(text);
   }
