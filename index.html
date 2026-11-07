@@ -12,7 +12,7 @@
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=58" rel="stylesheet"/>
+<link href="./styles.css?v=59" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -62,7 +62,7 @@
 <button aria-label="Triangle" aria-pressed="false" class="tool-button" data-tool="triangle" title="Triangle"></button>
 <button aria-label="Diamond" aria-pressed="false" class="tool-button" data-tool="diamond" title="Diamond"></button>
 <button aria-label="Star" aria-pressed="false" class="tool-button" data-tool="star" title="Star"></button>
-<button aria-label="Shape fill options" aria-expanded="false" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" title="Fill colors for rectangles, stars and figures"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button>
+<button aria-label="Fill colors and closed areas" aria-expanded="false" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button>
 <button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist studio — 25 graphite, ink and pigment materials"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
@@ -120,13 +120,14 @@
 </div>
 <div class="pop-menu" hidden="" id="moreMenu"><button data-action="editText">Edit selected text…</button><button data-action="copy">Copy selection</button><button data-action="cut">Cut selection</button><button data-action="paste">Paste…</button><button data-action="pasteInternal">Paste copied object</button><button data-action="scroll">Scroll pages…</button><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="open">Open notebook file…</button><button data-action="pdf">Import PDF pages…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
 <div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><a id="preparedExportLink" class="prepared-export-link" hidden download>Download prepared export</a><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
-<div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Shape fill settings">
-  <div class="menu-heading">SHAPE FILL</div>
-  <p class="fill-help">Draw a square, rectangle, circle, ellipse, triangle, diamond or star. To recolor an existing one, choose <b>Select</b> and tap the shape.</p>
-  <label class="fill-toggle"><input id="shapeFillEnabled" type="checkbox"/> <span>Enable solid fill</span></label>
+<div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Fill colors and closed boundaries">
+  <div class="menu-heading">FILL &amp; BOUNDARIES</div>
+  <p class="fill-help">Choose a color, then tap inside a closed boundary. Built-in shapes also have editable borders below.</p>
+  <label class="fill-toggle"><input id="shapeFillEnabled" type="checkbox"/> <span>Solid fill for drawn shapes</span></label>
   <div class="fill-option-row"><span>Fill color</span><input id="shapeFillColor" type="color" value="#b9adff" aria-label="Choose shape fill color"/></div>
   <div class="fill-swatches" id="shapeFillSwatches" aria-label="Quick fill colors"></div>
   <label class="fill-option-row" for="shapeFillOpacity"><span>Fill opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
+  <div class="boundary-fill-action"><button type="button" id="fillClosedArea" aria-pressed="false">Tap inside a closed area</button><p>Fill a hand-drawn box or closed boundary with the color above. Open boundaries stay unchanged.</p></div>
   <div class="fill-section-title">BORDER / OUTLINE</div>
   <div class="fill-option-row"><label for="shapeOutlineColor">Line color</label><input id="shapeOutlineColor" type="color" value="#2b2d4c" aria-label="Shape outline color"/></div>
   <label class="fill-option-row" for="shapeOutlineSize"><span>Line width</span><input id="shapeOutlineSize" type="range" min="1" max="32" step="0.5" value="7"/><strong id="shapeOutlineSizeLabel">7</strong></label>
@@ -244,7 +245,7 @@
 <script src="./text-tools.js"></script>
 <script src="./pdf-export.js"></script>
 <script src="./pdf-import.js?v=56"></script>
-<script src="./native-file.js?v=49"></script>
+<script src="./native-file.js?v=59"></script>
 <script src="./clipboard.js"></script>
 <script src="./shared-notebook-model.js"></script>
 <script src="./notebook-sharing.js?v=57"></script>
@@ -252,6 +253,7 @@
 <script src="./live-sync.js?v=50"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
 <script defer src="./cloud-drive.js?v=56"></script>
-<script defer="" src="./app.js?v=58"></script>
+<script defer src="./boundary-fill.js?v=59"></script>
+<script defer="" src="./app.js?v=59"></script>
 </body>
 </html>

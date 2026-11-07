@@ -394,7 +394,7 @@
     if(target===workspaceId)return;
     const unlock=lockInterface();
     try{
-      globalThis.WindsText?.close();globalThis.WindsClipboard?.clear();closePageReader();clearPreparedExport();
+      cancelBoundaryFill(true);globalThis.WindsText?.close();globalThis.WindsClipboard?.clear();closePageReader();clearPreparedExport();
       finishActiveStroke();composeInkNow();commitText();
       while(state.pendingInteractions)await delay(100);
       await saveNow(true);
@@ -428,7 +428,7 @@
     return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:state.notebooks,deleted:tombstones};
   }
   function cloudSyncDelay(){
-    if(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
+    if(globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
     const remaining=CLOUD_IDLE_MS-(Date.now()-lastInkAt);
     if(remaining>0)return remaining;
     return saving||dirtyAll||dirtyBooks.size||dirtyPages.size?1000:0;
@@ -443,7 +443,7 @@
   }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     const account=workspaceId;
-    if(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
     }
@@ -549,6 +549,7 @@
     window.WindsLive?.refreshRooms();renderCloudChanges(expectedWorkspace);return saved;
   }
   function openNotebook(id){
+    cancelBoundaryFill(true);
     finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>openNotebook(id),100);return;}
     const n=state.notebooks.find(x=>x.id===id);if(!n)return;
     clearLiveLayer();prunePdfImages(n);
@@ -557,7 +558,7 @@
     view('editor');$('notebookTitle').value=n.title;
     syncPageGeometry();updateSidebar();setTool('pen');renderEditor();resizePage();window.WindsPageStack.focus(page().id);requestAnimationFrame(updateToolbarArrows);window.WindsLive?.refreshRooms();
   }
-  function goLibrary(){finishActiveStroke();if(state.pendingInteractions){setTimeout(goLibrary,100);return;}window.WindsPageStack.reset();eraserPreview?.reset();groupSelection=null;commitText();state.draft=null;composeInkNow();saveNow(true);state.activeId=null;view('library');renderLibrary();}
+  function goLibrary(){cancelBoundaryFill(true);finishActiveStroke();if(state.pendingInteractions){setTimeout(goLibrary,100);return;}window.WindsPageStack.reset();eraserPreview?.reset();groupSelection=null;commitText();state.draft=null;composeInkNow();saveNow(true);state.activeId=null;view('library');renderLibrary();}
   function renderEditor(){
     eraserPreview?.invalidate();
     const n=notebook();if(!n)return;
@@ -581,6 +582,7 @@
     if(state.sidebarOpen && thumbnailsDirty)renderThumbs(true);
   }
   function switchPage(index,preserveScroll=false){
+    cancelBoundaryFill(true);
     finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>switchPage(index,preserveScroll),100);return;}
     finishActiveStroke();const n=notebook();if(!n||index<0||index>=n.pages.length)return;
     clearLiveLayer();composeInkNow();commitText();state.pageIndex=index;state.selected=-1;state.draft=null;syncPageGeometry();resizePage();renderEditor();
@@ -650,6 +652,7 @@
     toast(orientation==='landscape'?'Landscape page selected':'Portrait page selected');
   }
   function setTool(tool,{inkOnly=false}={}){
+    if(boundaryFillSession&&tool!=='pan')cancelBoundaryFill();
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
     if(tool==='eraser')state.eraserInkOnly=inkOnly;
     document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
@@ -659,6 +662,126 @@
     $('inkCanvas').classList.toggle('cursor-pan',tool==='pan');$('inkCanvas').classList.toggle('cursor-area',tool==='area');
     groupSelection=null;configureSize();
     renderCanvas();if(tool==='eraser')prepareEraserPreview(true);else eraserPreview?.releaseCache();
+  }
+  let boundaryFillSession=null;
+  function cancelBoundaryFill(restore=false){
+    const session=boundaryFillSession;boundaryFillSession=null;
+    globalThis.WindsBoundaryFill?.setActive(false);
+    $('inkCanvas').classList.remove('cursor-fill');$('fillClosedArea')?.setAttribute('aria-pressed','false');
+    $('shapeFillBtn').classList.remove('boundary-fill-active');
+    if(restore&&session&&state.tool==='pan')setTool(session.previousTool);
+  }
+  function armBoundaryFill(){
+    if(boundaryFillSession){cancelBoundaryFill(true);return;}
+    if(!page()||!globalThis.WindsBoundaryFill)return;
+    const previousTool=state.tool;setTool('pan');closeMenus();
+    boundaryFillSession={previousTool,scope:clipboardContext(),version:saveVersion,color:state.shapeFillColor,opacity:state.shapeFillOpacity,pointers:new Set(),tap:null,pending:false};
+    globalThis.WindsBoundaryFill.setActive(true);
+    $('inkCanvas').classList.add('cursor-fill');$('fillClosedArea').setAttribute('aria-pressed','true');
+    $('shapeFillBtn').classList.add('boundary-fill-active');
+    toast('Tap inside a closed area to fill it. Escape or choose another tool to cancel.');
+  }
+  async function applyBoundaryFill(session,point){
+    let surface,output;
+    const check=()=>{
+      if(boundaryFillSession!==session||!clipboardMatches(session.scope)||saveVersion!==session.version||$('editorView').hidden)throw Error('The page changed. Choose Fill and try again.');
+    };
+    const pause=async()=>{
+      await delay(0);check();
+      while(inputBusy()||state.pendingInteractions){await delay(80);check();}
+    };
+    try{
+      await pause();
+      const target=page(),dimensions=pageDimensions(target);
+      surface=document.createElement('canvas');surface.width=dimensions.width;surface.height=dimensions.height;
+      const ctx=surface.getContext('2d',{willReadFrequently:true});
+      if(!ctx)throw Error('Not enough canvas memory. Close another notebook tab and try again.');
+      // Built-in closed shapes retain their editable vector fill and outline.
+      for(let i=target.items.length-1;i>=0;i--){
+        if(i%32===0)await pause();
+        const item=target.items[i];
+        if(item.type!=='shape'||!CREATIVE.isFillableShape(item.kind)||item.erasures?.length)continue;
+        const local=CREATIVE.objectPoint(item,point,true);CREATIVE.shapePath(ctx,item);
+        if(ctx.isPointInPath(local.x,local.y)){
+          if(item.fillColor!==session.color||item.fillOpacity!==session.opacity){remember();item.fillColor=session.color;item.fillOpacity=session.opacity;scheduleSave();renderThumbs();}
+          cancelBoundaryFill(true);toast('Closed shape filled');return;
+        }
+      }
+      // Notebook ruling and PDF backgrounds are not barriers. Color stays below ink.
+      ctx.clearRect(0,0,surface.width,surface.height);
+      for(let i=0;i<target.items.length;i++){
+        if(i%16===0)await pause();
+        const item=target.items[i];if(item.boundaryFill)continue;
+        if(item.type==='image'){
+          let image=imageCache.get(item.src);
+          if(!image){image=new Image();image.src=item.src;imageCache.set(item.src,image);}
+          if(!image.complete||!image.naturalWidth)await image.decode();
+          await pause();
+        }
+        drawItem(ctx,item);
+      }
+      await pause();
+      const area=await globalThis.WindsBoundaryFill.region(ctx.getImageData(0,0,surface.width,surface.height).data,surface.width,surface.height,point.x,point.y,pause);
+      const rgba=await globalThis.WindsBoundaryFill.colorize(area,session.color,session.opacity,pause);
+      output=document.createElement('canvas');output.width=area.w;output.height=area.h;
+      const layer=output.getContext('2d',{willReadFrequently:true});
+      if(!layer)throw Error('Not enough canvas memory to fill this area.');
+      // Recolor a previous fill of this exact region rather than stacking colors.
+      let previous=null;
+      for(const item of target.items){
+        if(!item.boundaryFill||item.rotation||item.crop||item.erasures?.length||item.x!==area.x||item.y!==area.y||item.w!==area.w||item.h!==area.h)continue;
+        const image=new Image();image.src=item.src;await image.decode();await pause();
+        layer.clearRect(0,0,area.w,area.h);layer.drawImage(image,0,0);
+        if(await globalThis.WindsBoundaryFill.sameMask(area,layer.getImageData(0,0,area.w,area.h).data,pause)){previous=item;break;}
+      }
+      const data=layer.createImageData(area.w,area.h);data.data.set(rgba);layer.putImageData(data,0,0);
+      const src=output.toDataURL('image/png'),image=new Image();image.src=src;await image.decode();await pause();
+      if(!previous||previous.src!==src){
+        remember();
+        if(previous){imageCache.delete(previous.src);previous.src=src;}
+        else{
+          const item={id:uid(),type:'image',boundaryFill:true,x:area.x,y:area.y,w:area.w,h:area.h,src};
+          const index=target.items.findIndex(item=>!item.boundaryFill);
+          target.items.splice(index<0?target.items.length:index,0,item);
+        }
+        imageCache.set(src,image);scheduleSave();renderThumbs();
+      }
+      cancelBoundaryFill(true);toast('Closed area filled · Undo restores the previous color');
+    }catch(error){
+      if(boundaryFillSession===session){cancelBoundaryFill(true);toast(error.message||'This area could not be filled.');}
+    }finally{
+      if(surface)surface.width=surface.height=1;
+      if(output)output.width=output.height=1;
+    }
+  }
+  function bindBoundaryFill(){
+    let button=$('fillClosedArea');
+    if(!button){button=document.createElement('button');button.id='fillClosedArea';button.type='button';button.textContent='Tap inside a closed area';button.setAttribute('aria-pressed','false');$('fillMenu').append(button);}
+    button.disabled=!globalThis.WindsBoundaryFill;button.onclick=armBoundaryFill;
+    const canvas=$('inkCanvas');
+    // Observe taps only. Existing Pencil, touch suppression and pinch handlers
+    // retain their events; flood fill runs on a later task after input is idle.
+    canvas.addEventListener('pointerdown',event=>{
+      const session=boundaryFillSession;if(!session||session.pending||event.pointerType==='mouse'&&event.button!==0)return;
+      if(event.pointerType==='touch'&&session.tap?.pointerType==='pen')return;
+      if(event.pointerType==='pen')session.pointers.clear();
+      session.pointers.add(event.pointerId);
+      if(session.pointers.size===1)session.tap={id:event.pointerId,pointerType:event.pointerType,x:event.clientX,y:event.clientY,valid:true};
+      else if(session.tap)session.tap.valid=false;
+    },{capture:true,passive:true});
+    canvas.addEventListener('pointermove',event=>{
+      const tap=boundaryFillSession?.tap;
+      if(tap?.id===event.pointerId&&Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>6)tap.valid=false;
+    },{capture:true,passive:true});
+    canvas.addEventListener('pointerup',event=>{
+      const session=boundaryFillSession;if(!session)return;session.pointers.delete(event.pointerId);
+      const tap=session.tap;
+      if(session.pending||!tap?.valid||tap.id!==event.pointerId||session.pointers.size||Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>6)return;
+      const rect=canvas.getBoundingClientRect(),point={x:(event.clientX-rect.left)/rect.width*W,y:(event.clientY-rect.top)/rect.height*H};
+      session.pending=true;setTimeout(()=>applyBoundaryFill(session,point),0);
+    },{capture:true,passive:true});
+    canvas.addEventListener('pointercancel',event=>{const session=boundaryFillSession;if(session){session.pointers.delete(event.pointerId);if(session.tap?.id===event.pointerId)session.tap.valid=false;}},{capture:true,passive:true});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&boundaryFillSession)cancelBoundaryFill(true);});
   }
   function applyFillToSelected(){
     const item=page()?.items[state.selected];
@@ -1955,7 +2078,7 @@
     $('pageOrientationBtn').onclick=e=>{e.stopPropagation();toggleMenu('pageOrientationBtn','orientationMenu');};
     $('emojiBtn').onclick=e=>{e.stopPropagation();toggleMenu('emojiBtn','emojiMenu');$('emojiSearch').value='';renderEmojiGrid('');};
     $('customColorBtn').onclick=e=>{e.stopPropagation();toggleMenu('customColorBtn','colorMenu');};
-    $('shapeFillBtn').onclick=showFillMenu;
+    $('shapeFillBtn').onclick=event=>{if(boundaryFillSession)cancelBoundaryFill(true);else showFillMenu(event);};bindBoundaryFill();
     $('shapeFillEnabled').onchange=e=>{setFillOptions({enabled:e.target.checked});applyFillToSelected();};
     $('shapeFillColor').oninput=e=>setFillOptions({color:e.target.value,enabled:true});
     $('shapeFillColor').onchange=()=>applyFillToSelected();
@@ -2263,6 +2386,7 @@
     $('pageReader').hidden=true;$('pageReaderList').replaceChildren();
   }
   function openPageReader(){
+    cancelBoundaryFill(true);
     const book=notebook();if(!book)return;
     finishActiveStroke();composeInkNow();commitText();closeMenus();saveNow(true);
     closePageReader();const session=pageReaderSession,account=workspaceId,list=$('pageReaderList');
@@ -2331,18 +2455,18 @@
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
     renderLibrary();view('library');window.WindsText.init({apply:applyEditedText});initClipboard();
     window.WindsPDFImport.init({context:()=>({workspace:workspaceId,bookId:state.activeId,bookTitle:notebook()?.title||''}),
-      prepare:async()=>{finishActiveStroke();composeInkNow();commitText();await saveNow(true);},commit:commitPdfPages,toast});
+      prepare:async()=>{cancelBoundaryFill();finishActiveStroke();composeInkNow();commitText();await saveNow(true);},commit:commitPdfPages,toast});
     window.WindsDrive?.init({
       getData:workspaceSnapshot,
       switchWorkspace,
       mergeWorkspace,
       isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<CLOUD_IDLE_MS),
       isDrawingNow:()=>Boolean(state.drag||state.pinch),
-      isEditing:()=>Boolean(state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
+      isEditing:()=>Boolean(globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
       sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id]),openNotebook,toast},
-      live:{busy:idle=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
+      live:{busy:idle=>Boolean(globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
         room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},
         rooms:()=>[...new Set([notebook(),...state.notebooks].filter(n=>n?._sharing).map(n=>'shared:'+n._sharing.folderId))],
         paint:items=>{livePreviewItems=items;if(!livePreviewRAF)livePreviewRAF=requestAnimationFrame(paintLiveLayer);},clear:clearLiveLayer},

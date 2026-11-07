@@ -60,7 +60,7 @@
       return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1))),strokeStyle:['solid','dashed','dotted','none'].includes(item.strokeStyle)?item.strokeStyle:'solid',...rotationFields(item)};
     }
     check(typeof item.src==='string' && item.src.length<=50*1024*1024 && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(item.src),'Invalid embedded image');
-    const image={...base,x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src,...rotationFields(item)};
+    const image={...base,...(item.boundaryFill===true?{boundaryFill:true}:{}),x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src,...rotationFields(item)};
     if(item.crop!=null){
       const c=item.crop;
       check(isObject(c) && ['x','y','w','h'].every(k=>Number.isFinite(c[k])) &&
