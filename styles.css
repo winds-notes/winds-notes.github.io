@@ -511,3 +511,15 @@
 .startup-recovery h2{margin:0 0 14px;font-size:22px;line-height:1.3}
 .startup-recovery p{margin:0 0 24px;font-size:14px;line-height:1.65;color:#666980}
 .startup-recovery .btn{width:100%}
+
+/* Education add-on stays inside the existing sticker picker. */
+.editor-header .emoji-menu{width:360px;max-height:calc(100dvh - 95px);overflow-y:auto;overscroll-behavior:contain}
+.sticker-collections{display:flex;gap:5px;padding:2px 0 11px}
+.sticker-collections button{flex:1;display:flex;justify-content:center;align-items:center;gap:5px;min-height:36px;padding:7px 6px;border:1px solid var(--border);border-radius:9px;background:#f8f8fc;color:#62667e;font-size:11px;font-weight:700;white-space:nowrap}
+.sticker-collections button[aria-pressed="true"]{border-color:#c8c1ff;background:#eeebff;color:var(--purple-dark)}
+.sticker-collections button span{padding:2px 4px;border-radius:5px;background:#e9eaf2;font-size:10px;font-variant-numeric:tabular-nums}
+.sticker-collections button[aria-pressed="true"] span{background:#ded8ff}
+.sticker-count{margin:9px 2px 0;color:#74788f;font-size:11px;line-height:1.4}
+/* Keep generic menu-button typography from shrinking the sticker artwork. */
+.editor-header .emoji-menu .emoji-cell{display:grid;place-items:center;min-width:0;height:44px;padding:0;background:transparent;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;font-size:28px;font-weight:400;line-height:1}
+.editor-header .emoji-menu .emoji-cell:hover,.editor-header .emoji-menu .emoji-cell:focus-visible{background:#eeedff}

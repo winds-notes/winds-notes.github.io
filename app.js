@@ -34,6 +34,36 @@
     ['📚','Books'],['📖','Reading'],['📝','Notes'],['🎓','Graduate'],['🔬','Science'],['🧪','Chemistry'],['💻','Computer'],['📈','Chart'],['📊','Statistics'],['🚀','Rocket'],
     ['🌻','Flower'],['🌈','Rainbow'],['☀️','Sun'],['🌙','Moon'],['☁️','Cloud'],['🌍','Earth'],['🍀','Clover'],['🌸','Bloom'],['🎨','Art'],['🎵','Music']
   ];
+  // Education add-on: regular editable stickers, available offline.
+  const EDUCATION_STICKERS = [
+    ['🏫','School','classroom campus university'],['🎒','Backpack','school bag supplies'],
+    ['🧑‍🏫','Teacher','professor tutor lesson classroom'],['🧑‍🎓','Student','graduate learner university'],
+    ['📕','Red textbook','book reading study'],['📗','Green textbook','book reading study'],
+    ['📘','Blue textbook','book reading study'],['📙','Orange textbook','book reading study'],
+    ['📓','Notebook','journal homework study'],['📔','Study journal','notebook diary reading'],
+    ['📒','Lesson planner','timetable schedule notebook'],['📃','Worksheet','assignment paper homework'],
+    ['📄','Assignment','document essay paper'],['📑','Revision tabs','bookmark exam notes'],
+    ['🔖','Bookmark','reading revision study'],['📋','Study checklist','clipboard task homework'],
+    ['🗂️','Subject folders','organize files index'],['🗃️','Flashcards','revision memory study cards'],
+    ['📎','Paperclip','stationery organize'],['🖇️','Linked paperclips','stationery connection'],
+    ['✏️','Pencil','writing sketch stationery'],['🖊️','Ballpoint pen','writing ink stationery'],
+    ['🖋️','Fountain pen','writing calligraphy ink'],['🖌️','Paintbrush','art painting design'],
+    ['🖍️','Crayon','art coloring drawing'],['📐','Set square','geometry triangle maths math'],
+    ['📏','Ruler','measurement length geometry maths math'],['✂️','Scissors','craft art cut'],
+    ['🧮','Abacus','calculation arithmetic maths math'],['🔢','Numbers','counting arithmetic maths math'],
+    ['➕','Addition','plus arithmetic maths math'],['➖','Subtraction','minus arithmetic maths math'],
+    ['✖️','Multiplication','times arithmetic maths math'],['➗','Division','divide arithmetic maths math'],
+    ['🟰','Equals','equation algebra maths math'],['♾️','Infinity','calculus algebra maths math'],
+    ['⚛️','Atom','physics science atomic'],['🧬','DNA','biology genetics science'],
+    ['🔭','Telescope','astronomy space science'],['🧫','Petri dish','biology bacteria laboratory science'],
+    ['⚗️','Chemistry flask','experiment laboratory science'],['🧲','Magnet','physics magnetism science'],
+    ['🔋','Battery','physics electricity energy circuit science'],['⚙️','Gear','engineering mechanics technology'],
+    ['🌡️','Thermometer','temperature physics chemistry science'],['🌋','Volcano','geology geography earth science'],
+    ['🧭','Compass','geography navigation direction'],['🗺️','World map','geography countries atlas'],
+    ['🗣️','Speaking practice','language speech presentation debate'],['🏅','Achievement medal','award success exam reward']
+  ];
+  const ALL_STICKERS=[...EMOJI_STICKERS,...EDUCATION_STICKERS];
+  let stickerCollection='all';
   const ICONS = {
     plus:'<path d="M12 5v14M5 12h14"/>',
     back:'<path d="M19 12H5m7-7-7 7 7 7"/>',
@@ -727,13 +757,39 @@
     $('customColorInput').value=c;
     $('customColorBtn').style.setProperty('--chosen-color',c);
   }
+  function ensureStickerCollections(){
+    const menu=$('emojiMenu');
+    let collections=$('stickerCollections');
+    if(!collections){
+      collections=document.createElement('div');collections.id='stickerCollections';
+      menu.insertBefore(collections,$('emojiSearch'));
+    }
+    if(!collections.children.length){
+      collections.className='sticker-collections';collections.setAttribute('role','group');
+      collections.setAttribute('aria-label','Sticker collections');
+      for(const [id,label,count] of [['all','All',ALL_STICKERS.length],['everyday','Everyday',EMOJI_STICKERS.length],['education','Education',EDUCATION_STICKERS.length]]){
+        const button=document.createElement('button');button.type='button';button.dataset.stickerCollection=id;
+        button.append(document.createTextNode(label+' '));
+        const badge=document.createElement('span');badge.textContent=count;button.append(badge);collections.append(button);
+      }
+    }
+    if(!$('stickerCount')){
+      const count=document.createElement('p');count.id='stickerCount';count.className='sticker-count';
+      count.setAttribute('role','status');menu.insertBefore(count,$('emojiGrid'));
+    }
+  }
   function renderEmojiGrid(query){
+    ensureStickerCollections();
     const q=String(query||'').trim().toLowerCase();
-    const chosen=EMOJI_STICKERS.filter(([emoji,name])=>name.toLowerCase().includes(q)||emoji.includes(q));
-    $('emojiGrid').innerHTML=chosen.map(([emoji,name])=>`<button class="emoji-cell" data-emoji="${emoji}" title="${name}" aria-label="Insert ${name}">${emoji}</button>`).join('')||'<p class="emoji-empty">No stickers found</p>';
+    const source=stickerCollection==='education'?EDUCATION_STICKERS:stickerCollection==='everyday'?EMOJI_STICKERS:ALL_STICKERS;
+    const chosen=source.filter(([emoji,name,keywords=''])=>`${name} ${keywords}`.toLowerCase().includes(q)||emoji.includes(q));
+    $('stickerCollections').querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.stickerCollection===stickerCollection)));
+    $('stickerCount').textContent=`${chosen.length} sticker${chosen.length===1?'':'s'}${stickerCollection==='education'?' · Education collection':''}`;
+    $('emojiGrid').innerHTML=chosen.map(([emoji,name])=>`<button type="button" class="emoji-cell" data-emoji="${safe(emoji)}" title="${safe(name)}" aria-label="Insert ${safe(name)}">${emoji}</button>`).join('')||'<p class="emoji-empty">No stickers found. Try another search or collection.</p>';
+    $('emojiGrid').scrollTop=0;
   }
   function addEmoji(emoji){
-    if(!page() || !EMOJI_STICKERS.some(e=>e[0]===emoji))return;
+    if(!page() || !ALL_STICKERS.some(e=>e[0]===emoji))return;
     finishActiveStroke();commitText();composeInkNow();
     const scroller=$('pageScroller'),rect=$('pageCanvas').getBoundingClientRect();
     const viewport=scroller.getBoundingClientRect();
@@ -1918,6 +1974,11 @@
     $('artistBtn').onclick=e=>{e.stopPropagation();if(state.tool!=='artist')setTool('artist');toggleMenu('artistBtn','artistMenu');if(!$('artistMenu').hidden)renderArtistPreviews();};
     $('artistMenu').onclick=e=>{const group=e.target.closest('[data-artist-group]');if(group){state.artistGroup=group.dataset.artistGroup;$('artistMenu').scrollTop=0;renderArtistPreviews();return;}const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
     $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
+    $('stickerCollections').onclick=e=>{
+      const button=e.target.closest('[data-sticker-collection]');
+      if(!button||!['all','everyday','education'].includes(button.dataset.stickerCollection))return;
+      stickerCollection=button.dataset.stickerCollection;renderEmojiGrid($('emojiSearch').value);
+    };
     $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};
     $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-emoji]');if(btn)addEmoji(btn.dataset.emoji);};
     $('extendedColors').onclick=e=>{const btn=e.target.closest('[data-more-color]');if(btn){setColor(btn.dataset.moreColor);closeMenus();}};

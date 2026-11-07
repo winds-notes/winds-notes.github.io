@@ -14,6 +14,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 - **Text editing and fonts:** Select a text box and tap **Edit text** to change its words, font, size, color, bold/italic/underline, alignment, spacing and width. Works with pasted and typed text, undo/redo, copying and exports. See [Text editing](docs/TEXT_EDITING.md).
 - **Copy/paste:** External text and images, editable internal ink/shapes/text/images/stickers, keyboard shortcuts, Copy/Cut selection controls, and a touch paste box with undo/redo. See [Copy and paste](docs/COPY_PASTE.md).
 - **Handwriting selection and eraser:** Eraser removes only the brushed area of handwriting, text, images and shapes. Tap Eraser or press E to erase any editable object with your saved size (4–128). Use the small arrow for size settings and optional Ink only protection. Rectangle selection moves/copies/cuts/pastes multiple handwritten strokes. See [Eraser, selection and scrolling](docs/ERASER_SELECTION_SCROLLING.md).
+- **Education stickers:** 50 additional education icons (100 stickers total), with All, Everyday and Education collections and subject search. Use the existing smiley button to insert, move, resize, rotate or copy them. Available offline.
 - **Notebook workflow:** Multiple notebooks/pages, text, stickers, imported images with **resizable corner handles and exact width controls**, templates, local autosave and export/import in editable `.winds-notes` format.
 - **PDF annotation:** Import selected PDF pages into a new or existing notebook, then write, highlight, draw or add text over fixed page backgrounds. Supports password-protected PDFs, mixed page orientations, offline use and annotated exports.
 - **Sharing:** PDF, JPEG, PNG and JSON backups; per-notebook Google Drive invitations for another Google account to view and edit.
@@ -72,7 +73,7 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `eraser-preview.js`, `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
-If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v57** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
+If you publish by replacing GitHub files, upload all updated files together. Service-worker cache **v58** includes the local PDF reader and its offline assets. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 
 ## Share a notebook
 
