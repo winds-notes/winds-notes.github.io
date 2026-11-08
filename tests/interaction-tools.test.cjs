@@ -38,6 +38,12 @@ test('moving an area selection records one snapshot and leaves unselected conten
  e.context.selectGroup=items=>{selected=items;};e.context.deferInteraction({kind:'areaMove',scope:{},group:{ids:new Set([original.id])},dx:30,dy:40});assert.equal(e.p.items[0],original);e.release();await e.context.interactionQueue;
  assert.deepEqual(Array.from(e.p.items[0].points,p=>Array.from(p)),[[40,50,.2],[140,50,.8]]);assert.equal(e.p.items[1],other);assert.equal(selected.length,1);assert.deepEqual(e.counts(),{changed:1,rendered:1,snapshots:1});
 });
+
+test('a delayed area selection cannot replace a newer item selection',async()=>{
+ const e=deferredEditor();let selected=0;e.state.tool='select';e.state.selectionEpoch=2;e.context.selectGroup=()=>{selected++;};
+ e.context.deferInteraction({kind:'area',scope:{},epoch:1,start:{x:0,y:0},end:{x:120,y:30}});e.release();await e.context.interactionQueue;
+ assert.equal(selected,0);assert.deepEqual(e.counts(),{changed:0,rendered:0,snapshots:0});assert.equal(e.state.pendingInteractions,0);
+});
 test('long-stroke erasing yields within a bounded amount of geometry work',async()=>{
  let pauses=0;const long={...ink,points:Array.from({length:10000},(_,i)=>[i*.01,100,.5])};
  assert.equal(await geometry.eraseHitAsync(long,[{x:5,y:0}],4,{x:0,y:0,w:110,h:110},3,true,async()=>{pauses++;}),false);assert.ok(pauses>=4);

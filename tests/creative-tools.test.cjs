@@ -10,6 +10,19 @@ function canvas(){
 }
 function makeNotebook(items){return {id:'n1',title:'Drawing test',cover:'purple',pages:[{id:'p1',orientation:'landscape',template:'blank',items}]};}
 
+test('shape selection follows visible geometry rather than empty bounding-box corners',()=>{
+ const shape=(kind,extra={})=>({type:'shape',kind,x:0,y:0,w:100,h:100,size:2,...extra});
+ assert.equal(tools.shapeHit(shape('line'),{x:90,y:10},3),false);
+ assert.equal(tools.shapeHit(shape('line'),{x:50,y:50},3),true);
+ assert.equal(tools.shapeHit(shape('triangle'),{x:3,y:3},2),false);
+ assert.equal(tools.shapeHit(shape('triangle'),{x:50,y:50},2),true);
+ assert.equal(tools.shapeHit(shape('circle'),{x:1,y:1},2),false);
+ assert.equal(tools.shapeHit(shape('circle'),{x:50,y:50},2),true);
+ assert.equal(tools.shapeHit(shape('rectangle',{strokeStyle:'none',fillColor:null}),{x:50,y:50},3),false);
+ assert.equal(tools.shapeHit(shape('rectangle',{strokeStyle:'none',fillColor:'#aabbcc'}),{x:50,y:50},3),true);
+ const arrow=shape('arrow',{w:100,h:0,size:5});assert.equal(tools.shapeHit(arrow,{x:80,y:12},1),true);
+});
+
 test('only closed figures can have a fill',()=>{
   assert.deepEqual(['rectangle','square','ellipse','circle','triangle','diamond','star'].map(tools.isFillableShape),[true,true,true,true,true,true,true]);
   assert.equal(tools.isFillableShape('line'),false);

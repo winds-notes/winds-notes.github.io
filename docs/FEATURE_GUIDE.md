@@ -39,6 +39,10 @@ Tap **Artist** in the horizontal toolbar, choose a brush, and draw with a stylus
 
 ## Images, stickers and resizing
 
+**Stylus only** starts enabled: use Pencil to draw or edit, and fingers to scroll and pinch. Mouse editing remains available. You can turn it off for finger input; the app remembers that choice in this browser.
+
+Choose **Select**, tap an object, then drag it to move. Tapping outside a handwriting group lets you select another item. Dragging and resizing show a live preview and save one undoable change when finished. Selection hit areas remain consistent as you zoom, and empty corners around diagonal or curved shapes no longer capture unrelated objects.
+
 - Import an image or insert a smiley. The app automatically selects the new item.
 - Four corner grips surround a selected image, sticker or shape. Drag them to resize with the **Select** tool.
 - Select an object and open **Notebook options → Size and angle** for the width field and its ± buttons.

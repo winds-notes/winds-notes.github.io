@@ -314,6 +314,32 @@
     }
   }
 
+  function shapeHit(item,point,tolerance=8){
+    if(item.strokeStyle==='none'&&(!item.fillColor||item.fillOpacity===0))return false;
+    const {x,y,w,h}=item,px=point.x,py=point.y,reach=tolerance+(item.size||3)/2;
+    const segment=(a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((px-a[0])*dx+(py-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)<=reach;};
+    if(item.kind==='line'||item.kind==='arrow'){
+      if(segment([x,y],[x+w,y+h]))return true;
+      if(item.kind==='line')return false;
+      const angle=Math.atan2(h,w),length=Math.min(25,Math.max(12,(item.size||3)*5));
+      return [-.58,.58].some(delta=>segment([x+w,y+h],[x+w-length*Math.cos(angle+delta),y+h-length*Math.sin(angle+delta)]));
+    }
+    if(item.kind==='ellipse'||item.kind==='circle'){
+      const rx=Math.max(.1,Math.abs(w)/2),ry=Math.max(.1,Math.abs(h)/2);
+      return Math.hypot((px-x-w/2)/rx,(py-y-h/2)/ry)<=1+reach/Math.min(rx,ry);
+    }
+    let vertices;
+    if(item.kind==='triangle')vertices=[[x+w/2,y],[x+w,y+h],[x,y+h]];
+    else if(item.kind==='diamond')vertices=[[x+w/2,y],[x+w,y+h/2],[x+w/2,y+h],[x,y+h/2]];
+    else if(item.kind==='star')vertices=Array.from({length:10},(_,i)=>{const angle=-Math.PI/2+i*Math.PI/5,r=i%2?.44:1;return [x+w/2+Math.cos(angle)*Math.abs(w)/2*r,y+h/2+Math.sin(angle)*Math.abs(h)/2*r];});
+    else vertices=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+    let inside=false;
+    for(let i=0,j=vertices.length-1;i<vertices.length;j=i++){
+      const a=vertices[j],b=vertices[i];if(segment(a,b))return true;
+      if((a[1]>py)!==(b[1]>py)&&px<(b[0]-a[0])*(py-a[1])/(b[1]-a[1])+a[0])inside=!inside;
+    }
+    return inside;
+  }
   function drawShape(ctx,item) {
     ctx.save();
     ctx.lineWidth=item.size||3;ctx.strokeStyle=item.color||'#2b2d4c';
@@ -662,7 +688,7 @@
   }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
+  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,shapeHit,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,

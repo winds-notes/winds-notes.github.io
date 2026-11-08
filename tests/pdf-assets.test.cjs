@@ -12,6 +12,17 @@ test('offline PDF pre-cache includes the matching reader, worker and all declare
   for(const file of assets){const actual=path.resolve(root,file.split('?')[0]);assert.ok(actual.startsWith(root+path.sep)||actual===root);assert.ok(fs.existsSync(actual),file);}
 });
 
+test('offline updates reuse unchanged artwork and keep cold artwork downloads limited to two',async()=>{
+ for(const warm of [true,false]){
+  const root=path.dirname(require.resolve('../app.js')),events=new Map();let pending,copied=0,downloaded=0,active=0,peak=0;
+  const context=vm.createContext({self:{addEventListener:(name,handler)=>events.set(name,handler),skipWaiting(){}},
+   caches:{match:async()=>warm?{}:undefined,open:async()=>({put:async()=>{copied++;},addAll:async urls=>{if(!urls[0].startsWith('./assets/mandalas/'))return;active++;peak=Math.max(peak,active);downloaded+=urls.length;await new Promise(resolve=>setImmediate(resolve));active--;}})},
+   importScripts:(...files)=>{for(const file of files)vm.runInContext(fs.readFileSync(path.resolve(root,file.split('?')[0]),'utf8'),context);}});
+  Object.assign(context,context.self);context.self=context;vm.runInContext(fs.readFileSync(path.join(root,'sw.js'),'utf8'),context);events.get('install')({waitUntil:p=>{pending=p;}});await pending;
+  assert.equal(copied,warm?50:0);assert.equal(downloaded,warm?0:50);assert.ok(peak<=2);
+ }
+});
+
 test('offline registration runs after slow startup as well as before window load',()=>{
   const source=fs.readFileSync(require.resolve('../app.js'),'utf8');
   const start=source.indexOf('  function registerOfflineShell(){'),end=source.indexOf('\n  async function boot()',start);
@@ -30,7 +41,7 @@ test('offline registration runs after slow startup as well as before window load
 });
 test('the editor stylesheet and dependencies use matching release URLs offline',()=>{
  const html=fs.readFileSync(require.resolve('../index.html'),'utf8'),worker=fs.readFileSync(require.resolve('../sw.js'),'utf8');
- for(const name of ['app.js','creative-tools.js','native-file.js','interaction-tools.js','eraser-preview.js','cloud-drive.js','live-sync.js','notebook-sharing.js','styles.css']){
+ for(const name of ['app.js','selection-preview.js','creative-tools.js','native-file.js','interaction-tools.js','eraser-preview.js','cloud-drive.js','live-sync.js','notebook-sharing.js','styles.css']){
    const prefix='./'+name+'?v=';
    const url=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(match=>match[1]).find(url=>url.startsWith(prefix));
    assert.ok(url,name+' needs a versioned URL');

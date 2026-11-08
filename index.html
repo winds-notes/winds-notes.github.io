@@ -78,8 +78,8 @@
 <button aria-label="Add smileys and stickers" aria-expanded="false" class="tool-button emoji-tool" id="emojiBtn" title="Smileys and stickers">☺</button>
 <button aria-expanded="false" aria-label="Change paper template" class="tool-button" id="paperStyleBtn" title="Change paper template"></button>
 <button aria-expanded="false" aria-label="Page orientation: Portrait or Landscape" class="tool-button" id="pageOrientationBtn" title="Page orientation: Portrait / Landscape"></button>
-<label class="pencil-toggle" title="When enabled, only a stylus draws. Two fingers can always pinch to zoom and pan.">
-<input id="pencilOnly" type="checkbox"/>
+<label class="pencil-toggle" title="Use a stylus to draw; fingers scroll and pinch. Mouse editing remains available.">
+<input id="pencilOnly" type="checkbox" checked autocomplete="off"/>
 <span id="pencilOnlyIcon"></span>
 <span>Stylus only</span>
 </label>
@@ -240,8 +240,9 @@
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
 <script src="./mandala-art.js?v=65"></script>
-<script src="./creative-tools.js?v=65"></script>
-<script src="./interaction-tools.js?v=49"></script>
+<script src="./creative-tools.js?v=66"></script>
+<script src="./interaction-tools.js?v=66"></script>
+<script src="./selection-preview.js?v=66"></script>
 <script src="./eraser-preview.js?v=49"></script>
 <script src="./page-stack.js"></script>
 <script src="./text-tools.js"></script>
@@ -257,6 +258,6 @@
 <script defer src="./cloud-drive.js?v=56"></script>
 <script defer src="./boundary-fill.js?v=61"></script>
 <script defer src="./mandala-tools.js?v=65"></script>
-<script defer="" src="./app.js?v=65"></script>
+<script defer="" src="./app.js?v=66"></script>
 </body>
 </html>

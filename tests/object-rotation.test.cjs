@@ -22,7 +22,7 @@ test('an older HTML shell can initialize and select an image without the on-page
   };
   const context={$,CREATIVE:tools,imageCropSession:null,state:{selected:0,tool:'select'},page:()=>({items:[image]}),
     activeGroup:()=>null,resizable:()=>true,itemBounds:tools.objectRect,document:{querySelectorAll:()=>[]}};
-  const selection=app.slice(app.indexOf('  function updateSelectionActions('),app.indexOf('  function rotateSelectedTo('));
+  const selection=app.slice(app.indexOf('  function selectedDisplayItem('),app.indexOf('  function rotateSelectedTo('));
   const binding=app.slice(app.indexOf('  function bindObjectTransformHandles('),app.indexOf('  function resizeObject('));
   vm.runInNewContext(selection+binding+'bindObjectTransformHandles();updateSelectionActions();',context);
   assert.equal($('selectionActions').hidden,false);

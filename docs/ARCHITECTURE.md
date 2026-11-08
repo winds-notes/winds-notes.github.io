@@ -3,6 +3,16 @@
 ## Runtime
 The site runs as **static HTML/CSS/JavaScript**, with no bundler or mandatory backend. An optional Node.js 22+ same-origin server provides persistent Google login and live previews. The root directory can be deployed unchanged to GitHub Pages. The `tools/dev-server.mjs` server is for development only.
 
+## Selection transforms and input defaults (v66)
+
+Stylus only defaults to enabled. An explicit checkbox choice is stored under winds-notes-input-preferences-v1 and restored independently of notebook data. Touch contacts pan or pinch in that mode; mouse editing remains available. Pencil detection never changes the preference. The missing-up/down recovery, palm guards and four non-passive Touch Event handlers are retained.
+
+Selection callbacks retain an original item reference and sample coordinates. A three-CSS-pixel movement threshold avoids accidental edits from tap jitter. Animation frames prepare selection-preview.js layers once per gesture: a lower page layer, the selected object sprite, and a transparent upper layer. Subsequent frames restore only the swept rectangle and composite the moving sprite in the original stacking order. Resizing uses the existing aspect-ratio/rotated-anchor geometry; shape outlines retain their own width. Each canvas is capped at 4,194,304 pixels and 4096 pixels per side, independent of zoom. Released canvases are reset in an animation frame. If allocation fails or the optional module is unavailable, a clipped vector redraw provides a fallback.
+
+Notebook objects remain unchanged during preview. Completed transforms enter the existing deferred interaction queue, wait for active input to finish, and produce one history snapshot and save notification. Moves translate the latest matching object to preserve intervening metadata and newly added ink. Account/page guards reject stale work. Pencil lost-release recovery preserves sampled movement; cancelled finger drags roll back. A selection generation prevents late area-selection results from replacing a newer selection. Select can leave a group by tapping another item. Hit tolerance is expressed in screen pixels; lines/arrows and closed figures use their actual geometry instead of an entire bounding rectangle.
+
+The v66 service worker reuses unchanged versioned artwork from the previous cache and copies it into the new shell cache. Cold artwork downloads remain limited to two concurrent requests. The new preview module is included in the HTML, offline list, Node server allowlist, Docker copy and syntax checks. Native version 1 and account workspace keys are unchanged.
+
 ## Rendering and Pencil input
 `app.js` maintains notebook/page state and two core drawing canvases: `#pageCanvas` for committed page contents, `#inkCanvas` for live ink. While the Pencil moves, only newly received points are drawn. After the user stops writing, pending ink is composited; local persistence is delayed to avoid stalls. Pressure samples are recorded as `[x,y,pressure]`. Initial pen thickness and shape outline width are both 7; changing the default does not rewrite widths in stored/imported items.
 
