@@ -5,20 +5,22 @@
   const cards=[],previewQueue=new Set(),$=id=>document.getElementById(id);
   function contextMatches(scope){const current=api.context();return current.workspace===scope.workspace&&current.bookId===scope.bookId&&current.pageId===scope.pageId&&current.version===scope.version;}
   function close(){epoch++;working=false;previewQueue.clear();if(dialog?.open)dialog.close();}
-  function paintPreviews(){
-    paintScheduled=false;
-    if(!dialog.open){previewQueue.clear();return;}
+  async function paintPreviews(){
+    if(!dialog.open){previewQueue.clear();paintScheduled=false;return;}
     let painted=0;
-    for(const record of previewQueue){
+    try{for(const record of previewQueue){
       previewQueue.delete(record);
       if(record.drawn||record.card.hidden)continue;
+      let prepared;
+      try{if(record.design.motif)prepared=await global.WindsCreative.prepareMandala(record.design.id);}
+      catch(error){record.card.title=error.message;record.preview.dataset.previewError='true';continue;}
+      if(!dialog.open||record.card.hidden)continue;
       record.preview.width=record.preview.height=220;
       const ctx=record.preview.getContext('2d');
-      if(ctx)global.WindsCreative.drawMandala(ctx,record.design.id,220);
+      if(ctx)global.WindsCreative.drawMandala(ctx,record.design.id,220,prepared);
       record.drawn=true;record.preview.dataset.previewReady='true';previewObserver?.unobserve(record.card);
-      if(++painted===3)break;
-    }
-    if(previewQueue.size)schedulePaint();
+      painted+=record.design.motif?3:1;if(painted>=3)break;
+    }}finally{paintScheduled=false;if(previewQueue.size&&dialog.open)schedulePaint();}
   }
   function schedulePaint(){
     if(paintScheduled)return;paintScheduled=true;
@@ -39,7 +41,7 @@
     const query=$('mandalaSearch').value.trim().toLowerCase(),collection=$('mandalaCollection').value;
     const visible=[];
     for(const record of cards){
-      const design=record.design,match=(collection==='all'||design.collection===collection)&&`${design.name} ${design.detail} ${design.collection||''} ${design.level}`.toLowerCase().includes(query);
+      const design=record.design,match=(collection==='all'||design.collection===collection)&&`${design.name} ${design.detail} ${design.collection||''} ${design.level} ${design.keywords||''}`.toLowerCase().includes(query);
       record.card.hidden=!match;if(match)visible.push(record);
     }
     if(!visible.some(record=>record.design.id===selected))selected=visible[0]?.design.id||'';
@@ -60,7 +62,8 @@
     const filters=document.createElement('div'),search=document.createElement('input'),collection=document.createElement('select');
     filters.className='mandala-filters';search.id='mandalaSearch';search.type='search';search.placeholder=`Search ${global.WindsCreative.MANDALA_DESIGNS.length} designs…`;search.setAttribute('aria-label','Search mandala designs');search.oninput=filterDesigns;
     collection.id='mandalaCollection';collection.setAttribute('aria-label','Mandala collection');collection.onchange=filterDesigns;
-    for(const [value,label] of [['all','All collections'],...['Floral','Geometric','Celestial','Ornamental','Nature'].map(name=>[name,name])]){
+    const collections=[...new Set(['Floral','Geometric','Celestial','Ornamental','Nature',...global.WindsCreative.MANDALA_DESIGNS.map(design=>design.collection)].filter(Boolean))];
+    for(const [value,label] of [['all','All collections'],...collections.map(name=>[name,name])]){
       const option=document.createElement('option');option.value=value;option.textContent=label;collection.append(option);
     }
     search.value='';collection.value='all';filters.append(search,collection);

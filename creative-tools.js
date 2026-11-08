@@ -3,10 +3,11 @@
  * touching the Apple Pencil pointer-event pipeline.
  */
 (function (root, factory) {
-  const api = factory();
+  const art=(root&&root.WindsMandalaArt)||(typeof module!=='undefined'&&module.exports?require('./mandala-art.js'):null);
+  const api = factory(art);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.WindsCreative = api;
-})(typeof window !== 'undefined' ? window : globalThis, function () {
+})(typeof window !== 'undefined' ? window : globalThis, function (ART) {
   'use strict';
 
   // Brush profiles are deliberately cheap to render on iPad. A single stroke
@@ -585,9 +586,15 @@
     mandalaDesign("seashell","Seashell Fan","Nature","Intricate","Nested fan-shaped shells around a circular center",[["petals",8,0.22,0.91,0.21],["petals",8,0.4,0.91,0.15],["petals",8,0.58,0.91,0.085],["ring",0.23]]),
     mandalaDesign("butterfly","Butterfly Circle","Nature","Calm","Six small butterflies orbiting a central blossom",[["petals",6,0.13,0.36,0.12],["butterflies",6,0.61,0.22,0.095],["ring",0.88],["ring",0.4]]),
     mandalaDesign("leaf-wreath","Leaf Wreath","Nature","Calm","Two rings of leaves with generous spaces for color",[["leaves",6,0.16,0.52,0.16],["leaves",12,0.54,0.9,0.095,0.262],["ring",0.54]]),
-    mandalaDesign("raindrop","Raindrop Ripples","Nature","Focused","Twelve drop-shaped petals inside soft water ripples",[["petals",12,0.23,0.86,0.11],["circles",12,0.61,0.04],["wave",12,0.9,0.025],["ring",0.21]])
+    mandalaDesign("raindrop","Raindrop Ripples","Nature","Focused","Twelve drop-shaped petals inside soft water ripples",[["petals",12,0.23,0.86,0.11],["circles",12,0.61,0.04],["wave",12,0.9,0.025],["ring",0.21]]),
+    ...(ART?.DESIGNS||[])
   ]);
-  function drawMandala(ctx,id,size){
+  function prepareMandala(id){
+    const design=MANDALA_DESIGNS.find(design=>design.id===id);
+    if(!design)return Promise.reject(Error('Choose an available mandala design.'));
+    return design.motif?ART.prepare(id):Promise.resolve(null);
+  }
+  function drawMandala(ctx,id,size,prepared){
     const design=MANDALA_DESIGNS.find(design=>design.id===id);
     if(!design||!Number.isFinite(size)||size<16||size>4096)throw Error('Choose a valid mandala design and size.');
     ctx.save();
@@ -617,7 +624,8 @@
           ctx.beginPath();ctx.moveTo(inner+span*(t+.12),0);ctx.lineTo(x,y);ctx.stroke();
         }
       };
-      if(design.layers){
+      if(design.motif){ART.draw(ctx,design,prepared);}
+      else if(design.layers){
         for(const [kind,a,b,c,d=0,e=0] of design.layers){
           if(kind==='ring')circle(a);
           else if(kind==='petals')repeat(a,()=>petal(b,c,d),e);
@@ -654,7 +662,7 @@
   }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({MANDALA_DESIGNS,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
+  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,

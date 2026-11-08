@@ -1975,10 +1975,11 @@
     if(target.pages.length>=750)throw Error('This notebook has 750 pages. Create a new notebook for coloring.');
     const index=target.pages.findIndex(item=>item.id===scope.pageId);
     if(index<0)throw Error('The original page is no longer available.');
+    const prepared=await CREATIVE.prepareMandala(designId);check();
     const canvas=document.createElement('canvas');canvas.width=canvas.height=1400;
     try{
       const ctx=canvas.getContext('2d');if(!ctx)throw Error('Not enough canvas memory. Close another notebook tab and try again.');
-      CREATIVE.drawMandala(ctx,designId,1400);
+      CREATIVE.drawMandala(ctx,designId,1400,prepared);
       const src=canvas.toDataURL('image/png'),image=new Image();image.src=src;await image.decode();check();
       const added=makePage('blank','portrait');
       added.items=[
