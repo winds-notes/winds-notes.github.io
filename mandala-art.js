@@ -14,10 +14,27 @@
     ['lotus-sanctuary','Lotus Sanctuary','Buddha & Zen'],['dharma-wheel','Dharma Wheel','Buddha & Zen'],['endless-knot','Endless Knot','Buddha & Zen'],['stupa','Temple of Stillness','Buddha & Zen'],['zen-bonsai','Zen Bonsai','Buddha & Zen']
   ];
   const DESIGNS=Object.freeze(subjects.map(([motif,name,collection],variant)=>Object.freeze({id:'art-'+motif,name,collection,level:'Intricate',detail:`Ornamental ${name.toLowerCase()} illustration with flowing botanical linework and a coordinated decorative frame`,motif,variant,keywords:'advanced complex illustrated '+(collection==='Buddha & Zen'?'buddha budha budhha meditation spiritual':'')})));
-  const ASSETS=Object.freeze(DESIGNS.map(design=>'./assets/mandalas/'+design.motif+'.webp'));
+  const ASSETS=Object.freeze(DESIGNS.map(design=>'./assets/mandalas/'+design.motif+'.js?v=65'));
   const source=typeof document!=='undefined'&&document.currentScript?.src;
   const base=source?new URL('./assets/mandalas/',source).href:'./assets/mandalas/';
-  const ready=new Map(),pending=new Map();let decoding=Promise.resolve();
+  const ready=new Map(),pending=new Map(),receivers=new Map();let decoding=Promise.resolve();
+  // Script-wrapped data URLs work from file:// as well as HTTPS. Drawing a
+  // directly loaded local image would taint the canvas and prevent page saving.
+  function register(id,src){
+    const receive=receivers.get(id);
+    if(receive&&typeof src==='string'&&src.startsWith('data:image/webp;base64,')&&src.length<=12000000)receive(src);
+  }
+  function imageSource(design){
+    return new Promise((resolve,reject)=>{
+      const script=document.createElement('script');let received=false;
+      const finish=()=>{clearTimeout(timer);if(receivers.get(design.id)===receive)receivers.delete(design.id);script.onload=script.onerror=null;script.remove();};
+      const timer=setTimeout(()=>{finish();reject(Error('Artwork loading timed out.'));},20000);
+      const receive=src=>{received=true;finish();resolve(src);};receivers.set(design.id,receive);
+      script.onload=()=>{if(!received){finish();reject(Error('The artwork file is incomplete.'));}};
+      script.onerror=()=>{finish();reject(Error('The artwork file could not load.'));};
+      script.async=true;script.src=base+design.motif+'.js?v=65';document.head.append(script);
+    });
+  }
   // Decode on demand. Callers retain their prepared record if the six-image
   // memory cache evicts it while another illustration is being prepared.
   function prepare(id){
@@ -27,7 +44,7 @@
     if(pending.has(id))return pending.get(id);
     const job=decoding.then(async()=>{
       if(typeof root.Image!=='function')throw Error('Illustrations need an image-capable browser.');
-      const image=new root.Image();image.decoding='async';image.src=base+design.motif+'.webp';await image.decode();
+      const image=new root.Image();image.decoding='async';image.src=await imageSource(design);await image.decode();
       if(!image.naturalWidth||!image.naturalHeight)throw Error('The illustration could not be decoded.');
       const record=Object.freeze({id,image});ready.set(id,record);
       while(ready.size>6)ready.delete(ready.keys().next().value);
@@ -42,5 +59,5 @@
     if(!record||record.id!==design.id)throw Error('Prepare this illustration before drawing it.');
     ctx.drawImage(record.image,-1,-1,2,2);
   }
-  return Object.freeze({DESIGNS,ASSETS,prepare,draw});
+  return Object.freeze({DESIGNS,ASSETS,prepare,draw,register});
 });
