@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Pencil eraser recovery check</title>
+<style>body{font:16px system-ui;margin:24px;background:#f4f5fa;color:#292b46}button{padding:12px 18px}canvas{display:block;width:840px;max-width:100%;background:white;margin-top:20px;border:1px solid #ddd}p{max-width:840px;line-height:1.5}</style>
+<h1>Pencil eraser recovery check</h1><p>Synthetic Pencil events exercise the actual app input functions and live preview with real Canvas pixels. This checks application routing; it does not simulate WebKit delivering physical Pencil events.</p>
+<button id="run">Check Pencil erasing</button><p id="result" role="status">Not run</p><canvas id="sheet" width="840" height="400"></canvas>
+<script src="../../eraser-preview.js?v=49"></script><script>
+const sheet=document.getElementById('sheet'),ctx=sheet.getContext('2d'),status=document.getElementById('result');
+function paper(c){c.fillStyle='#fff';c.fillRect(0,0,840,400);}
+function source(){paper(ctx);ctx.fillStyle='#2b2d4c';ctx.fillRect(80,80,200,120);}
+source();document.getElementById('run').onclick=async()=>{try{
+ const app=await(await fetch('../../app.js?v=49')).text(),helpers=app.slice(app.indexOf('  function point('),app.indexOf('  let pinchRAF=')),handlers=app.slice(app.indexOf('  function pointerDown('),app.indexOf('  function beginText('));
+ const factory=new Function('env','const {state,W,H,$,page,clipboardContext,eraserPreview,eraserPreviewKey,queueInteractionOverlay,deferInteraction,endPinch,PALM_GUARD_MS}=env;'+helpers+handlers+'return {pointerDown,pointerMove,pointerUp,pointerCancel,pointerLostCapture};');
+ function setup(){source();const item={id:'shape',type:'shape',x:80,y:80,w:200,h:120},box={x:80,y:80,w:200,h:120},key={scope:{account:'test',book:'b',page:'p'},revision:0,width:840,height:400,inkOnly:false},jobs=[];
+  const engine=WindsEraserPreview.create({makeCanvas:()=>document.createElement('canvas'),bounds:()=>box,visualBounds:()=>box,localPoint:(item,p)=>p});if(!engine.prepare(key,[item],paper))throw Error('Preview unavailable');
+  const state={tool:'eraser',editingText:null,lastPenAt:0,stylusSeen:true,penOnly:false,pointers:new Map(),drag:null,pinch:null,eraserSize:20,eraserInkOnly:false};
+  const api=factory({state,W:840,H:400,$:()=>sheet,page:()=>({items:[item]}),clipboardContext:()=>key.scope,eraserPreview:engine,eraserPreviewKey:()=>key,queueInteractionOverlay(){},deferInteraction:g=>jobs.push(g),endPinch(){throw Error('Unexpected pinch');},PALM_GUARD_MS:2400});
+  const event=(id,x,y,extra={})=>{const r=sheet.getBoundingClientRect();return {pointerType:'pen',pointerId:id,clientX:r.left+x*r.width/840,clientY:r.top+y*r.height/400,pressure:.5,buttons:1,button:0,cancelable:true,preventDefault(){},currentTarget:{setPointerCapture(){}},...extra};};
+  return {api,event,jobs,state,paint:()=>{while(engine.hasWork())engine.paint(ctx,key.scope);}};
+ }
+ const e=setup();e.api.pointerMove(e.event(1,100,100));if(e.state.drag?.kind!=='erase')throw Error('Missing start was not recovered');
+ e.api.pointerMove(e.event(1,200,100,{getCoalescedEvents:()=>[e.event(1,120,130),e.event(1,150,160),e.event(1,180,130)]}));e.api.pointerUp(e.event(1,220,120,{buttons:0,pressure:0}));e.paint();
+ const white=(x,y)=>Array.from(ctx.getImageData(x,y,1,1).data).slice(0,3).every(n=>n>250);
+ if(!white(150,160)||!white(220,120)||white(250,180))throw Error('Curved samples, end position or untouched pixels failed');
+ const paths=e.jobs.map(g=>g.points.length);if(paths[0]!==6)throw Error('Durable path omitted samples');
+ const rapid=setup();for(let i=1;i<=20;i++){const start=rapid.event(i,90+i*8,100);if(i%3===0)rapid.api.pointerMove(start);else rapid.api.pointerDown(start);rapid.api.pointerMove(rapid.event(i,90+i*8,180));if(i%4!==0)rapid.api.pointerUp(rapid.event(i,90+i*8,190));}rapid.api.pointerLostCapture(rapid.event(20,250,190));rapid.paint();
+ if(rapid.jobs.length!==20||rapid.jobs.some(g=>g.cancelledPreview))throw Error('A rapid Pencil erase was discarded');
+ status.textContent='PASS — 20/20 Pencil passes retained despite simulated missing starts/ends; lost capture retained samples; curved intermediate and lift-off pixels erased while untouched pixels stayed intact.';
+ }catch(error){status.textContent='FAIL — '+error.message;}};
+</script></html>

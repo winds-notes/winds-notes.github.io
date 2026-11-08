@@ -1,0 +1,16 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+dist/
+*.bak
+*.enc
+*.key
+*.pem
+*.p12
+*.pfx
+playwright-report/
+test-results/

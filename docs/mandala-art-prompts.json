@@ -1,0 +1,253 @@
+{
+  "tool": "built-in image_gen",
+  "transparent_background": true,
+  "shared_prompt": "Use case: illustration-story. Asset type: individual square production illustration for a sophisticated adult mandala coloring library. Subject: SUBJECT. Style: exceptional wildlife/botanical engraving line illustration, elegant mature editorial craftsmanship, believable subject anatomy with intricate flowing botanical and paisley ornamentation integrated into its contours, rather than uniform grid textures. Compose one beautifully balanced centerpiece surrounded by a delicate matching circular ornamental halo, generous 6% empty margin. Crisp dark charcoal outlines, strong outer contour and finer interior outlines, many well-separated CLOSED compartments suitable for tap-to-fill coloring. ALL negative spaces and coloring interiors must be fully transparent. Only linework and tiny pupils. NO white fills, shading, hatching, gray wash, color, solid dark large areas, text, signatures, watermarks, cartoon or schematic mask. Detailed yet legible at 700px. Single composition only.",
+  "subject_replacements": [
+    {
+      "id": "tiger",
+      "asset": "assets/mandalas/tiger.js",
+      "subject": "a realistic frontal Bengal tiger head; graceful tiger stripes redesigned as closed botanical ribbons, rounded ears, intense natural feline eyes, broad muzzle"
+    },
+    {
+      "id": "elephant",
+      "asset": "assets/mandalas/elephant.js",
+      "subject": "a majestic frontal Asian elephant head, large anatomically accurate ears with lotus filigree, long centered curled trunk with ornamental bands, two graceful tusks"
+    },
+    {
+      "id": "wolf",
+      "asset": "assets/mandalas/wolf.js",
+      "subject": "a realistic frontal grey wolf portrait; angular ears, long tapered muzzle and natural canid eyes, fur turning into flowing ornamental leaves"
+    },
+    {
+      "id": "fox",
+      "asset": "assets/mandalas/fox.js",
+      "subject": "an elegant realistic red fox head; tall alert ears, narrow pointed muzzle and layered cheek fur embellished with delicate botanical arabesques"
+    },
+    {
+      "id": "cat",
+      "asset": "assets/mandalas/cat.js",
+      "subject": "an elegant realistic long-haired cat portrait, intelligent almond eyes, believable whisker pads and triangular ears, flowing fur ornamented with intricate paisley leaves"
+    },
+    {
+      "id": "dog",
+      "asset": "assets/mandalas/dog.js",
+      "subject": "a dignified realistic golden retriever portrait, naturally floppy ears, long muzzle, gentle small eyes, flowing fur embellished with graceful botanical filigree"
+    },
+    {
+      "id": "horse",
+      "asset": "assets/mandalas/horse.js",
+      "subject": "a noble Arabian horse in three-quarter profile, believable equine face, upright ears and elegant curved neck, flowing mane composed of ornate closed botanical ribbons"
+    },
+    {
+      "id": "deer",
+      "asset": "assets/mandalas/deer.js",
+      "subject": "a graceful realistic frontal stag head with accurate branching antlers, long ears, gentle eyes, tapered muzzle, antlers and neck embellished with botanical tracery"
+    },
+    {
+      "id": "bear",
+      "asset": "assets/mandalas/bear.js",
+      "subject": "a dignified realistic frontal brown bear portrait with rounded ears, heavy brow, powerful muzzle and thick fur integrated with woodland arabesques"
+    },
+    {
+      "id": "panda",
+      "asset": "assets/mandalas/panda.js",
+      "subject": "a realistic giant panda head with rounded ears and recognizable eye patches drawn as outlined closed ornamental compartments, no filled black patches; bamboo-leaf ornamentation"
+    },
+    {
+      "id": "koala",
+      "asset": "assets/mandalas/koala.js",
+      "subject": "a recognizable realistic koala portrait with broad fluffy round ears, large oval nose drawn in closed ornamented outlines and small natural eyes, eucalyptus-leaf filigree"
+    },
+    {
+      "id": "rabbit",
+      "asset": "assets/mandalas/rabbit.js",
+      "subject": "a graceful realistic hare portrait with long upright ears, fine narrow face, small nose and large gentle eyes, meadow-flower ornamentation"
+    },
+    {
+      "id": "giraffe",
+      "asset": "assets/mandalas/giraffe.js",
+      "subject": "an elegant realistic giraffe portrait with long neck, two ossicones, broad ears and natural eyes, iconic giraffe patches converted into closed floral medallions"
+    },
+    {
+      "id": "zebra",
+      "asset": "assets/mandalas/zebra.js",
+      "subject": "a noble realistic zebra head in three-quarter view, long muzzle, short upright mane, natural ears, flowing striped ribbon patterns divided into closed coloring sections"
+    },
+    {
+      "id": "rhino",
+      "asset": "assets/mandalas/rhino.js",
+      "subject": "a powerful realistic rhinoceros head in three-quarter profile, distinct large curved nose horn and small second horn, natural small eyes and ears, layered ornamental armor-like folds"
+    },
+    {
+      "id": "ram",
+      "asset": "assets/mandalas/ram.js",
+      "subject": "a realistic bighorn ram portrait with anatomically beautiful large curled horns, long narrow face and wool curls transformed into acanthus ornamentation"
+    },
+    {
+      "id": "buffalo",
+      "asset": "assets/mandalas/buffalo.js",
+      "subject": "a majestic realistic water buffalo head with broad sweeping crescent horns, large nose and strong brow, botanical horn bands and ornate fur tracery"
+    },
+    {
+      "id": "monkey",
+      "asset": "assets/mandalas/monkey.js",
+      "subject": "a serene realistic macaque portrait with expressive natural primate eyes, long cheek fur, rounded ears and sculpted muzzle, ornamentation following facial planes"
+    },
+    {
+      "id": "cheetah",
+      "asset": "assets/mandalas/cheetah.js",
+      "subject": "an elegant realistic cheetah portrait, small rounded ears, slender feline head, characteristic outlined tear marks and rosettes ornamented as closed botanical cells"
+    },
+    {
+      "id": "snow-leopard",
+      "asset": "assets/mandalas/snow-leopard.js",
+      "subject": "a majestic realistic snow leopard head, broad face, small rounded ears, expressive feline eyes, thick fur and natural spot outlines turned into floral arabesques"
+    },
+    {
+      "id": "dragon",
+      "asset": "assets/mandalas/dragon.js",
+      "subject": "an exquisite East Asian celestial dragon head and coiled neck, elegant branching antler horns, flowing whiskers, fierce intelligent eyes and individually outlined ornamental scales"
+    },
+    {
+      "id": "unicorn",
+      "asset": "assets/mandalas/unicorn.js",
+      "subject": "a noble realistic horse-like unicorn in profile, long spiraling single horn, graceful curved neck and elaborate flowing mane of botanical ribbons, mature elegant fantasy art"
+    },
+    {
+      "id": "red-panda",
+      "asset": "assets/mandalas/red-panda.js",
+      "subject": "a recognizable realistic red panda portrait, small round ears, broad fluffy cheeks, outlined facial markings, natural small eyes and botanical bamboo filigree"
+    },
+    {
+      "id": "gazelle",
+      "asset": "assets/mandalas/gazelle.js",
+      "subject": "a graceful realistic gazelle head and elegant neck, long slender ridged lyrate horns, large ears, natural dark eye shapes outlined for coloring, desert-flower ornamentation"
+    },
+    {
+      "id": "owl",
+      "asset": "assets/mandalas/owl.js",
+      "subject": "a realistic Eurasian eagle owl portrait, large detailed natural eyes, ear tufts, layered facial discs and individually ornamented feathers, wise dignified expression"
+    },
+    {
+      "id": "peacock",
+      "asset": "assets/mandalas/peacock.js",
+      "subject": "a realistic graceful peacock with small natural head, slender curved neck and magnificent fanned tail; each long feather has an ornate outlined eyespot and flowing closed subdivisions"
+    },
+    {
+      "id": "eagle",
+      "asset": "assets/mandalas/eagle.js",
+      "subject": "a majestic realistic eagle flying with outstretched wings, accurate hooked beak and expressive eye, each layered primary feather carefully shaped and internally ornamented"
+    },
+    {
+      "id": "swan",
+      "asset": "assets/mandalas/swan.js",
+      "subject": "an elegant realistic mute swan in profile, gracefully curved S-neck and layered folded wings, floating on ornamental lotus ripples"
+    },
+    {
+      "id": "phoenix",
+      "asset": "assets/mandalas/phoenix.js",
+      "subject": "an exquisite elegant phoenix with outstretched layered wings, realistic bird anatomy, graceful small head and long flowing ornate flame-like tail feathers"
+    },
+    {
+      "id": "hummingbird",
+      "asset": "assets/mandalas/hummingbird.js",
+      "subject": "an exquisite realistic hummingbird hovering beside a hibiscus blossom, long slender beak, tiny natural eye and gracefully spread intricately ornamented wings"
+    },
+    {
+      "id": "parrot",
+      "asset": "assets/mandalas/parrot.js",
+      "subject": "a magnificent realistic macaw parrot perched on a curved tropical flowering branch, accurate curved beak, long elegant tail and clearly layered ornate feathers"
+    },
+    {
+      "id": "crane",
+      "asset": "assets/mandalas/crane.js",
+      "subject": "an elegant realistic Japanese crane standing in lotus water, long fine legs, sinuous neck, accurate slender bill, natural layered wing feathers and botanical ripple ornament"
+    },
+    {
+      "id": "turtle",
+      "asset": "assets/mandalas/turtle.js",
+      "subject": "a realistic sea turtle viewed from above swimming diagonally, anatomically accurate head and long graceful flippers; intricately ornamented polygonal shell scutes and fine closed seaweed motifs"
+    },
+    {
+      "id": "dolphin",
+      "asset": "assets/mandalas/dolphin.js",
+      "subject": "a graceful anatomically accurate bottlenose dolphin arcing through an ornate circular wreath of ocean waves, correct beak, dorsal fin and horizontal tail flukes, flowing closed paisley body divisions"
+    },
+    {
+      "id": "koi",
+      "asset": "assets/mandalas/koi.js",
+      "subject": "a beautiful realistic Japanese koi curving gracefully, accurate natural fish head, fine outlined scales, delicate flowing fins and tail, framed by lotus flowers and ornamental water"
+    },
+    {
+      "id": "koi-pair",
+      "asset": "assets/mandalas/koi-pair.js",
+      "subject": "two beautiful realistic Japanese koi circling in a balanced yin-yang composition, separate recognizable heads and flowing fins, fine outlined scales and lotus water ornaments"
+    },
+    {
+      "id": "seahorse",
+      "asset": "assets/mandalas/seahorse.js",
+      "subject": "an exquisite anatomically recognizable seahorse in profile, horse-like head, long tubular snout and tightly curled prehensile tail, individually ornamented armor rings and seaweed wreath"
+    },
+    {
+      "id": "whale",
+      "asset": "assets/mandalas/whale.js",
+      "subject": "a majestic anatomically accurate humpback whale in graceful profile, long pectoral fins, pleated throat and horizontal flukes, belly and back ornamented with flowing closed ocean arabesques"
+    },
+    {
+      "id": "octopus",
+      "asset": "assets/mandalas/octopus.js",
+      "subject": "an exquisite realistic octopus with natural bulbous mantle, two small realistic eyes and eight elegantly curling distinct tentacles, outlined suckers and marine botanical ornament"
+    },
+    {
+      "id": "buddha-meditation",
+      "asset": "assets/mandalas/buddha-meditation.js",
+      "subject": "a respectful serene Buddha seated in full lotus meditation, anatomically natural hands resting in dhyana mudra, refined calm face, closed eyes, elongated earlobes, ushnisha, flowing robe folds with restrained lotus ornament and intricate halo"
+    },
+    {
+      "id": "buddha-face",
+      "asset": "assets/mandalas/buddha-face.js",
+      "subject": "a respectful refined serene Buddha head and shoulders, natural balanced facial anatomy, gently closed eyes, subtle smile, long earlobes, finely outlined hair curls and ushnisha, ornate lotus halo"
+    },
+    {
+      "id": "buddha-lotus",
+      "asset": "assets/mandalas/buddha-lotus.js",
+      "subject": "a respectful serene Buddha seated in meditation on a magnificent many-layered lotus throne, natural refined face and hands, flowing monastic robe with graceful ornamental folds and intricate circular halo"
+    },
+    {
+      "id": "buddha-blessing",
+      "asset": "assets/mandalas/buddha-blessing.js",
+      "subject": "a respectful serene Buddha seated on a lotus throne with one natural right hand raised in abhaya blessing mudra, accurate five fingers, refined calm face, closed eyes, elegant robe folds and intricate lotus halo"
+    },
+    {
+      "id": "bodhi-tree",
+      "asset": "assets/mandalas/bodhi-tree.js",
+      "subject": "an exquisite sacred Bodhi tree with organically branching trunk and heart-shaped leaves, intricate roots, curling branches and individually ornamented closed leaves, circular botanical composition"
+    },
+    {
+      "id": "lotus-sanctuary",
+      "asset": "assets/mandalas/lotus-sanctuary.js",
+      "subject": "a respectful serene meditating Buddha within a beautiful pointed stone sanctuary arch, natural face and hands, surrounded by layered lotus blossoms and ornate closed architectural carvings"
+    },
+    {
+      "id": "dharma-wheel",
+      "asset": "assets/mandalas/dharma-wheel.js",
+      "subject": "an exquisitely precise eight-spoked Buddhist Dharma wheel, perfectly balanced eight spokes, ornate lotus hub, double circular rim with beautifully subdivided closed lotus and paisley sections"
+    },
+    {
+      "id": "endless-knot",
+      "asset": "assets/mandalas/endless-knot.js",
+      "subject": "a beautiful traditional Buddhist endless knot with continuous interlaced ribbons and clearly readable over-under weaving, elegant knotwork at center surrounded by intricate lotus arabesque wreath"
+    },
+    {
+      "id": "stupa",
+      "asset": "assets/mandalas/stupa.js",
+      "subject": "an exquisite symmetrical traditional Buddhist stupa with domed reliquary, square harmika and tiered spire, richly ornamented stepped base and lotus architectural carvings, framed by botanical halo"
+    },
+    {
+      "id": "zen-bonsai",
+      "asset": "assets/mandalas/zen-bonsai.js",
+      "subject": "an exquisite mature Japanese bonsai with gracefully twisted organic trunk, natural layered cloud-like foliage clusters and exposed roots in an ornate shallow ceramic pot, circular botanical zen composition"
+    }
+  ],
+  "lion_prompt": "Use case: illustration-story. Asset type: production artwork for an adult mandala coloring library, one square image. Create an exceptionally refined, intricate LION HEAD mandala coloring illustration. Anatomy: a majestic realistic frontal African male lion with believable feline eyes, broad nose, divided muzzle, organic mane and small rounded ears. Design a flowing bilateral mane from layered ornamental acanthus leaves, teardrop paisleys, botanical curls and finely subdivided petals, integrated into the anatomy, not a generic repeating pattern clipped inside a silhouette. Crown a delicate, precise circular arabesque halo behind it. Mature editorial tattoo-engraving aesthetics, composed by a skilled wildlife illustrator. Crisp uniform dark charcoal vector-like outlines, thicker outer contours and finer interior lines; many well-separated CLOSED compartments for tap-to-fill coloring. Only linework and tiny dark pupils, absolutely NO shading, hatching, gray wash, color, solid black large areas, white fills, text, signature or watermark. ALL negative space and coloring interiors fully transparent, not white. Center whole artwork comfortably within square, 6% empty margin on all sides. Not cartoon, emoji, geometric low poly, schematic animal mask, or repeated wallpaper grid. Complex but legible at 700 px. Output single lion composition only."
+}
