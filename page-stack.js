@@ -25,10 +25,16 @@
     for(const [id,card] of cards)if(!wanted.has(id)){if(card.contains(shell))root.append(shell);observer.unobserve(card);card.remove();cards.delete(id);visible.delete(id);}
     for(let index=0;index<pages.length;index++){
       const page=pages[index],d=api.dimensions(page);let card=cards.get(page.id);
-      if(!card){card=document.createElement('section');card.className='notebook-stack-page';card.dataset.stackPage=page.id;const button=document.createElement('button');button.className='stack-page-heading';button.type='button';button.onclick=()=>{if(!busy())api.activate(page.id,false);};const body=document.createElement('div');body.className='stack-page-body';const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.setAttribute('aria-hidden','true');body.append(canvas);card.append(button,body);cards.set(page.id,card);root.append(card);observer.observe(card);dirty.add(page.id);layoutWidth=0;
+      if(!card){card=document.createElement('section');card.className='notebook-stack-page';card.dataset.stackPage=page.id;
+        const header=document.createElement('div');header.className='stack-page-header';
+        const button=document.createElement('button');button.className='stack-page-heading';button.type='button';button.onclick=()=>{if(!busy())api.activate(page.id,false);};
+        const remove=document.createElement('button');remove.className='stack-page-delete';remove.type='button';remove.textContent='Delete';remove.onclick=()=>{if(!busy())api.remove(page.id);};
+        header.append(button,remove);
+        const body=document.createElement('div');body.className='stack-page-body';const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.setAttribute('aria-hidden','true');body.append(canvas);card.append(header,body);cards.set(page.id,card);root.append(card);observer.observe(card);dirty.add(page.id);layoutWidth=0;
         body.onclick=event=>{if(event.target===canvas&&!busy())api.activate(page.id,true);};
       }
       card.querySelector('button').textContent=`Page ${index+1}${page.id===api.active()?' · Writing here':' · Tap to write'}`;
+      const remove=card.querySelector('.stack-page-delete');remove.disabled=pages.length===1;remove.setAttribute('aria-label',`Delete page ${index+1}`);remove.title=pages.length===1?'A notebook needs at least one page':`Delete page ${index+1}`;
       const body=card.querySelector('.stack-page-body');body.style.aspectRatio=`${d.width}/${d.height}`;
       card.classList.toggle('active-page',page.id===api.active());if(page.id===api.active()){body.append(shell);card.querySelector('canvas').width=card.querySelector('canvas').height=1;}
       const at=root.children[index];if(at!==card)root.insertBefore(card,at||null);

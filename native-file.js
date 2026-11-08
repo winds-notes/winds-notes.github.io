@@ -96,7 +96,7 @@
   }
   function serialize(notebook){
     check(isObject(notebook) && typeof notebook.title==='string' && Array.isArray(notebook.pages),'Cannot save invalid notebook');
-    const {_sharing,...content}=notebook;
+    const {_sharing,_sync,...content}=notebook;
     return JSON.stringify({format:FORMAT,version:VERSION,application:'WiNDS Notes',exportedAt:new Date().toISOString(),pageSize:{portrait:{width:840,height:1188},landscape:{width:1188,height:840}},notebook:content});
   }
   function validateShared(notebook){

@@ -22,6 +22,7 @@
   const $ = id => document.getElementById(id);
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const clone = value => JSON.parse(JSON.stringify(value));
+  const workspaceActor = 'tab-'+uid();
   const safe = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const COVER_COLORS = ['purple','blue','peach','green','lilac','yellow'];
   const COLORS = ['#2b2d4c','#6457ed','#e96576','#e7a43a','#39a68c','#4777c8','#9a62b4'];
@@ -357,6 +358,7 @@
     dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();
     saving=true;
     try{
+      for(const n of state.notebooks)if(full||bookIds.includes(n.id))globalThis.WindsWorkspaceModel.capture(n,workspaceActor);
       saveTask=full?writeData({version:2,notebooks:state.notebooks}):writeChanged(bookIds,pageIds);
       await saveTask;
       if(version===saveVersion)statusText('Saved');
@@ -364,10 +366,12 @@
       // Receiving a remote edit is not a new local edit. The merge reports
       // whether this device has additional content that needs uploading.
       if(!fromDrive)window.WindsDrive?.onLocalSave?.();
+      return true;
     }catch(err){
       dirtyAll=true;statusText('Not saved — back up your notes',true);
       toast('Saving failed. Export an editable backup to protect your notes.');
       console.error(err);
+      return false;
     }finally{saving=false;saveTask=null;}
   }
   // Each signed-in Google identity has a dedicated local IndexedDB.
@@ -418,14 +422,20 @@
       state.activeId=null;state.pageIndex=0;state.selected=-1;
       state.notebooks=Array.isArray(incoming?.notebooks)?incoming.notebooks:[];
       tombstones=incoming?.deleted&&typeof incoming.deleted==='object'?incoming.deleted:{};
+      initializeSyncHistory();
       statusText('Saved');
       $('searchNotebooks').value='';view('library');renderLibrary();
     }finally{unlock();}
   }
 
+  function initializeSyncHistory(){
+    // Establish old notebooks' baseline before the first edit. It is persisted
+    // by the next idle save; a read-only reopen computes the same baseline.
+    for(const n of state.notebooks)if(!n._sync&&!n._sharing)globalThis.WindsWorkspaceModel.capture(n,workspaceActor);
+  }
   function workspaceSnapshot(){
     // Drive serializes this view synchronously before starting the upload.
-    return {format:'winds-notes-backup',version:2,exportedAt:now(),notebooks:state.notebooks,deleted:tombstones};
+    return {format:'winds-notes-backup',version:2,exportedAt:now(),syncVersion:1,notebooks:state.notebooks,deleted:tombstones};
   }
   function cloudSyncDelay(){
     if(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
@@ -441,41 +451,70 @@
     if(state.activeId&&notebook()){for(const p of notebook().pages)globalThis.WindsPageStack?.dirty(p.id);state.pageIndex=Math.min(state.pageIndex,notebook().pages.length-1);renderEditor();}
     else{state.activeId=null;view('library');renderLibrary();}
   }
+  function reconcileCloudHistory(final,model){
+    const nextBooks=new Map(final.map(n=>[n.id,n]));
+    for(const before of state.notebooks){
+      if(before._sharing)continue;
+      const after=nextBooks.get(before.id),nextPages=new Map((after?.pages||[]).map(p=>[p.id,p]));
+      for(const p of before.pages){
+        const next=nextPages.get(p.id),h=history.get(p.id);
+        if(!next){history.delete(p.id);continue;}
+        const unchanged=model.equal(p.items,next.items);
+        if(!unchanged&&state.activeId===before.id){state.selected=-1;groupSelection=null;}
+        if(!h)continue;
+        const oldItems=new Map(p.items.map(i=>[i.id,i])),nextItems=new Map(next.items.map(i=>[i.id,i]));
+        h.undo=h.undo.filter(action=>action.kind==='append'?nextItems.has(action.item.id)&&model.equal(oldItems.get(action.item.id),nextItems.get(action.item.id)):unchanged);
+        h.redo=h.redo.filter(action=>{
+          if(action.kind!=='append')return unchanged;
+          const key=JSON.stringify(['item',p.id,action.item.id]);
+          return !nextItems.has(action.item.id)&&model.equal(before._sync?.fields[key],after._sync?.fields[key]);
+        });
+      }
+    }
+  }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     const account=workspaceId;
-    if(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
     }
     if(!snapshot || snapshot.format!=='winds-notes-backup' || !Array.isArray(snapshot.notebooks) || snapshot.notebooks.length>750)throw new Error('Invalid Drive workspace');
+    const model=globalThis.WindsWorkspaceModel;
+    if(!model)throw new Error('Sync components are unavailable. Reload the app before syncing.');
     const remoteDeleted=snapshot.deleted&&typeof snapshot.deleted==='object'?snapshot.deleted:{};
     const mergedDeleted={...tombstones};
-    for(const [id,when] of Object.entries(remoteDeleted))if(typeof when==='string' && (!mergedDeleted[id] || when>mergedDeleted[id]))mergedDeleted[id]=when;
-    const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map();
-    for(const n of snapshot.notebooks){
+    for(const [id,mark] of Object.entries(remoteDeleted))mergedDeleted[id]=model.mergeDeletion(mergedDeleted[id],mark);
+    const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map(),recoveries=[];
+    for(const raw of snapshot.notebooks){
+      const n=clone(raw);
       if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>500 || n.pages.some(p=>!Array.isArray(p.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
-      remoteBooks.set(n.id,n);
+      remoteBooks.set(n.id,raw);
       const local=merged.get(n.id);
-      // Shared edits have their own immutable Drive history. A private backup
-      // must not overwrite that notebook's local baseline or pending edits.
+      // Shared notebooks retain their separate immutable edit history/outbox.
       if(local?._sharing)continue;
-      if(!local || (n.updatedAt||'')>(local.updatedAt||''))merged.set(n.id,n);
+      if(n._sharing){if(!local)merged.set(n.id,n);continue;}
+      if(!local){model.capture(n,'legacy-remote');merged.set(n.id,n);}
+      else{
+        const result=model.merge(local,n);recoveries.push(...result.recoveries);
+        if(!model.equal(local,result.book))merged.set(n.id,result.book);
+      }
     }
-    const final=[...merged.values()].filter(n=>!(mergedDeleted[n.id] && mergedDeleted[n.id]>=(n.updatedAt||'')));
-    // The merge retains the same notebook objects unless it accepts newer data.
-    const hasChanges=final.length!==state.notebooks.length||final.some((n,index)=>n!==state.notebooks[index])||
-      Object.keys(mergedDeleted).some(id=>mergedDeleted[id]!==tombstones[id]);
-    // Newer remote notebooks are already the same objects in `final`; only
-    // compare retained local notebooks. A read-only device must not echo the
-    // whole workspace back to Drive, but local-only books/deletions still sync.
-    const needsUpload=final.length!==snapshot.notebooks.length||final.some(n=>n!==remoteBooks.get(n.id)&&JSON.stringify(n)!==JSON.stringify(remoteBooks.get(n.id)))||
-      Object.keys(mergedDeleted).length!==Object.keys(remoteDeleted).length||Object.entries(mergedDeleted).some(([id,when])=>remoteDeleted[id]!==when);
+    let recovered=0;
+    for(const copy of recoveries)if(!merged.has(copy.id)){merged.set(copy.id,copy);recovered++;}
+    const final=[...merged.values()].filter(n=>!model.removes(mergedDeleted[n.id],n));
+    const hasChanges=final.length!==state.notebooks.length||final.some((n,index)=>n!==state.notebooks[index])||!model.equal(mergedDeleted,tombstones);
+    const needsUpload=final.length!==snapshot.notebooks.length||final.some(n=>!model.equal(n,remoteBooks.get(n.id)))||!model.equal(mergedDeleted,remoteDeleted);
     if(hasChanges){
+      reconcileCloudHistory(final,model);
+      const activePage=page()?.id;
       state.notebooks=final;tombstones=mergedDeleted;
-      dirtyAll=true;saveVersion++;await saveNow(true,report);
+      const activeIndex=notebook()?.pages.findIndex(p=>p.id===activePage);if(activeIndex>=0)state.pageIndex=activeIndex;
+      dirtyAll=true;saveVersion++;
+      if(await saveNow(true,report)===false)throw new Error('Received changes could not be saved locally. Sync will retry.');
       // A new stroke may have started while the IndexedDB write was in flight.
       // Keep that stroke and canvas intact, and compose remote changes when idle.
       renderCloudChanges(account);
+      if(recovered&&account===workspaceId)toast('Concurrent edits were preserved in sync recovery notebooks.');
     }
     return report?{changed:hasChanges,needsUpload}:hasChanges;
   }
@@ -572,6 +611,7 @@
     $('pageIndicator').textContent=`${state.pageIndex+1} / ${n.pages.length}`;
     $('prevPage').disabled=state.pageIndex===0;
     $('nextPage').disabled=state.pageIndex===n.pages.length-1;
+    $('moreMenu').querySelector('[data-action="deletePage"]').disabled=n.pages.length===1;
     window.WindsPageStack.sync();renderThumbs();renderCanvas();updateHistoryButtons();
   }
   function updateSidebar(){
@@ -596,11 +636,17 @@
     window.WindsPageStack.focus(page().id);toast('New page added');
   }
   function duplicatePage(){finishActiveStroke();if(state.pendingInteractions){setTimeout(duplicatePage,100);return;}const n=notebook();if(!n)return;finishActiveStroke();composeInkNow();commitText();const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page duplicated');}
-  function deletePage(index){
-    finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>deletePage(index),100);return;}const n=notebook();if(!n)return;
+  function deletePage(pageId,target={account:workspaceId,notebook:notebook()}){
+    const n=notebook();if(!n||n!==target.notebook||workspaceId!==target.account||$('editorView').hidden)return;
+    const index=n.pages.findIndex(p=>p.id===pageId);if(index<0)return;
+    finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>deletePage(pageId,target),100);return;}
     if(n.pages.length===1){toast('A notebook needs at least one page');return;}
     if(!confirm(`Delete page ${index+1}? This cannot be undone.`))return;
-    finishActiveStroke();composeInkNow();commitText();n.pages.splice(index,1);state.pageIndex=Math.min(state.pageIndex,n.pages.length-1);state.selected=-1;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page removed');
+    cancelBoundaryFill(true);finishActiveStroke();composeInkNow();commitText();
+    const activeId=page()?.id;n.pages.splice(index,1);
+    const activeIndex=n.pages.findIndex(p=>p.id===activeId);
+    state.pageIndex=activeIndex>=0?activeIndex:Math.min(index,n.pages.length-1);
+    state.selected=-1;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page removed');
   }
   function renderThumbs(force=false){
     thumbnailsDirty=true;
@@ -611,7 +657,7 @@
     thumbnailsDirty=false;
     $('thumbList').innerHTML=n.pages.map((p,i)=>{
       const d=pageDimensions(p),th=Math.round(250*d.height/d.width);
-      return `<div class="page-thumb ${i===state.pageIndex?'active':''}" data-page="${i}"><div class="thumb-canvas-wrap" style="height:${Math.round(125*d.height/d.width)}px"><canvas width="250" height="${th}" data-preview="${i}" aria-hidden="true"></canvas></div><div class="thumb-meta">Page ${i+1}<button data-remove-page="${i}" class="thumb-actions" title="Delete page ${i+1}" aria-label="Delete page ${i+1}">${icon('trash')}</button></div></div>`;
+      return `<div class="page-thumb ${i===state.pageIndex?'active':''}" data-page="${i}"><div class="thumb-canvas-wrap" style="height:${Math.round(125*d.height/d.width)}px"><canvas width="250" height="${th}" data-preview="${i}" aria-hidden="true"></canvas></div><div class="thumb-meta">Page ${i+1}<button data-remove-page="${safe(p.id)}" class="thumb-actions" title="Delete page ${i+1}" aria-label="Delete page ${i+1}" ${n.pages.length===1?'disabled':''}>${icon('trash')}</button></div></div>`;
     }).join('');
     document.querySelectorAll('[data-preview]').forEach(el=>{const i=Number(el.dataset.preview),d=pageDimensions(n.pages[i]);const ctx=el.getContext('2d');ctx.setTransform(el.width/d.width,0,0,el.height/d.height,0,0);drawPage(ctx,n.pages[i]);});
   }
@@ -2161,7 +2207,7 @@
     const title=$('newNotebookTitle').value.trim()||'Untitled notebook';const cover=document.querySelector('.cover-choice.active')?.dataset.cover||'purple';
     const n=makeNotebook(title,cover,$('newPaperStyle').value,$('newPageOrientation').value);state.notebooks.push(n);scheduleSave(true);hideModal();openNotebook(n.id);toast('Your notebook is ready');
   }
-  function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(n._sharing?`Remove "${n.title}" from this account's library? Other collaborators retain their shared notebook.`:`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=now();state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast(n._sharing?'Shared notebook removed from your library':'Notebook deleted');}
+  function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(n._sharing?`Remove "${n.title}" from this account's library? Other collaborators retain their shared notebook.`:`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=globalThis.WindsWorkspaceModel.deletion(n,now(),workspaceActor);state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast(n._sharing?'Shared notebook removed from your library':'Notebook deleted');}
   function closeMenus(){
     ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu','fillMenu','artistMenu','zoomMenu','eraserMenu'].forEach(id=>$(id).hidden=true);
     [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['fillSettingsBtn','fillMenu'],['artistBtn','artistMenu'],['zoomValue','zoomMenu'],['eraserSettingsBtn','eraserMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
@@ -2268,7 +2314,7 @@
     document.querySelectorAll('[data-export]').forEach(el=>el.onclick=()=>exportCurrent(el.dataset.export));
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page()||page().background)return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
     document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
-    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='scroll'){setTool('pan');toast('Drag to scroll between notebook pages. Tap Pen to write.');}else if(a==='editText')editSelectedText();else if(a==='copy')window.WindsClipboard.copy();else if(a==='cut')window.WindsClipboard.copy(true);else if(a==='paste')window.WindsClipboard.paste();else if(a==='pasteInternal')window.WindsClipboard.paste(true);else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pdf')$('pdfFileInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='drive')window.WindsDrive?.open();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
+    $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='scroll'){setTool('pan');toast('Drag to scroll between notebook pages. Tap Pen to write.');}else if(a==='editText')editSelectedText();else if(a==='copy')window.WindsClipboard.copy();else if(a==='cut')window.WindsClipboard.copy(true);else if(a==='paste')window.WindsClipboard.paste();else if(a==='pasteInternal')window.WindsClipboard.paste(true);else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='deletePage')deletePage(page()?.id);else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pdf')$('pdfFileInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='drive')window.WindsDrive?.open();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
     document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#fillSettingsBtn')&&!e.target.closest('#artistBtn')&&!e.target.closest('#zoomValue')&&!e.target.closest('#eraserBtn')&&!e.target.closest('#eraserSettingsBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>{if(!['artist','eraser'].includes(btn.dataset.tool))btn.onclick=()=>setTool(btn.dataset.tool);});
     $('eraserBtn').onclick=event=>{event.stopPropagation();setTool('eraser');closeMenus();};
@@ -2299,7 +2345,7 @@
     if(window.ResizeObserver)new ResizeObserver(updateToolbarArrows).observe($('editorToolbar'));
     $('pencilOnly').onchange=e=>{state.stylusPreferenceChanged=true;state.penOnly=e.target.checked;persistInputPreferences();toast(state.penOnly?'Stylus drawing enabled · fingers scroll and pinch':'Finger drawing enabled');};
     $('addPageSidebar').onclick=$('addPageBottom').onclick=$('addPageFloat').onclick=$('addPageTop').onclick=addPage;
-    $('thumbList').onclick=e=>{const remove=e.target.closest('[data-remove-page]');if(remove){deletePage(Number(remove.dataset.removePage));return;}const thumb=e.target.closest('[data-page]');if(thumb)switchPage(Number(thumb.dataset.page));};
+    $('thumbList').onclick=e=>{const remove=e.target.closest('[data-remove-page]');if(remove){deletePage(remove.dataset.removePage);return;}const thumb=e.target.closest('[data-page]');if(thumb)switchPage(Number(thumb.dataset.page));};
     $('prevPage').onclick=()=>switchPage(state.pageIndex-1);$('nextPage').onclick=()=>switchPage(state.pageIndex+1);
     $('togglePages').onclick=()=>{state.sidebarOpen=!state.sidebarOpen;updateSidebar();};
     $('editorScrim').onclick=()=>{state.sidebarOpen=false;updateSidebar();};
@@ -2498,7 +2544,7 @@
     }).catch(error=>{const previewPainted=eraserPreview?.complete(gesture);if(previewPainted&&clipboardMatches(gesture.scope)){eraserPreview?.invalidate();try{renderCanvas();}catch{}}console.error('Deferred page edit:',error);toast(error.code==='CANVAS_MEMORY'?error.message:`Page edit failed: ${String(error.message||'Unknown drawing error').slice(0,150)}`);}).finally(()=>{eraserPreview?.complete(gesture);if(['select','resize'].includes(gesture.kind))endSelectionTransform(gesture);state.pendingInteractions--;queueInteractionOverlay();queueEraserPreparation();});
   }
   function initPageStack(){
-    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden,scope:clipboardContext,matches:clipboardMatches,dimensions:pageDimensions,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,
+    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden,scope:clipboardContext,matches:clipboardMatches,dimensions:pageDimensions,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,
       activate:(id,preserve)=>{const index=notebook()?.pages.findIndex(p=>p.id===id);if(index>=0){if(index!==state.pageIndex)switchPage(index,preserve);else if(!preserve)window.WindsPageStack.focus(id);}},
       paint:async(canvas,p,scope)=>{
         if(p.background)await pdfImage(p.background.src).promise;
@@ -2627,6 +2673,7 @@
     await storageOpen();const stored=await loadData();
     if(stored && Array.isArray(stored.notebooks)){state.notebooks=stored.notebooks;tombstones=stored.deleted||{};}
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
+    initializeSyncHistory();
     renderLibrary();view('library');window.WindsText.init({apply:applyEditedText});initClipboard();
     globalThis.WindsMandala?.init({
       context:()=>({workspace:workspaceId,bookId:state.activeId,pageId:page()?.id,version:saveVersion}),
@@ -2644,7 +2691,7 @@
       isEditing:()=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
-      sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id]),openNotebook,toast},
+      sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id])&&!state.notebooks.some(n=>n.id===id),openNotebook,toast},
       live:{busy:idle=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
         room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},
         rooms:()=>[...new Set([notebook(),...state.notebooks].filter(n=>n?._sharing).map(n=>'shared:'+n._sharing.folderId))],

@@ -12,7 +12,7 @@
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=62" rel="stylesheet"/>
+<link href="./styles.css?v=67" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -118,7 +118,7 @@
 <label id="eraserModeControl" class="eraser-mode-control" for="eraserMode">Erase<select id="eraserMode" aria-label="Eraser target"><option value="all" selected>All objects</option><option value="ink">Ink only</option></select></label>
 <p id="eraserHelp">Erases only the brushed area, including pasted text and images. PDF backgrounds stay fixed.</p>
 </div>
-<div class="pop-menu" hidden="" id="moreMenu"><button data-action="editText">Edit selected text…</button><button data-action="copy">Copy selection</button><button data-action="cut">Cut selection</button><button data-action="paste">Paste…</button><button data-action="pasteInternal">Paste copied object</button><button data-action="scroll">Scroll pages…</button><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button data-action="open">Open notebook file…</button><button data-action="pdf">Import PDF pages…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
+<div class="pop-menu" hidden="" id="moreMenu"><button data-action="editText">Edit selected text…</button><button data-action="copy">Copy selection</button><button data-action="cut">Cut selection</button><button data-action="paste">Paste…</button><button data-action="pasteInternal">Paste copied object</button><button data-action="scroll">Scroll pages…</button><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button class="danger-text" data-action="deletePage">Delete current page…</button><button data-action="open">Open notebook file…</button><button data-action="pdf">Import PDF pages…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
 <div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><a id="preparedExportLink" class="prepared-export-link" hidden download>Download prepared export</a><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
 <div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Fill colors and closed boundaries">
   <div class="menu-heading">FILL &amp; BOUNDARIES</div>
@@ -244,20 +244,21 @@
 <script src="./interaction-tools.js?v=66"></script>
 <script src="./selection-preview.js?v=66"></script>
 <script src="./eraser-preview.js?v=49"></script>
-<script src="./page-stack.js"></script>
+<script src="./page-stack.js?v=67"></script>
+<script src="./workspace-model.js?v=68"></script>
 <script src="./text-tools.js"></script>
 <script src="./pdf-export.js"></script>
 <script src="./pdf-import.js?v=56"></script>
-<script src="./native-file.js?v=59"></script>
+<script src="./native-file.js?v=68"></script>
 <script src="./clipboard.js"></script>
 <script src="./shared-notebook-model.js"></script>
 <script src="./notebook-sharing.js?v=57"></script>
 <script src="./google-config.js"></script>
 <script src="./live-sync.js?v=50"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=56"></script>
+<script defer src="./cloud-drive.js?v=68"></script>
 <script defer src="./boundary-fill.js?v=61"></script>
 <script defer src="./mandala-tools.js?v=65"></script>
-<script defer="" src="./app.js?v=66"></script>
+<script defer="" src="./app.js?v=68"></script>
 </body>
 </html>

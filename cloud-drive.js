@@ -32,6 +32,7 @@
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
   let syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
+  let workspaceHistory={id:null,revisions:new Map(),checked:0};
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
   function currentLogoutStamp(sub){
@@ -100,6 +101,7 @@
   }
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    workspaceHistory={id:null,revisions:new Map(),checked:0};
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
     global.WindsSharing?.cancel();
     global.WindsLive?.stop();
@@ -538,7 +540,7 @@
     do{
       const key=backups?'windsNotesBackup':'windsNotesWorkspace';
       const q=`trashed = false and appProperties has {key='${key}' and value='1'}`;
-      const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,appProperties)',pageSize:'100',orderBy:'modifiedTime desc'});
+      const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,headRevisionId,appProperties)',pageSize:'100',orderBy:'modifiedTime desc'});
       if(next)params.set('pageToken',next);
       const response=await driveRequest(`${API}?${params}`,{},expected,manual);
       const data=await readDriveJson(response,expected,manual);found.push(...(data.files||[]));next=data.nextPageToken||'';
@@ -548,7 +550,7 @@
   async function findWorkspace(expected,manual){
     if(activeId){
       try{
-        const params=new URLSearchParams({fields:'id,name,mimeType,modifiedTime,appProperties,trashed'});
+        const params=new URLSearchParams({fields:'id,name,mimeType,modifiedTime,headRevisionId,appProperties,trashed'});
         const response=await driveRequest(`${API}/${encodeURIComponent(activeId)}?${params}`,{},expected,manual);
         const file=await readDriveJson(response,expected,manual);
         if(!file.trashed&&file.id===activeId&&file.name===WORKSPACE_NAME&&file.appProperties?.windsNotesWorkspace==='1')return file;
@@ -562,20 +564,75 @@
     ensureIdle(expected,manual);
     return files.find(f=>f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME);
   }
-  async function fetchWorkspace(fileId,expected=generation,manual=false){
-    const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}?alt=media`,{},expected,manual);
+  async function fetchWorkspace(fileId,expected=generation,manual=false,revision=null){
+    const path=revision?`/revisions/${encodeURIComponent(revision)}`:'';
+    const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}${path}?alt=media`,{},expected,manual);
     const text=await readDriveText(response,expected,manual);
     const data=JSON.parse(text);
     if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
     return data;
   }
+  async function refreshWorkspaceHistory(workspace,expected,manual){
+    if(workspaceHistory.id!==workspace.id)workspaceHistory={id:workspace.id,revisions:new Map(),checked:0};
+    const history=workspaceHistory,pinned=[];let page='';
+    do{
+      const params=new URLSearchParams({fields:'nextPageToken,revisions(id,keepForever,modifiedTime)',pageSize:'100'});if(page)params.set('pageToken',page);
+      const response=await driveRequest(`${API}/${encodeURIComponent(workspace.id)}/revisions?${params}`,{},expected,manual);
+      const data=await readDriveJson(response,expected,manual);pinned.push(...(data.revisions||[]).filter(r=>r.keepForever));page=data.nextPageToken||'';
+      if(pinned.length>200)throw new Error('Too many protected workspace versions. Your local notes remain safe.');
+    }while(page);
+    const versions=[{id:workspace.headRevisionId},...pinned.filter(r=>r.id!==workspace.headRevisionId)],visible=new Set(versions.map(r=>r.id));
+    for(const id of history.revisions.keys())if(!visible.has(id))history.revisions.delete(id);
+    const before=localVersion;
+    for(const revision of versions){
+      let saved=history.revisions.get(revision.id);
+      if(!saved){
+        try{
+          const protectedRevision=pinned.some(r=>r.id===revision.id);
+          const data=await fetchWorkspace(workspace.id,expected,manual,protectedRevision?revision.id:null);
+          if(!protectedRevision){
+            const current=await findWorkspace(expected,manual);
+            if(current?.headRevisionId!==workspace.headRevisionId){const error=new Error('The workspace changed while downloading. Retrying safely.');error.syncDeferred=true;throw error;}
+          }
+          saved={data,applied:false};
+        }
+        catch(error){if(error.status===404&&revision.id!==workspace.headRevisionId)continue;throw error;}
+        history.revisions.set(revision.id,saved);
+      }
+      if(!saved.applied){
+        const merged=await bridge.mergeWorkspace(saved.data,{manual,report:true});ensureIdle(expected,manual);
+        saved.applied=true;if(merged?.changed!==false)syncDetails.received=Date.now();
+      }
+    }
+    ensureIdle(expected,manual);
+    const head=history.revisions.get(workspace.headRevisionId)?.data;
+    if(!head)throw new Error('The latest workspace version is unavailable.');
+    if(global.WindsWorkspaceModel.equivalent(bridge.getData(),head)&&before===localVersion)lastSyncedVersion=localVersion;
+    else localVersion++;
+    // Only discard a pinned version after a newer durable head contains all its
+    // causal history (including deletion markers and any recovery notebooks).
+    if(pinned.length>=16){let remaining=8;
+      const headTime=Date.parse(workspace.modifiedTime);
+      for(const revision of pinned){
+        const saved=history.revisions.get(revision.id)?.data;
+        if(revision.id===workspace.headRevisionId||!(Date.parse(revision.modifiedTime)<headTime)||!saved||!global.WindsWorkspaceModel.covers(head,saved))continue;
+        try{await driveRequest(`${API}/${encodeURIComponent(workspace.id)}/revisions/${encodeURIComponent(revision.id)}`,{method:'DELETE'},expected,manual);}
+        catch(error){if(error.status===403)break;if(error.status!==404)throw error;}
+        history.revisions.delete(revision.id);if(--remaining===0)break;
+      }
+    }
+    history.checked=Date.now();
+  }
   async function refreshFromDrive(expected=generation,manual=false){
     const workspace=await findWorkspace(expected,manual);
     ensureIdle(expected,manual);
-    const revision=workspace?.modifiedTime?`${workspace.id}:${workspace.modifiedTime}`:null;
+    const revision=workspace?(workspace.headRevisionId?`${workspace.id}:${workspace.headRevisionId}`:workspace.modifiedTime?`${workspace.id}:${workspace.modifiedTime}`:null):null;
     const changed=workspace&&(activeId!==workspace.id||!revision||remoteRevision!==revision);
     activeId=workspace?.id||null;
-    if(changed){
+    if(workspace?.headRevisionId){
+      if(!global.WindsWorkspaceModel)throw new Error('Reload WiNDS Notes to load its sync components.');
+      if(changed||Date.now()-workspaceHistory.checked>=10000)await refreshWorkspaceHistory(workspace,expected,manual);
+    }else if(changed){
       const data=await fetchWorkspace(workspace.id,expected,manual);
       ensureIdle(expected,manual);
       const versionBefore=localVersion;
@@ -602,11 +659,11 @@
         `--${boundary}\r\nContent-Type: application/json\r\n\r\n`,blob,
         `\r\n--${boundary}--\r\n`
       ],{type:`multipart/related; boundary=${boundary}`});
-      result=await driveRequest(target+'?uploadType=multipart&fields=id,name,modifiedTime',{
+      result=await driveRequest(target+'?uploadType=multipart&fields=id,name,modifiedTime'+(name===WORKSPACE_NAME?'&keepRevisionForever=true':''),{
         method:oldId?'PATCH':'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body
       },expected,manual);
     }else{
-      const init=await driveRequest(target+'?uploadType=resumable&fields=id,name,modifiedTime',{
+      const init=await driveRequest(target+'?uploadType=resumable&fields=id,name,modifiedTime'+(name===WORKSPACE_NAME?'&keepRevisionForever=true':''),{
         method:oldId?'PATCH':'POST',
         headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(blob.size)},
         body:JSON.stringify(metadata)
@@ -635,6 +692,7 @@
     const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
     ensureIdle(expected,manual);
     activeId=created.id;
+    // The revision-based reader will verify this upload's head on the next poll.
     remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
     lastSync=Date.now();syncDetails.uploaded=lastSync;lastSyncedVersion=versionAtStart;
     publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
