@@ -29,11 +29,22 @@
     return meta?.version===1&&Number.isSafeInteger(meta.clock)&&meta.clock>0&&meta.clock<Number.MAX_SAFE_INTEGER&&object(meta.seen)&&object(meta.fields)&&
       Object.keys(meta.fields).length<=151000&&Object.keys(meta.seen).length<=10000&&
       Object.entries(meta.seen).every(([actor,time])=>actor.length<=200&&Number.isSafeInteger(time)&&time>0&&time<=meta.clock)&&
-      Object.values(meta.fields).every(f=>object(f)&&validStamp(f.stamp)&&f.stamp[0]<=meta.clock&&own(meta.seen,f.stamp[1])&&meta.seen[f.stamp[1]]>=f.stamp[0]&&(f.hash===null||typeof f.hash==='string'));
+      Object.values(meta.fields).every(f=>object(f)&&validStamp(f.stamp)&&f.stamp[0]<=meta.clock&&own(meta.seen,f.stamp[1])&&meta.seen[f.stamp[1]]>=f.stamp[0]&&(f.hash===null||typeof f.hash==='string')&&(f.at===undefined||Number.isSafeInteger(f.at)));
   }
   function union(a,b){const result=Object.assign(Object.create(null),a);for(const [key,value] of Object.entries(b))result[key]=Math.max(result[key]||0,value);return result;}
   const observed=(seen,stamp)=>(own(seen,stamp[1])?seen[stamp[1]]:0)>=stamp[0];
   const compare=(a,b)=>a[0]-b[0]||(a[1]<b[1]?-1:a[1]>b[1]?1:0);
+  function editTime(field){
+    if(Number.isSafeInteger(field?.at))return field.at;
+    const stamp=field?.stamp;
+    return stamp?.[0]===1&&stamp[1].startsWith('legacy-')?Date.parse(stamp[1].slice(7,31)):NaN;
+  }
+  function compareEdits(a,b){
+    const aTime=editTime(a),bTime=editTime(b);
+    if(Number.isFinite(aTime)&&Number.isFinite(bTime)&&aTime!==bTime)return aTime-bTime;
+    // Older clients did not record per-edit times. Keep their logical order.
+    return compare(a.stamp,b.stamp);
+  }
   function capture(book,actor){
     if(book._sharing)return false;
     const values=entries(book),previous=book._sync;
@@ -49,35 +60,69 @@
     for(const [key,value] of values)if(previous.fields[key]?.hash!==hash(value))changes.push([key,hash(value)]);
     for(const [key,field] of Object.entries(previous.fields))if(field.hash!==null&&!values.has(key))changes.push([key,null]);
     if(!changes.length)return false;
+    actor=actor||'legacy-edit-'+hash([book.id,book.updatedAt,[...values]]);
     const clock=previous.clock+1,fields={...previous.fields};
-    for(const [key,digest] of changes)fields[key]={hash:digest,stamp:[clock,actor]};
+    const editedAt=Date.parse(book.updatedAt);
+    for(const [key,digest] of changes){
+      const previousTime=editTime(previous.fields[key]);
+      // An edit of this field can follow an observed edit from a faster clock.
+      const at=Number.isFinite(previousTime)?Math.max(editedAt||0,previousTime+1):editedAt;
+      fields[key]={hash:digest,stamp:[clock,actor],...(Number.isSafeInteger(at)?{at}:{})};
+    }
     book._sync={version:1,clock,seen:{...previous.seen,[actor]:clock},fields};return true;
-  }
-  function recovery(book){
-    const key=hash([book.id,[...entries(book)],Object.entries(book._sync.fields).sort(([a],[b])=>a<b?-1:a>b?1:0)]),copy=clone(book);delete copy._sync;delete copy._sharing;
-    copy.id='recovery-'+key;copy.title=(book.title||'Notebook').slice(0,49)+' (sync recovery)';
-    for(const p of copy.pages){const old=p.id;p.id=copy.id+'-'+hash(old);for(const i of p.items)i.id=copy.id+'-'+hash([old,i.id]);}
-    capture(copy,'recovery');return copy;
   }
   function merge(local,remote){
     local={...local};remote={...remote};
-    capture(local,'legacy-local-'+hash([local.id,local.updatedAt,[...entries(local)]]));
-    capture(remote,'legacy-remote-'+hash([remote.id,remote.updatedAt,[...entries(remote)]]));
-    const a=local._sync,b=remote._sync,av=entries(local),bv=entries(remote),fields=Object.create(null),values=new Map(),sources=new Map();let conflict=false;
+    capture(local);
+    capture(remote);
+    const a=local._sync,b=remote._sync,av=entries(local),bv=entries(remote);
+    const fields=Object.create(null),values=new Map(),pageKeys=new Map();
+    let orderSource=av;
     const keys=new Set([...Object.keys(a.fields),...Object.keys(b.fields)]);
     for(const key of keys){
       const x=a.fields[key],y=b.fields[key];let takeRemote=!x;
       if(x&&y){
         const seesY=observed(a.seen,y.stamp),seesX=observed(b.seen,x.stamp);
-        takeRemote=seesX&&!seesY||seesX===seesY&&compare(y.stamp,x.stamp)>0;
-        const location=JSON.parse(key);
-        if(!seesX&&!seesY&&x.hash!==y.hash&&!['order','layers'].includes(location[0]))conflict=true;
+        takeRemote=seesX&&!seesY||seesX===seesY&&compareEdits(y,x)>0;
       }
-      const field=takeRemote?y:x,source=takeRemote?b:a,sourceValues=takeRemote?bv:av;
-      fields[key]=field;sources.set(key,source);
+      const field=takeRemote?y:x,sourceValues=takeRemote?bv:av;
+      fields[key]=field;
+      const [kind,id]=JSON.parse(key);
+      if(kind==='order')orderSource=sourceValues;
+      if(kind==='page'||kind==='layers'||kind==='item'){
+        if(!pageKeys.has(id))pageKeys.set(id,[]);
+        pageKeys.get(id).push(key);
+      }
       if(field.hash!==null){if(!sourceValues.has(key))throw Error('Notebook sync history does not match its contents.');values.set(key,sourceValues.get(key));}
     }
+    // If a newer edit wins over a page deletion, restore the contents removed
+    // by that deletion. Earlier erasures still apply.
+    for(const [id,keys] of pageKeys){
+      const key=JSON.stringify(['page',id]);
+      const aDeleted=a.fields[key]?.hash===null,bDeleted=b.fields[key]?.hash===null;
+      if(aDeleted===bDeleted)continue;
+      const removed=aDeleted?a:b,retained=aDeleted?b:a,live=aDeleted?bv:av;
+      if(!live.has(key))continue;
+      const deletion=removed.fields[key];
+      const newerItem=keys.some(location=>{
+        if(JSON.parse(location)[0]!=='item')return false;
+        const edit=retained.fields[location];
+        return edit&&!observed(removed.seen,edit.stamp)&&compareEdits(edit,deletion)>0;
+      });
+      if(!values.has(key)&&!newerItem)continue;
+      for(const location of keys){
+        const field=fields[location];
+        if(field.hash===null&&compare(field.stamp,deletion.stamp)===0&&live.has(location))values.set(location,live.get(location));
+      }
+    }
     const order=values.get('["order"]')||[],pageIds=[...new Set([...order,...[...values.keys()].map(k=>JSON.parse(k)).filter(k=>k[0]==='page').map(k=>k[1]).sort()])];
+    // Concurrent removals of different pages can empty the union. Keep a page
+    // from the winning page order so the notebook stays usable.
+    if(!pageIds.some(id=>values.has(JSON.stringify(['page',id])))){
+      const id=order.find(id=>orderSource.has(JSON.stringify(['page',id])));
+      if(id===undefined)throw Error('Notebook sync history contains no usable page.');
+      for(const key of pageKeys.get(id))if(orderSource.has(key))values.set(key,orderSource.get(key));
+    }
     const pages=[],pageItems=new Map();
     for(const [key,value] of values){const k=JSON.parse(key);if(k[0]==='item'){if(!pageItems.has(k[1]))pageItems.set(k[1],new Map());pageItems.get(k[1]).set(k[2],value);}}
     for(const id of pageIds){
@@ -86,22 +131,13 @@
       const layerOrder=values.get(JSON.stringify(['layers',id]))||[],items=pageItems.get(id)||new Map();
       const ids=[...new Set([...layerOrder,...[...items.keys()].sort()])];pages.push({id,...meta,items:ids.filter(key=>items.has(key)).map(key=>items.get(key))});
     }
-    // Preserve an edit made concurrently with another device deleting its page.
-    for(const [key,field] of Object.entries(fields)){
-      const k=JSON.parse(key);if(k[0]!=='item'||field.hash===null)continue;
-      const parent=JSON.stringify(['page',k[1]]),deleted=fields[parent];
-      if(deleted?.hash===null&&!observed(sources.get(parent).seen,field.stamp))conflict=true;
-    }
-    let emptyRecovery=false;
-    if(!pages.length){conflict=true;emptyRecovery=true;pages.push({id:'sync-empty-'+hash([...Object.entries(fields)].sort(([a],[b])=>a<b?-1:a>b?1:0)),template:'blank',orientation:'portrait',items:[]});}
     const merged={id:local.id,title:values.get('["book","title"]'),cover:values.get('["book","cover"]'),createdAt:values.get('["book","createdAt"]'),
       updatedAt:[local.updatedAt||'',remote.updatedAt||''].sort().at(-1),pages:clone(pages),
       _sync:{version:1,clock:Math.max(a.clock,b.clock),seen:union(a.seen,b.seen),fields}};
     // Synthesized order/layer unions are a deterministic event observed by both
     // sides. Future saves must not mistake this merged order for a user edit.
-    capture(merged,(emptyRecovery?'last-page-':'merge-')+hash(Object.entries(fields).sort(([a],[b])=>a<b?-1:a>b?1:0)));
-    // A conflict copy has a deterministic ID, so repeated retries do not duplicate it.
-    return {book:merged,recoveries:conflict?[recovery(local),recovery(remote)]:[]};
+    capture(merged,'merge-'+hash(Object.entries(fields).sort(([a],[b])=>a<b?-1:a>b?1:0)));
+    return {book:merged};
   }
   function deletion(book,at,actor){
     capture(book,actor);if(book._sharing)return at;

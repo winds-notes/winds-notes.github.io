@@ -484,7 +484,7 @@
     const remoteDeleted=snapshot.deleted&&typeof snapshot.deleted==='object'?snapshot.deleted:{};
     const mergedDeleted={...tombstones};
     for(const [id,mark] of Object.entries(remoteDeleted))mergedDeleted[id]=model.mergeDeletion(mergedDeleted[id],mark);
-    const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map(),recoveries=[];
+    const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map();
     for(const raw of snapshot.notebooks){
       const n=clone(raw);
       if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>500 || n.pages.some(p=>!Array.isArray(p.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
@@ -493,14 +493,12 @@
       // Shared notebooks retain their separate immutable edit history/outbox.
       if(local?._sharing)continue;
       if(n._sharing){if(!local)merged.set(n.id,n);continue;}
-      if(!local){model.capture(n,'legacy-remote');merged.set(n.id,n);}
+      if(!local){model.capture(n);merged.set(n.id,n);}
       else{
-        const result=model.merge(local,n);recoveries.push(...result.recoveries);
+        const result=model.merge(local,n);
         if(!model.equal(local,result.book))merged.set(n.id,result.book);
       }
     }
-    let recovered=0;
-    for(const copy of recoveries)if(!merged.has(copy.id)){merged.set(copy.id,copy);recovered++;}
     const final=[...merged.values()].filter(n=>!model.removes(mergedDeleted[n.id],n));
     const hasChanges=final.length!==state.notebooks.length||final.some((n,index)=>n!==state.notebooks[index])||!model.equal(mergedDeleted,tombstones);
     const needsUpload=final.length!==snapshot.notebooks.length||final.some(n=>!model.equal(n,remoteBooks.get(n.id)))||!model.equal(mergedDeleted,remoteDeleted);
@@ -514,7 +512,6 @@
       // A new stroke may have started while the IndexedDB write was in flight.
       // Keep that stroke and canvas intact, and compose remote changes when idle.
       renderCloudChanges(account);
-      if(recovered&&account===workspaceId)toast('Concurrent edits were preserved in sync recovery notebooks.');
     }
     return report?{changed:hasChanges,needsUpload}:hasChanges;
   }
