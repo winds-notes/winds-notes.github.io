@@ -636,7 +636,8 @@
 @media(max-width:900px){.editor-header .shape-tool-trigger{padding:0 7px}.shape-tool-label{display:none}}
 
 /* Appearance */
-.theme-button{width:42px;height:42px;border:1px solid #e9eaf3;background:#fff;border-radius:11px;color:#545476}
+.theme-button{display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 13px;border:1px solid #e9eaf3;background:#fff;border-radius:11px;color:#545476;font-size:12px;font-weight:800}
+@media(max-width:600px){.theme-button-label{display:none}.theme-button{padding:0 11px}}
 .theme-button svg{width:18px;height:18px}
 .theme-button[aria-expanded="true"]{background:#f1efff;color:var(--purple)}
 .pop-menu.theme-menu{width:236px;min-width:0;padding:10px}

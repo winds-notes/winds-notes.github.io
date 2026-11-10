@@ -8,7 +8,7 @@ This is the **complete, editable Codex development workspace**, built from the l
 ## What works
 
 - **Handwriting:** Apple Pencil / stylus / touch / mouse, pressure samples, low-latency ink layer, smooth pen ribbons with rounded ends and continuous pressure widths, undo/redo, eraser and selection.
-- **Dark mode (v71):** Choose **Match device**, **Light** or **Dark** with the moon button on the home screen or **Notebook options → Appearance**. Only the app around the page turns dark; the paper, ink colours, thumbnails and exports stay exactly the same. The choice is remembered on this device and applies before the first paint.
+- **Dark mode (v71):** Choose **Match device**, **Light** or **Dark** with the **Theme** button on the home screen or **Notebook options → Theme**. Only the app around the page turns dark; the paper, ink colours, thumbnails and exports stay exactly the same. The choice is remembered on this device and applies before the first paint.
 - **Library extras (v71):** Sort notebooks by *Recently edited*, *Name*, *Newest* or *Oldest* (remembered), and jump back in with **Continue → your latest notebook** on the home screen. Press **?** (or **Notebook options → Keyboard shortcuts**) for the shortcut list.
 - **Input preference:** Stylus only starts enabled. Fingers scroll and pinch; mouse drawing and editing remain available. Turning Stylus only off enables finger drawing and editing, and your explicit choice is remembered in this browser.
 - **Two-finger gestures:** pinch zoom and pan (**35%–800%**), preset zoom menu, portrait and landscape notebook pages.

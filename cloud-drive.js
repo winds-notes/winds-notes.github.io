@@ -36,7 +36,7 @@
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
   let syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
-  let silentTimer=0,silentRunning=false,silentRetryAt=0,silentResult=null,lastSyncFailed=false,chipState='';
+  let silentTimer=0,silentRunning=false,silentRetryAt=0,silentResult=null,lastSyncFailed=false,chipState='',pauseNoticeShown=false;
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const oauthHelper=()=>!SERVER_AUTH&&global.WindsOAuth?.enabled?.()?global.WindsOAuth:null;
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
@@ -257,7 +257,13 @@
     if(next===chipState)return;
     // Never change header layout while the Pencil is down.
     if(bridge?.isDrawingNow?.()){clearTimeout(updateChip.timer);updateChip.timer=setTimeout(updateChip,1250);return;}
+    const pausedNow=(next==='reconnect'||next==='signedout')&&chipState!=='reconnect'&&chipState!=='signedout';
     chipState=next;
+    if(pausedNow&&!pauseNoticeShown){
+      pauseNoticeShown=true;
+      bridge?.toast?.(next==='reconnect'?'Drive sync paused — Google sign-in expired. Tap “Resume sync” to continue; your notes are safe here.':'Drive sync paused — signed out in another tab. Tap “Sign in to sync”.');
+    }
+    if(next==='synced'||next==='syncing')pauseNoticeShown=false;
     const chip=$('syncChip');
     if(chip){
       chip.hidden=next==='guest';

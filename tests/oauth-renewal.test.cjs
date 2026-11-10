@@ -201,7 +201,7 @@ test('inside the renewal iframe the callback page only messages its same-origin 
 /* cloud-drive.js integration                                          */
 /* ------------------------------------------------------------------ */
 function driveApp({local = storage(), session = storage(), now = Date.now(), redirect = null, ready = false, iframe = null} = {}) {
-  const elements = new Map(), timers = new Map(), requests = [], switches = [], calls = {iframe: [], begin: [], block: [], prepare: 0};
+  const elements = new Map(), timers = new Map(), requests = [], switches = [], calls = {iframe: [], begin: [], block: [], prepare: 0, toasts: []};
   let timerId = 0, drawing = false, account = null, oauthClient;
   const element = id => {
     if (!elements.has(id)) elements.set(id, {id, hidden: false, disabled: false, textContent: '', className: '', title: '',
@@ -225,7 +225,7 @@ function driveApp({local = storage(), session = storage(), now = Date.now(), red
     async switchWorkspace(sub) { switches.push(sub); account = sub; },
     async mergeWorkspace() { return false; }, getData: () => ({format: 'winds-notes-backup', notebooks: []}),
     isWriting: () => drawing, isDrawingNow: () => drawing, isEditing: () => false, isSaving: () => false,
-    syncIdleDelay: () => drawing ? 2500 : 0, toast() {},
+    syncIdleDelay: () => drawing ? 2500 : 0, toast(message) { calls.toasts.push(message); },
     async prepareNavigation() { calls.prepare++; }
   };
   vm.runInNewContext(driveSource, {window: global, document: {getElementById: element, hidden: false, addEventListener() {}},
@@ -324,4 +324,16 @@ test('Resume sync reconnects in one tap: same-tab redirect when verified, otherw
   assert.equal(popup.oauth.requests[0].prompt, '');
   assert.equal(popup.oauth.requests[0].hint, A.sub);
   assert.equal(popup.calls.begin.length, 0);
+});
+
+test('when Google access has expired the user is told once that sync is paused and how to resume', async () => {
+  const local = storage();rememberExpired(local);
+  const app = driveApp({local});
+  await app.init();
+  assert.equal(app.element('syncChipLabel').textContent, 'Resume sync');
+  assert.equal(app.calls.toasts.length, 1);
+  assert.match(app.calls.toasts[0], /sync paused/i);
+  assert.match(app.calls.toasts[0], /Resume sync/);
+  await app.runTimer(4000);await flush();
+  assert.equal(app.calls.toasts.length, 1, 'no repeated nagging while still paused');
 });
