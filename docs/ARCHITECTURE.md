@@ -3,6 +3,14 @@
 ## Runtime
 The site runs as **static HTML/CSS/JavaScript**, with no bundler or mandatory backend. An optional Node.js 22+ same-origin server provides persistent Google login and live previews. The root directory can be deployed unchanged to GitHub Pages. The `tools/dev-server.mjs` server is for development only.
 
+## Silent Drive reconnection, instant start and resume (v70)
+
+`oauth-redirect.js` (loaded synchronously in `<head>` after `google-config.js`) implements static-hosting token renewal with Google's client-side OAuth redirect flow (`response_type=token`, `prompt=none`, `login_hint`). A launch check reads only the existing session keys and, for an expired remembered account, bounces through Google to `oauth-callback.html`; the callback page stores the fragment for this tab (or posts it to a same-origin parent when framed) and strips it from history. `cloud-drive.js` consumes the result before `restoreSession`: silent tokens are injected only for the same `sub` and verified through `userinfo`; interactive results use `connectCallback`. A hidden-iframe renewal runs five minutes before expiry and on resume, only when `syncIdleDelay` is zero. Top-level redirects require an explicitly configured callback URL or a verified iframe probe, preventing users from being stranded on Google's mismatch page. See `PERSISTENT_LOGIN.md` for the rules. Server mode is unchanged.
+
+`#syncChip` reflects the Drive state (synced, syncing, offline, paused, retrying, resume) and only rewrites the DOM when the state changes, never while the Pencil is down. `prepareNavigation` (app bridge) finishes strokes, flushes pending interactions and saves before any OAuth navigation. A per-tab `winds-notes-resume-v1` record (written on `visibilitychange`/`pagehide`) reopens the notebook and page after a reload, tab discard or OAuth bounce, scoped to the account workspace and the first minute after startup.
+
+IndexedDB save transactions call `IDBTransaction.commit()` after queuing their writes, so saves started from `pagehide` survive reloads. The service worker serves `?v=<RELEASE>` app files cache-first and navigations network-first with a 3.5-second fallback to the installed shell; `/auth/`, `/live/` and `oauth-callback.html` bypass it. Pencil handlers, touch suppression, native format version 1 and account database keys are unchanged.
+
 ## Selection transforms and input defaults (v66)
 
 Stylus only defaults to enabled. An explicit checkbox choice is stored under winds-notes-input-preferences-v1 and restored independently of notebook data. Touch contacts pan or pinch in that mode; mouse editing remains available. Pencil detection never changes the preference. The missing-up/down recovery, palm guards and four non-passive Touch Event handlers are retained.

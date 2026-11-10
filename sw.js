@@ -1,7 +1,18 @@
-/* Offline app shell: serve up-to-date files online, cache fallback offline. */
-const CACHE='winds-notes-shell-v68-causal-sync';
-importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v=65');
-const ASSETS=['./workspace-model.js','./workspace-model.js?v=68','./selection-preview.js','./selection-preview.js?v=66','./mandala-art.js','./mandala-art.js?v=65','./mandala-tools.js','./mandala-tools.js?v=65','./boundary-fill.js','./boundary-fill.js?v=61','./eraser-preview.js','./eraser-preview.js?v=49','./app.js?v=68','./creative-tools.js?v=66','./native-file.js?v=68','./interaction-tools.js?v=66','./','./index.html','./styles.css','./styles.css?v=67','./privacy.html','./terms.html','./legal.css','./LICENSE','./creative-tools.js','./app.js','./pdf-export.js','./pdf-import.js','./pdf-import.js?v=56','./clipboard.js','./text-tools.js','./interaction-tools.js','./page-stack.js','./page-stack.js?v=67','./vendor/pdfjs/assets.js','./native-file.js','./google-config.js','./cloud-drive.js','./cloud-drive.js?v=68','./live-sync.js','./live-sync.js?v=50','./notebook-sharing.js','./notebook-sharing.js?v=57','./shared-notebook-model.js','./manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
+/* Offline app shell.
+ * Pages: network first (short timeout) so a new release is picked up at once.
+ * Versioned app files: cache first, so the app opens instantly on iPad even on
+ * a slow connection. Every local script/style URL in index.html carries the
+ * release version below; a new release changes the URLs and this cache name. */
+const RELEASE='70';
+const CACHE='winds-notes-shell-v70-instant';
+const NAV_TIMEOUT_MS=3500;
+importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
+const VERSIONED=['google-config.js','oauth-redirect.js','styles.css','mandala-art.js','creative-tools.js','interaction-tools.js',
+  'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
+  'native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','cloud-drive.js','boundary-fill.js',
+  'mandala-tools.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);
+const ASSETS=['./','./index.html',...VERSIONED,'./privacy.html','./terms.html','./legal.css','./LICENSE',
+  './manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(async cache=>{
   await cache.addAll([...ASSETS,...self.WINDS_PDF_ASSETS]);
   // Keep network capacity available for opening pages and Drive traffic.
@@ -12,11 +23,37 @@ self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(
   }));
 }).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+
+const cacheable=response=>response&&response.ok&&response.type==='basic'&&!response.headers.get('Cache-Control')?.includes('no-store');
+function remember(request,response){
+  if(!cacheable(response))return;
+  const copy=response.clone();
+  caches.open(CACHE).then(cache=>cache.put(request,copy)).catch(()=>{});
+}
+async function page(request){
+  const network=fetch(request).then(response=>{remember(request,response);return response;});
+  let timer;
+  const timeout=new Promise(resolve=>{timer=setTimeout(resolve,NAV_TIMEOUT_MS,null);});
+  let response=null;
+  try{response=await Promise.race([network,timeout]);}catch{}finally{clearTimeout(timer);}
+  if(response?.ok)return response;
+  // Offline, slow or failing hosting: open the installed copy instead.
+  const cached=await caches.match(request,{ignoreSearch:true})||await caches.match('./index.html')||await caches.match('./');
+  return cached||response||network;
+}
+async function asset(request){
+  const cached=await caches.match(request);
+  if(cached)return cached;
+  const response=await fetch(request);
+  remember(request,response);
+  return response;
+}
 self.addEventListener('fetch',event=>{
-  if(event.request.method!=='GET'||new URL(event.request.url).origin!==self.location.origin)return;
-  if(new URL(event.request.url).pathname.startsWith('/auth/')||new URL(event.request.url).pathname.startsWith('/live/'))return;
-  event.respondWith(fetch(event.request).then(response=>{
-    if(response.ok&&!response.headers.get('Cache-Control')?.includes('no-store')){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy)).catch(()=>{});}
-    return response;
-  }).catch(()=>caches.match(event.request)));
+  const request=event.request;
+  if(request.method!=='GET')return;
+  const url=new URL(request.url);
+  if(url.origin!==self.location.origin)return;
+  // Authentication, live relay and the OAuth return page always use the network.
+  if(url.pathname.startsWith('/auth/')||url.pathname.startsWith('/live/')||url.pathname.endsWith('/oauth-callback.html'))return;
+  event.respondWith(request.mode==='navigate'?page(request):asset(request));
 });

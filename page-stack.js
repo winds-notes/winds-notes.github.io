@@ -33,7 +33,10 @@
         const body=document.createElement('div');body.className='stack-page-body';const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.setAttribute('aria-hidden','true');body.append(canvas);card.append(header,body);cards.set(page.id,card);root.append(card);observer.observe(card);dirty.add(page.id);layoutWidth=0;
         body.onclick=event=>{if(event.target===canvas&&!busy())api.activate(page.id,true);};
       }
-      card.querySelector('button').textContent=`Page ${index+1}${page.id===api.active()?' · Writing here':' · Tap to write'}`;
+      const heading=card.querySelector('button'),current=page.id===api.active();
+      heading.textContent=`Page ${index+1}`;
+      heading.setAttribute('aria-label',current?`Page ${index+1}, current page`:`Write on page ${index+1}`);
+      heading.title=current?'Current page':`Write on page ${index+1}`;
       const remove=card.querySelector('.stack-page-delete');remove.disabled=pages.length===1;remove.setAttribute('aria-label',`Delete page ${index+1}`);remove.title=pages.length===1?'A notebook needs at least one page':`Delete page ${index+1}`;
       const body=card.querySelector('.stack-page-body');body.style.aspectRatio=`${d.width}/${d.height}`;
       card.classList.toggle('active-page',page.id===api.active());if(page.id===api.active()){body.append(shell);card.querySelector('canvas').width=card.querySelector('canvas').height=1;}

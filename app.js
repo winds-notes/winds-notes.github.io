@@ -206,6 +206,8 @@
     set('copySelected','copy');set('cutSelected','cut');
     Object.entries({openFileIcon:'upload',heroPlus:'plus',newPlus:'plus',searchIcon:'search',goLibrary:'back',undoBtn:'undo',redoBtn:'redo',moreOptionsBtn:'more',exportIcon:'download',togglePages:'pages',pencilOnlyIcon:'pencil',insertImageBtn:'image',paperStyleBtn:'paper',pageOrientationBtn:'orientation',addPageSidebar:'plus',addPageTop:'plus',addPageBottomIcon:'plus',zoomOut:'zoomOut',zoomIn:'zoomIn',floatPlus:'plus',prevPage:'chevronLeft',nextPage:'chevronRight',closeModal:'x'}).forEach(([id,name])=>set(id,name));
     document.querySelectorAll('[data-tool]').forEach(btn => {if(btn.dataset.tool!=='artist')btn.innerHTML=icon(btn.dataset.tool);});
+    document.querySelectorAll('[data-shape-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.shapeIcon);});
+    restoreShapePreference();
     $('shapeFillSwatches').innerHTML=['#b9adff','#f6b4c4','#f8db8e','#a2e8d1','#a7d6fa','#f7f7f7','#2b2d4c','#f3a75f'].map(c=>`<button class="fill-swatch" type="button" data-fill-color="${c}" title="${c}" aria-label="Use fill color ${c}" style="--fill-color:${c}"></button>`).join('');
     $('colorPalette').innerHTML = COLORS.map((c,i)=>`<button class="color-button ${i===0?'selected':''}" data-color="${c}" title="Ink ${i+1}" aria-label="Choose ink color ${i+1}"><span style="background:${c}"></span></button>`).join('');
     $('extendedColors').innerHTML = MORE_COLORS.map(c=>`<button class="extended-swatch" data-more-color="${c}" aria-label="Choose color ${c}" title="${c}" style="--swatch:${c}"></button>`).join('');
@@ -304,6 +306,9 @@
         for(const n of payload.notebooks){books.put(metadata(n));for(const p of n.pages)pages.put({...p,notebookId:n.id});}
         tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
         tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
+        // Commit now rather than after the request callbacks: a save started
+        // while the page closes or reloads still reaches the disk.
+        try{tx.commit?.();}catch{}
       }catch(err){reject(err);}
     });
   }
@@ -320,6 +325,9 @@
         }
         tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
         tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
+        // Commit now rather than after the request callbacks: a save started
+        // while the page closes or reloads still reaches the disk.
+        try{tx.commit?.();}catch{}
       }catch(err){reject(err);}
     });
   }
@@ -426,6 +434,7 @@
       statusText('Saved');
       $('searchNotebooks').value='';view('library');renderLibrary();
     }finally{unlock();}
+    resumeLastNotebook();
   }
 
   function initializeSyncHistory(){
@@ -584,6 +593,37 @@
     if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size){const error=Error('Shared changes are waiting for durable local saving.');error.syncDeferred=true;throw error;}
     window.WindsLive?.refreshRooms();renderCloudChanges(expectedWorkspace);return saved;
   }
+  /* Reopen the notebook and page after a reload, an iPad tab discard or a
+   * Google reconnect bounce. Per-tab (sessionStorage) and account-scoped. */
+  const RESUME_KEY='winds-notes-resume-v1',bootStartedAt=Date.now();
+  let resumeHandled=false;
+  function rememberResumePoint(){
+    try{
+      if(state.activeId&&notebook())sessionStorage.setItem(RESUME_KEY,JSON.stringify({workspace:workspaceId,bookId:state.activeId,pageIndex:state.pageIndex,at:Date.now()}));
+      else sessionStorage.removeItem(RESUME_KEY);
+    }catch{}
+  }
+  function resumeLastNotebook(){
+    if(resumeHandled)return;
+    if(state.activeId||Date.now()-bootStartedAt>60000){resumeHandled=true;return;}
+    let saved=null;try{saved=JSON.parse(sessionStorage.getItem(RESUME_KEY)||'null');}catch{}
+    if(!saved){resumeHandled=true;return;}
+    if(saved.workspace!==workspaceId)return; // the remembered account may still be opening
+    resumeHandled=true;
+    // Startup opens guest notes first; a remembered Google account replaces them.
+    if(workspaceId==='guest'){try{if(sessionStorage.getItem('winds-drive-session-v1')||localStorage.getItem('winds-drive-last-account-v1'))return;}catch{}}
+    const n=state.notebooks.find(book=>book.id===saved.bookId);if(!n)return;
+    openNotebook(n.id);
+    const index=Math.min(Math.max(0,Number(saved.pageIndex)|0),n.pages.length-1);
+    if(index>0)switchPage(index);
+  }
+  async function prepareNavigation(){
+    cancelBoundaryFill(true);finishActiveStroke();composeInkNow();commitText();
+    while(state.pendingInteractions)await delay(80);
+    await saveNow(true);
+    if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size)throw new Error('Your latest notes are still saving. Try again in a moment.');
+    rememberResumePoint();
+  }
   function openNotebook(id){
     cancelBoundaryFill(true);
     finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>openNotebook(id),100);return;}
@@ -698,6 +738,7 @@
     if(boundaryFillSession)cancelBoundaryFill();
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
     if(tool==='eraser')state.eraserInkOnly=inkOnly;
+    if(SHAPE_KINDS.includes(tool))syncShapeTrigger(tool);
     document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
     $('inkCanvas').classList.toggle('cursor-eraser',tool==='eraser');
     $('inkCanvas').classList.toggle('cursor-select',tool==='select');
@@ -705,6 +746,26 @@
     $('inkCanvas').classList.toggle('cursor-pan',tool==='pan');$('inkCanvas').classList.toggle('cursor-area',tool==='area');
     groupSelection=null;configureSize();
     renderCanvas();if(tool==='eraser')prepareEraserPreview(true);else eraserPreview?.releaseCache();
+  }
+  /* All figures share one toolbar button (like Fill): the button draws the
+   * current shape and its ⌄ opens the shape picker. The last choice is kept. */
+  const SHAPE_KINDS=['rectangle','square','ellipse','circle','triangle','diamond','star','line','arrow'];
+  const SHAPE_NAMES={rectangle:'Rectangle',square:'Square',ellipse:'Ellipse',circle:'Circle',triangle:'Triangle',diamond:'Diamond',star:'Star',line:'Line',arrow:'Arrow'};
+  const SHAPE_PREFERENCE_KEY='winds-notes-shape-v1';
+  function syncShapeTrigger(kind){
+    const trigger=$('shapeToolBtn');if(!trigger||!SHAPE_KINDS.includes(kind))return;
+    if(trigger.dataset.tool!==kind){trigger.dataset.tool=kind;trigger.innerHTML=icon(kind);}
+    trigger.setAttribute('aria-label',`Shapes · ${SHAPE_NAMES[kind]}`);trigger.title=`Shapes · ${SHAPE_NAMES[kind]} (R)`;
+    document.querySelectorAll('#shapeMenu [data-shape]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.shape===kind)));
+  }
+  function chooseShape(kind){
+    if(!SHAPE_KINDS.includes(kind))return;
+    try{localStorage.setItem(SHAPE_PREFERENCE_KEY,kind);}catch{}
+    closeMenus();setTool(kind);
+  }
+  function restoreShapePreference(){
+    let saved=null;try{saved=localStorage.getItem(SHAPE_PREFERENCE_KEY);}catch{}
+    syncShapeTrigger(SHAPE_KINDS.includes(saved)?saved:'rectangle');
   }
   let boundaryFillSession=null;
   function cancelBoundaryFill(restore=false){
@@ -2206,8 +2267,8 @@
   }
   function deleteNotebook(id){const n=state.notebooks.find(n=>n.id===id);if(!n)return;if(!confirm(n._sharing?`Remove "${n.title}" from this account's library? Other collaborators retain their shared notebook.`:`Permanently delete "${n.title}" and all ${n.pages.length} pages? Export a backup first if needed.`))return;tombstones[id]=globalThis.WindsWorkspaceModel.deletion(n,now(),workspaceActor);state.notebooks=state.notebooks.filter(n=>n.id!==id);if(state.activeId===id){state.activeId=null;view('library');}scheduleSave(true);saveNow(true);renderLibrary();toast(n._sharing?'Shared notebook removed from your library':'Notebook deleted');}
   function closeMenus(){
-    ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu','fillMenu','artistMenu','zoomMenu','eraserMenu'].forEach(id=>$(id).hidden=true);
-    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['fillSettingsBtn','fillMenu'],['artistBtn','artistMenu'],['zoomValue','zoomMenu'],['eraserSettingsBtn','eraserMenu']].forEach(([button])=>$(button).setAttribute('aria-expanded','false'));
+    ['exportMenu','paperMenu','orientationMenu','moreMenu','emojiMenu','colorMenu','fillMenu','artistMenu','zoomMenu','eraserMenu','shapeMenu'].forEach(id=>{const menu=$(id);if(menu)menu.hidden=true;});
+    [['exportBtn','exportMenu'],['paperStyleBtn','paperMenu'],['pageOrientationBtn','orientationMenu'],['moreOptionsBtn','moreMenu'],['emojiBtn','emojiMenu'],['customColorBtn','colorMenu'],['fillSettingsBtn','fillMenu'],['artistBtn','artistMenu'],['zoomValue','zoomMenu'],['eraserSettingsBtn','eraserMenu'],['shapeMenuBtn','shapeMenu']].forEach(([button])=>$(button)?.setAttribute('aria-expanded','false'));
   }
   function toggleMenu(buttonId,menuId){
     const wasClosed=$(menuId).hidden;
@@ -2279,6 +2340,8 @@
     bindBoundaryFill();
     $('shapeFillBtn').onclick=event=>{event.stopPropagation();armBoundaryFill();};
     $('fillSettingsBtn').onclick=showFillMenu;
+    $('shapeMenuBtn').onclick=()=>toggleMenu('shapeMenuBtn','shapeMenu');
+    document.querySelectorAll('#shapeMenu [data-shape]').forEach(button=>{button.onclick=()=>chooseShape(button.dataset.shape);});
     $('activeFillColor').oninput=event=>setFillOptions({color:event.target.value});
     $('shapeFillEnabled').onchange=e=>{setFillOptions({enabled:e.target.checked});applyFillToSelected();};
     $('shapeFillColor').oninput=e=>setFillOptions({color:e.target.value,enabled:true});
@@ -2312,7 +2375,7 @@
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page()||page().background)return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
     document.querySelectorAll('[data-orientation]').forEach(el=>el.onclick=()=>setOrientation(el.dataset.orientation));
     $('moreMenu').onclick=e=>{const b=e.target.closest('[data-action]');if(!b)return;closeMenus();const a=b.dataset.action;if(a==='fit'){finishActiveStroke();state.zoom=1;resizePage();}else if(a==='scroll'){setTool('pan');toast('Drag to scroll between notebook pages. Tap Pen to write.');}else if(a==='editText')editSelectedText();else if(a==='copy')window.WindsClipboard.copy();else if(a==='cut')window.WindsClipboard.copy(true);else if(a==='paste')window.WindsClipboard.paste();else if(a==='pasteInternal')window.WindsClipboard.paste(true);else if(a==='rename'){$('notebookTitle').focus();$('notebookTitle').select();}else if(a==='duplicate')duplicatePage();else if(a==='deletePage')deletePage(page()?.id);else if(a==='backup')backup();else if(a==='restore')$('restoreFileInput').click();else if(a==='open')$('openNotebookInput').click();else if(a==='pdf')$('pdfFileInput').click();else if(a==='pencilTest')togglePencilDiagnostics(true);else if(a==='drive')window.WindsDrive?.open();else if(a==='deleteNotebook')deleteNotebook(state.activeId);};
-    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#fillSettingsBtn')&&!e.target.closest('#artistBtn')&&!e.target.closest('#zoomValue')&&!e.target.closest('#eraserBtn')&&!e.target.closest('#eraserSettingsBtn'))closeMenus();});
+    document.addEventListener('click',e=>{if(!e.target.closest('.pop-menu')&&!e.target.closest('#exportBtn')&&!e.target.closest('#paperStyleBtn')&&!e.target.closest('#pageOrientationBtn')&&!e.target.closest('#moreOptionsBtn')&&!e.target.closest('#emojiBtn')&&!e.target.closest('#customColorBtn')&&!e.target.closest('#shapeFillBtn')&&!e.target.closest('#fillSettingsBtn')&&!e.target.closest('#artistBtn')&&!e.target.closest('#zoomValue')&&!e.target.closest('#eraserBtn')&&!e.target.closest('#eraserSettingsBtn')&&!e.target.closest('#shapeMenuBtn'))closeMenus();});
     document.querySelectorAll('[data-tool]').forEach(btn=>{if(!['artist','eraser'].includes(btn.dataset.tool))btn.onclick=()=>setTool(btn.dataset.tool);});
     $('eraserBtn').onclick=event=>{event.stopPropagation();setTool('eraser');closeMenus();};
     $('eraserSettingsBtn').onclick=event=>{
@@ -2405,10 +2468,11 @@
       if($('editorView').hidden)return;
       const shortcuts={p:'pen',h:'highlighter',e:'eraser',v:'select',t:'text',s:'pan',l:'area'};
       if(shortcuts[e.key.toLowerCase()])setTool(shortcuts[e.key.toLowerCase()]);
+      else if(e.key.toLowerCase()==='r'&&!e.metaKey&&!e.ctrlKey&&!e.altKey)setTool($('shapeToolBtn')?.dataset.tool||'rectangle');
       if((e.key==='Delete'||e.key==='Backspace')&&state.selected>=0){e.preventDefault();deleteSelection();}
     });
-    document.addEventListener('visibilitychange',()=>{if(document.hidden){finishActiveStroke();saveNow(true);}});
-    window.addEventListener('pagehide',()=>{finishActiveStroke();saveNow(true);});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden){finishActiveStroke();saveNow(true);rememberResumePoint();}});
+    window.addEventListener('pagehide',()=>{finishActiveStroke();saveNow(true);rememberResumePoint();});
   }
   function textDefaults(){return state.textStyle?{...state.textStyle}:{size:Math.max(18,Math.min(40,12+state.size*2.4))};}
   function editSelectedText(){
@@ -2672,6 +2736,7 @@
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
     initializeSyncHistory();
     renderLibrary();view('library');window.WindsText.init({apply:applyEditedText});initClipboard();
+    resumeLastNotebook();
     globalThis.WindsMandala?.init({
       context:()=>({workspace:workspaceId,bookId:state.activeId,pageId:page()?.id,version:saveVersion}),
       prepare:async()=>{cancelBoundaryFill(true);closeMenus();finishActiveStroke();composeInkNow();commitText();while(state.pendingInteractions)await delay(80);},
@@ -2688,6 +2753,7 @@
       isEditing:()=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
+      prepareNavigation,
       sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id])&&!state.notebooks.some(n=>n.id===id),openNotebook,toast},
       live:{busy:idle=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
         room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},

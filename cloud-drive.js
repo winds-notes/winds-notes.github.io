@@ -24,6 +24,9 @@
   const LOGOUT_EVENT='winds-drive-last-logout-event-v1';
   const SERVER_AUTH=global.WINDS_GOOGLE_AUTH_SERVER===true;
   const PENDING_LOGOUT='winds-drive-pending-server-logout-v1';
+  // Static hosting: renew the one-hour Google token silently a few minutes early.
+  const SILENT_RENEW_BEFORE_MS=5*60*1000;
+  const SILENT_RETRY_MS=30*60*1000;
   const $=id=>document.getElementById(id);
   let bridge=null,oauth=null,token=null,expires=0,profile=null,activeId=null,remoteRevision=null;
   let syncing=false,signingIn=false,generation=0,timer=0,expiryTimer=0,lastSync=0;
@@ -33,7 +36,9 @@
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
   let syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
+  let silentTimer=0,silentRunning=false,silentRetryAt=0,silentResult=null,lastSyncFailed=false,chipState='';
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
+  const oauthHelper=()=>!SERVER_AUTH&&global.WindsOAuth?.enabled?.()?global.WindsOAuth:null;
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
   function currentLogoutStamp(sub){
     try{return localStorage.getItem(LOGOUT_PREFIX+sub)||'';}catch{return '';}
@@ -100,7 +105,8 @@
     try{channel?.postMessage({type,clientId:global.WINDS_GOOGLE_CLIENT_ID,...details});}catch{}
   }
   function nextSession(){
-    generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    generation++;clearTimeout(timer);clearTimeout(renewalTimer);clearTimeout(silentTimer);
+    silentRetryAt=0;lastSyncFailed=false;
     workspaceHistory={id:null,revisions:new Map(),checked:0};
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
     global.WindsSharing?.cancel();
@@ -205,7 +211,7 @@
     uiState=next;
     $('cloudConnection').classList.toggle('connected',yes);
     $('cloudConnectionText').textContent=yes?`Signed in as ${profile.email}`:profile?`${profile.email} · ${SERVER_AUTH&&!authorizationRequired?'Drive sync waiting for connection':'Drive authorization needed'}`:'Not signed in';
-    $('cloudEntryLabel').textContent=profile?profile.email:'Sign in with Google';
+    $('cloudEntryLabel').textContent=profile?profile.email:'Sign in with Google';chipState='';
     $('googleConnect').hidden=yes||Boolean(SERVER_AUTH&&profile&&!authorizationRequired);
     $('googleConnect').textContent=profile?'Reconnect Google Drive':'Sign in with Google';
     $('googleConnect').disabled=signingIn;
@@ -222,8 +228,60 @@
     }
     $('cloudAutoBackup').checked=auto;
     clearTimeout(expiryTimer);
-    if(yes)expiryTimer=setTimeout(()=>{updateUI();if(SERVER_AUTH)renewServerSession();},expires-Date.now()-30000);
+    if(yes)expiryTimer=setTimeout(()=>{updateUI();if(SERVER_AUTH)renewServerSession();else trySilentRenewal();},expires-Date.now()-30000);
     if(!yes){$('cloudBackupList').hidden=true;clearTimeout(timer);}
+    updateChip();
+  }
+  /* Compact sync status for the editor and library header. "Resume sync" is a
+   * single tap that reconnects the same account; nothing here runs during
+   * active Pencil input. */
+  function currentChipState(){
+    if(!profile)return 'guest';
+    if(remoteSignedOut)return 'signedout';
+    if(signingIn)return 'connecting';
+    if(SERVER_AUTH&&!connected()&&!authorizationRequired)return 'waiting';
+    if(!connected())return 'reconnect';
+    if(global.navigator?.onLine===false)return 'offline';
+    if(!auto)return 'paused';
+    if(lastSyncFailed)return 'retrying';
+    return lastSyncedVersion===localVersion?'synced':'syncing';
+  }
+  const CHIP_TEXT={guest:'',signedout:'Sign in to sync',connecting:'Connecting…',waiting:'Waiting for connection',
+    reconnect:'Resume sync',offline:'Offline · saved here',paused:'Sync paused',retrying:'Sync retrying',syncing:'Syncing…',synced:'Synced'};
+  const CHIP_TITLE={signedout:'Signed out in another tab. Tap to sign in again.',connecting:'Connecting to Google Drive',
+    waiting:'Drive sync resumes automatically when the connection returns',reconnect:'Google Drive access expired. Tap once to reconnect — your notes are saved on this device.',
+    offline:'No internet connection. Notes are saved on this device and sync later.',paused:'Automatic sync is paused. Tap for Google Drive options.',
+    retrying:'Google Drive did not respond. Retrying automatically; notes are saved on this device.',syncing:'Uploading changes to Google Drive',synced:'All notebooks are saved to Google Drive'};
+  function updateChip(){
+    const next=currentChipState();
+    if(next===chipState)return;
+    // Never change header layout while the Pencil is down.
+    if(bridge?.isDrawingNow?.()){clearTimeout(updateChip.timer);updateChip.timer=setTimeout(updateChip,1250);return;}
+    chipState=next;
+    const chip=$('syncChip');
+    if(chip){
+      chip.hidden=next==='guest';
+      chip.className=`sync-chip sync-${next}`;
+      chip.title=CHIP_TITLE[next]||'';
+      const label=$('syncChipLabel');if(label)label.textContent=CHIP_TEXT[next]||'';
+    }
+    const entry=$('cloudConnectHome'),attention=next==='reconnect'||next==='signedout';
+    if(entry){
+      entry.classList?.toggle('needs-attention',attention);
+      entry.classList?.toggle('is-synced',next==='synced'||next==='syncing');
+      const label=$('cloudEntryLabel'),text=attention?'Resume Drive sync':profile?profile.email:'Sign in with Google';
+      if(label&&label.textContent!==text)label.textContent=text;
+      const title=attention?CHIP_TITLE[next]:'Google Drive and account';
+      if(entry.title!==title)entry.title=title;
+    }
+  }
+  /** Chip action: reconnect the same account in one tap, otherwise open Drive. */
+  function resume(){
+    const state=currentChipState();
+    // The dialog shows progress and any error; connect() still runs inside
+    // this tap, as Google's popup requires.
+    open();
+    if(state==='reconnect'||state==='signedout')connect();
   }
   function open(){
     $('cloudBackdrop').hidden=false;updateUI();
@@ -298,6 +356,7 @@
       if(response.status===401){
         token=null;expires=0;rememberSession();persistSession();updateUI();
         if(SERVER_AUTH){forceRenewal=true;scheduleRenewal(1000);}
+        else{silentRetryAt=0;scheduleSilentRenewal(1000);}
       }
       const error=new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
       error.status=response.status;error.reason=code;throw error;
@@ -420,7 +479,8 @@
     return renewing;
   }
   async function connectCallback(result){
-    if(!result||result.error||!result.access_token){message('Google sign-in was cancelled or incomplete.',true);return;}
+    if(!result||result.error||!result.access_token){message('Google sign-in was cancelled or incomplete.',true);return false;}
+    let succeeded=false;
     const previousSession={token,expires,profile,activeId,auto,remoteSignedOut,logoutStamp};
     const before=logoutEvent();
     const nextGeneration=nextSession();
@@ -442,6 +502,7 @@
       await bridge.switchWorkspace(identity.sub);
       if(nextGeneration!==generation)return;
       remoteSignedOut=false;rememberSession();persistSession();rememberAccount();updateUI();
+      succeeded=true;global.WindsOAuth?.unblockSilent?.(identity.sub);
       try{
         if(!bridge.isWriting())await refreshFromDrive(nextGeneration);
         if(nextGeneration!==generation)return;
@@ -457,11 +518,71 @@
         rememberSession();await bridge.switchWorkspace(profile?.sub||null).catch(()=>{});
         message(err.message||'Could not open this Google account.',true);updateUI();
       }
-    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();global.WindsSharing?.resume();global.WindsLive?.start();}}
+    }finally{if(nextGeneration===generation){signingIn=false;updateUI();schedule();scheduleSilentRenewal();global.WindsSharing?.resume();global.WindsLive?.start();}}
+    return succeeded&&nextGeneration===generation;
+  }
+  /** Accept a silently renewed token for the SAME signed-in account only. */
+  async function applyRenewedToken(newToken,expiresIn,expected=generation){
+    const sub=profile?.sub,before=logoutEvent();
+    if(!sub||remoteSignedOut||typeof newToken!=='string'||!newToken)return false;
+    let identity;
+    try{identity=await getProfile(newToken);}catch{return false;}
+    if(expected!==generation||profile?.sub!==sub||remoteSignedOut)return false;
+    if(identity.sub!==sub||loggedOutSince(before,sub)||!currentSession(sessionSnapshot()))return false;
+    token=newToken;expires=Date.now()+Math.max(60,Number(expiresIn)||3600)*1000;profile=identity;authorizationRequired=false;
+    global.WindsOAuth?.unblockSilent?.(sub);
+    rememberSession();persistSession();updateUI();message(connectionMessage());
+    // Pick up edits saved while access had expired, through the idle guards.
+    localVersion++;schedule();global.WindsSharing?.resume();global.WindsLive?.start();
+    return true;
+  }
+  function scheduleSilentRenewal(delay){
+    clearTimeout(silentTimer);
+    if(!oauthHelper()||!profile||remoteSignedOut||signingIn)return;
+    const wait=delay??(connected()?expires-Date.now()-SILENT_RENEW_BEFORE_MS:silentRetryAt-Date.now());
+    silentTimer=setTimeout(()=>trySilentRenewal(),Math.max(1000,wait));
+  }
+  /* Hidden-iframe renewal while the app is open. Browsers that block Google's
+   * cookies in frames (Safari) fail quickly; the next launch then renews with
+   * a top-level bounce, or the "Resume sync" chip reconnects in one tap. */
+  async function trySilentRenewal(){
+    const helper=oauthHelper();
+    if(!helper||!profile||remoteSignedOut||signingIn||silentRunning)return false;
+    if(connected()&&expires-Date.now()>SILENT_RENEW_BEFORE_MS){scheduleSilentRenewal();return true;}
+    if(global.navigator?.onLine===false||document.hidden)return false; // online/visible events retry
+    if(Date.now()<silentRetryAt){scheduleSilentRenewal();return false;}
+    const probing=!helper.verified();
+    if(probing&&!helper.probeDue())return false;
+    const wait=idleDelay(false);
+    if(wait){scheduleSilentRenewal(wait);return false;}
+    const expected=generation,sub=profile.sub;
+    silentRunning=true;
+    if(probing)helper.noteProbe();
+    try{
+      const result=await helper.silentIframe({hint:profile.email});
+      if(expected!==generation||profile?.sub!==sub)return false;
+      if(result.token&&await applyRenewedToken(result.token,result.expiresIn,expected))return true;
+      silentRetryAt=Date.now()+SILENT_RETRY_MS;
+      return false;
+    }finally{
+      silentRunning=false;
+      if(expected===generation){updateChip();scheduleSilentRenewal();}
+    }
   }
   async function connect(switchAccount=false){
     // Initiated directly by a click, required by Google's OAuth popup.
     if(signingIn)return;
+    const helper=oauthHelper();
+    if(helper?.redirectReady?.()){
+      // Same-tab redirect: reliable on iPad (including Home Screen apps) where
+      // popups can be blocked. Local notes are saved first.
+      signingIn=true;updateUI();message('Opening Google sign-in…');
+      try{await bridge.prepareNavigation?.();}
+      catch(err){signingIn=false;updateUI();message(err.message||'Finish saving your notes, then try again.',true);return;}
+      const fresh=switchAccount||!profile;
+      if(helper.begin({mode:'interactive',sub:fresh?null:profile.sub,hint:fresh?null:profile.email,prompt:fresh?'select_account':''}))return;
+      signingIn=false;updateUI();
+    }
     if(SERVER_AUTH){
       try{
         await finishServerLogouts();
@@ -485,6 +606,10 @@
     let saved=savedSession()||(account?{...account,token:null,expires:0}:null);
     if(!saved&&!SERVER_AUTH)return;
     if(saved)saved=persistentSession(saved.profile.sub)||saved;
+    // A launch-time silent renewal returned a fresh token for this account.
+    if(saved&&silentResult?.token&&silentResult.sub===saved.profile.sub)
+      saved={...saved,token:silentResult.token,expires:Date.now()+silentResult.expiresIn*1000};
+    silentResult=null;
     const expected=nextSession();
     signingIn=true;
     if(saved){profile=saved.profile;logoutStamp=saved.logoutStamp||currentLogoutStamp(profile.sub);loadAutoPreference();}
@@ -517,6 +642,7 @@
       if(identity.sub!==saved.profile.sub)throw new Error('Google account changed. Reconnect to verify the account.');
       profile=identity;token=saved.token;expires=saved.expires;
       logoutStamp=saved.logoutStamp||'';persistSession();
+      global.WindsOAuth?.unblockSilent?.(identity.sub);
       message(connectionMessage());
       // Sync later through the existing idle guard; never interrupt new writing.
       localVersion++;
@@ -532,8 +658,24 @@
         signingIn=false;
         if(!connected()){token=null;expires=0;}
         rememberSession();rememberAccount(true);updateUI();schedule();if(profile)scheduleRenewal();global.WindsSharing?.resume();global.WindsLive?.start();
+        // Expired on static hosting: try a hidden renewal once startup is idle.
+        if(profile&&!SERVER_AUTH)scheduleSilentRenewal(connected()?undefined:4000);
       }
     }
+  }
+  /** Handle a completed Google redirect before the normal session restore. */
+  async function consumeRedirect(){
+    let result=null;
+    try{result=SERVER_AUTH?null:global.WindsOAuth?.consume?.()||null;}catch{result=null;}
+    if(!result)return false;
+    if(result.token&&result.mode==='interactive')return connectCallback({access_token:result.token,expires_in:result.expiresIn});
+    if(result.token&&result.mode==='silent'){silentResult=result;return false;}
+    // prompt=none could not complete (signed out of Google, consent changed):
+    // stop bouncing at launch until this account signs in again.
+    if(result.mode==='silent'&&result.sub&&!['no_response','state_mismatch'].includes(result.error))global.WindsOAuth.blockSilent(result.sub,result.error);
+    if(result.mode==='interactive'&&result.error&&result.error!=='no_response')
+      setTimeout(()=>{open();message(result.error==='access_denied'?'Google sign-in was cancelled. Your notes are safe on this device.':'Google sign-in did not finish. Please try again.',true);},0);
+    return false;
   }
   async function listFiles(expected=generation,manual=false,backups=false){
     const found=[];let next='';
@@ -726,11 +868,13 @@
     }catch(err){
       nextDelay=err.syncDeferred?Math.max(100,idleDelay()):AUTO_RETRY_MS;
       if(expected===generation&&!err.syncDeferred){
+        lastSyncFailed=connected();
         console.error('WiNDS Drive sync:',err);
         if(expected===generation){message('Google Drive sync will retry automatically. Your notes remain saved on this device.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
       }
     }finally{
-      if(expected===generation&&nextDelay===null)syncDetails.elapsed=Date.now()-pollStartedAt;
+      if(expected===generation&&nextDelay===null){syncDetails.elapsed=Date.now()-pollStartedAt;lastSyncFailed=false;}
+      if(expected===generation)updateChip();
       if(expected===generation&&!finishOperation(expected)&&auto){
         // Poll from the start of the previous check: network time must not be
         // followed by another full polling interval. Never overlap requests.
@@ -747,6 +891,7 @@
   function onLocalSave(){
     if(!profile||remoteSignedOut||signingIn)return;
     localVersion++;schedule();global.WindsLive?.refreshRooms();if(SERVER_AUTH&&!connected())scheduleRenewal(AUTO_RETRY_MS);
+    updateChip();
   }
   function backupName(){return `WiNDS Notes Backup ${new Date().toISOString().replace(/[:.]/g,'-')}.json`;}
   async function backup(){
@@ -866,7 +1011,8 @@
       received:()=>{syncDetails.received=Date.now();updateSyncDetails();},uploaded:()=>{syncDetails.uploaded=Date.now();updateSyncDetails();}});
     try{deviceId=localStorage.getItem('winds-drive-device-id')||'';if(!deviceId){deviceId=crypto.randomUUID?.()||Math.random().toString(36).slice(2);localStorage.setItem('winds-drive-device-id',deviceId);}}catch{deviceId=Math.random().toString(36).slice(2);}
     if($('cloudSyncDetails'))$('cloudSyncDetails').ontoggle=updateSyncDetails;
-    $('cloudConnectHome').onclick=open;
+    $('cloudConnectHome').onclick=resume;
+    if($('syncChip'))$('syncChip').onclick=resume;
     $('cloudClose').onclick=close;
     $('cloudBackdrop').addEventListener('click',e=>{if(e.target===$('cloudBackdrop'))close();});
     $('googleConnect').onclick=()=>connect();
@@ -887,13 +1033,26 @@
     global.addEventListener?.('storage',event=>{
       if(profile&&event.key===LOGOUT_PREFIX+profile.sub&&!currentSession(sessionSnapshot()))signedOutElsewhere(profile.sub);
     });
-    const resumeSync=()=>{if(SERVER_AUTH&&!connected())scheduleRenewal(0);schedule();};
+    const resumeSync=()=>{
+      updateChip();
+      if(SERVER_AUTH&&!connected())scheduleRenewal(0);
+      else if(!SERVER_AUTH&&profile&&(!connected()||expires-Date.now()<SILENT_RENEW_BEFORE_MS))scheduleSilentRenewal(1500);
+      schedule();
+    };
+    global.addEventListener?.('offline',updateChip);
     global.addEventListener?.('online',resumeSync);
     global.addEventListener?.('focus',resumeSync);
     global.addEventListener?.('pageshow',resumeSync);
     document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)resumeSync();});
     initSessionChannel();
+    if(!SERVER_AUTH&&await global.WindsOAuth?.launching?.()){
+      // This page is leaving for a launch-time renewal. If the Back gesture
+      // restores it from memory, continue with the saved session instead.
+      global.addEventListener?.('pageshow',event=>{if(event.persisted)restoreSession();});
+      return;
+    }
+    if(await consumeRedirect())return;
     await restoreSession();
   }
-  global.WindsDrive=Object.freeze({init,open,onLocalSave});
+  global.WindsDrive=Object.freeze({init,open,onLocalSave,resume,status:()=>currentChipState()});
 })(window);

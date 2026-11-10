@@ -259,7 +259,9 @@ test('auto-sync preference survives refresh and expiry updates the reconnect sta
   assert.equal(refreshed.element('cloudAutoBackup').checked, false);
   const expiry = [...refreshed.timers.values()].find(timer => timer.delay > 3000000);
   refreshed.tick(3600001); expiry.callback();
-  assert.equal(refreshed.element('cloudEntryLabel').textContent, A.email);
+  // The library account button turns into a one-tap reconnect for the same account.
+  assert.equal(refreshed.element('cloudEntryLabel').textContent, 'Resume Drive sync');
+  assert.equal(refreshed.element('syncChipLabel').textContent, 'Resume sync');
   assert.equal(refreshed.element('googleSync').hidden, true);
   assert.deepEqual(refreshed.notes, ['A notes']);
 });

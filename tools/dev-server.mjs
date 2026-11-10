@@ -27,6 +27,8 @@ http.createServer(async (req,res)=>{
     if(!info.isFile()){res.writeHead(404).end('Not found');return;}
     const contents=await readFile(path);
     res.writeHead(200,{'Content-Type':types[extname(path)]||'application/octet-stream','Cache-Control':'no-store',
-      'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY'}).end(req.method==='HEAD'?undefined:contents);
+      'X-Content-Type-Options':'nosniff',
+      // The OAuth return page must load in the same-origin renewal iframe.
+      'X-Frame-Options':relative==='oauth-callback.html'?'SAMEORIGIN':'DENY'}).end(req.method==='HEAD'?undefined:contents);
   }catch(e){res.writeHead(404).end('Not found');}
 }).listen(port,'127.0.0.1',()=>console.log(`WiNDS Notes: http://localhost:${port}/`));

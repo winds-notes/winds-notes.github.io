@@ -6,7 +6,9 @@ test('offline PDF pre-cache includes the matching reader, worker and all declare
     caches:{open:async()=>({addAll:async urls=>{assets.push(...urls);}})},importScripts:(...files)=>{for(const file of files)vm.runInContext(fs.readFileSync(path.resolve(root,file.split('?')[0]),'utf8'),context);}});
   Object.assign(context,context.self);context.self=context;
   vm.runInContext(fs.readFileSync(path.join(root,'sw.js'),'utf8'),context);events.get('install')({waitUntil:promise=>{pending=promise;}});await pending;
-  for(const file of ['./pdf-import.js','./vendor/pdfjs/pdf.min.mjs','./vendor/pdfjs/pdf.worker.min.mjs'])assert.ok(assets.includes(file));
+  // App scripts are cached under their release-versioned URLs (see sw.js).
+  assert.ok(assets.some(file=>/^\.\/pdf-import\.js\?v=\d+$/.test(file)));
+  for(const file of ['./vendor/pdfjs/pdf.min.mjs','./vendor/pdfjs/pdf.worker.min.mjs'])assert.ok(assets.includes(file));
   assert.ok(assets.some(file=>file.includes('/standard_fonts/')));assert.ok(assets.some(file=>file.includes('/cmaps/')));assert.ok(assets.some(file=>file.endsWith('.wasm')));
   assert.equal(assets.filter(file=>file.startsWith('./assets/mandalas/')&&file.endsWith('.js?v=65')).length,50);
   for(const file of assets){const actual=path.resolve(root,file.split('?')[0]);assert.ok(actual.startsWith(root+path.sep)||actual===root);assert.ok(fs.existsSync(actual),file);}
@@ -41,10 +43,12 @@ test('offline registration runs after slow startup as well as before window load
 });
 test('the editor stylesheet and dependencies use matching release URLs offline',()=>{
  const html=fs.readFileSync(require.resolve('../index.html'),'utf8'),worker=fs.readFileSync(require.resolve('../sw.js'),'utf8');
- for(const name of ['app.js','selection-preview.js','creative-tools.js','native-file.js','interaction-tools.js','eraser-preview.js','cloud-drive.js','live-sync.js','notebook-sharing.js','styles.css']){
+ for(const name of ['app.js','selection-preview.js','creative-tools.js','native-file.js','interaction-tools.js','eraser-preview.js','cloud-drive.js','live-sync.js','notebook-sharing.js','styles.css','google-config.js','oauth-redirect.js','text-tools.js','clipboard.js','pdf-import.js','workspace-model.js','page-stack.js']){
    const prefix='./'+name+'?v=';
    const url=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(match=>match[1]).find(url=>url.startsWith(prefix));
    assert.ok(url,name+' needs a versioned URL');
-   assert.ok(worker.includes("'"+url+"'"),url+' needs an offline cache entry');
+   const release=worker.match(/const RELEASE='(\d+)'/)[1];
+   assert.equal(url,prefix+release,url+' must match the service-worker release');
+   assert.ok(worker.includes("'"+name+"'"),name+' needs an offline cache entry');
  }
 });
