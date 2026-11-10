@@ -4,6 +4,8 @@ const vm=require('node:vm');
 const {readFileSync}=require('node:fs');
 const app=readFileSync(require.resolve('../app.js'),'utf8');
 const slice=(start,end)=>app.slice(app.indexOf(start),app.indexOf(end));
+const workspaceModel=readFileSync(require.resolve('../workspace-model.js'),'utf8')+
+  ';if(typeof window!=="undefined")globalThis.WindsWorkspaceModel=window.WindsWorkspaceModel;\n';
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 
@@ -45,7 +47,8 @@ function workspace(){
     $:()=>({value:''}),view(){},renderLibrary(){},async storageOpen(){const gate=deferred();opens.push({id:c.workspaceId,gate});await gate.promise;c.database={close(){}};},
     async loadData(){if(c.readError)throw Error('storage read failed');return {notebooks:[{id:c.workspaceId,pages:[]}]};}});
   c.window.WindsPageStack={reset(){}};
-  vm.runInNewContext(slice('  // Each signed-in Google identity','  function workspaceSnapshot(')+'\nglobalThis.switchWorkspace=switchWorkspace;globalThis.lockInterface=lockInterface;',c);
+  c.workspaceActor='tab-test';c.resumeLastNotebook=()=>{};
+  vm.runInNewContext(workspaceModel+slice('  // Each signed-in Google identity','  function workspaceSnapshot(')+'\nglobalThis.switchWorkspace=switchWorkspace;globalThis.lockInterface=lockInterface;',c);
   return {c,writes,opens,old};
 }
 

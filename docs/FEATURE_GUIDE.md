@@ -15,7 +15,7 @@ The illustrated collection uses individually composed artwork with natural anima
 1. Open a notebook and select the **⌄ settings arrow beside Fill** in the top toolbar.
 2. Choose solid fill, a fill color, and opacity; leave fill disabled for a transparent interior.
 3. Under **Border / Outline**, choose a completely independent line color, width (1–32), and style: solid, dashed, dotted, or no border.
-4. Choose Star, Rectangle, Square, Circle, Ellipse, Triangle or Diamond and draw.
+4. Tap the **⌄** beside the **Shapes** button, choose Star, Rectangle, Square, Circle, Ellipse, Triangle, Diamond, Line or Arrow, and draw. The Shapes button keeps your last choice (keyboard: **R**).
 5. To edit an existing figure, use **Select** → tap the figure → **Fill settings (⌄)** → change the settings. Click **Apply fill & border to selected shape** if needed.
 
 Line and Arrow do not take a fill, but their borders can be styled. Existing outline-only notebooks still open with a solid border.

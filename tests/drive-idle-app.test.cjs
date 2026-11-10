@@ -4,6 +4,9 @@ const {readFileSync}=require('node:fs');
 const vm=require('node:vm');
 const app=readFileSync(require.resolve('../app.js'),'utf8');
 const helpers=app.slice(app.indexOf('  function cloudSyncDelay(){'),app.indexOf('  function seed(){'));
+// The app loads workspace-model.js before app.js; the sandbox needs the same causal merge model.
+const workspaceModel=readFileSync(require.resolve('../workspace-model.js'),'utf8')+
+  ';if(typeof window!=="undefined")globalThis.WindsWorkspaceModel=window.WindsWorkspaceModel;\n';
 
 function book(updatedAt){return {id:'book',title:'Physics',updatedAt,pages:[{id:'page',items:[]}]};}
 function editor(){
@@ -17,9 +20,11 @@ function editor(){
     clearTimeout:id=>tasks.delete(id),
     async saveNow(...args){saveCalls.push(args);context.saving=true;await gate;context.saving=false;context.dirtyAll=false;},
     notebook:()=>state.notebooks.find(n=>n.id===state.activeId),
+    page:()=>state.notebooks.find(n=>n.id===state.activeId)?.pages[state.pageIndex],
     renderEditor:()=>rendered.push('editor'),renderLibrary:()=>rendered.push('library'),view:()=>{}
   };
-  vm.runInNewContext(helpers+'\nglobalThis.cloud={mergeWorkspace,cloudSyncDelay};',context);
+  context.workspaceActor='tab-test';context.history=new Map();context.clone=value=>JSON.parse(JSON.stringify(value));
+  vm.runInNewContext(workspaceModel+helpers+'\nglobalThis.cloud={mergeWorkspace,cloudSyncDelay};',context);
   return {context,state,tasks,rendered,saveCalls,release,advance:value=>{now+=value;}};
 }
 
@@ -74,7 +79,8 @@ test('rapid strokes save together after a 2.5-second pause and notify Drive auto
     window:{WindsDrive:{onLocalSave:()=>{notifications++;}}}
   };
   const saving=app.slice(app.indexOf('  function scheduleSave('),app.indexOf('  // Each signed-in Google identity'));
-  vm.runInNewContext(saving+'\nglobalThis.saves={scheduleSave,saveNow};',context);
+  context.workspaceActor='tab-test';
+  vm.runInNewContext(workspaceModel+saving+'\nglobalThis.saves={scheduleSave,saveNow};',context);
   assert.equal(context.SAVE_IDLE_MS,2500);
   state.notebooks[0].pages[0].items.push({id:'first-stroke'});context.saves.scheduleSave();
   time+=2000;state.notebooks[0].pages[0].items.push({id:'second-stroke'});context.saves.scheduleSave();
@@ -89,22 +95,47 @@ test('rapid strokes save together after a 2.5-second pause and notify Drive auto
   assert.equal(notifications,2,'subsequent local edits still notify Drive');
 });
 
+// Private workspaces merge causally (workspace-model.js): each device's edits
+// carry field-level history, so these fixtures record real histories rather
+// than relying on notebook timestamps.
+const clone=value=>JSON.parse(JSON.stringify(value));
+// A notebook as the app stores it, with the cover/page fields the merge normalizes.
+function fullBook(id='book',updatedAt='2026-11-04T10:00:00Z'){
+  return {id,title:'Physics',cover:'purple',createdAt:'2026-11-01T10:00:00Z',updatedAt,pages:[{id:'page-'+id,template:'ruled',orientation:'portrait',items:[]}]};
+}
 test('a remote-only merge reports no upload and saves without echoing a local edit',async()=>{
-  const e=editor(),remote=book('2026-11-04T11:00:00Z');
-  const merging=e.context.cloud.mergeWorkspace({format:'winds-notes-backup',notebooks:[remote]},{report:true});
+  const e=editor(),model=e.context.WindsWorkspaceModel,local=e.state.notebooks[0]=fullBook();
+  model.capture(local,'this-device');
+  const remote=clone(local);remote.updatedAt='2026-11-04T11:00:00Z';
+  remote.pages[0].items.push({id:'remote-stroke',type:'stroke',tool:'pen',color:'#123456',size:3,points:[[1,1,.5],[9,9,.5]]});
+  model.capture(remote,'other-device');
+  const merging=e.context.cloud.mergeWorkspace({format:'winds-notes-backup',notebooks:[remote],deleted:{}},{report:true});
   e.release();const result=await merging;
   assert.equal(result.changed,true);assert.equal(result.needsUpload,false);
-  assert.deepEqual(e.saveCalls,[[true,true]]);assert.equal(e.state.notebooks[0],remote);
+  assert.deepEqual(e.saveCalls,[[true,true]],'received data is saved without reporting a new local edit');
+  assert.deepEqual([...e.state.notebooks[0].pages[0].items].map(item=>item.id),['remote-stroke']);
 });
 
 test('merge reports retain uploads for local-only notebooks, newer edits and deletion markers',async()=>{
   for(const contribution of ['local-book','newer-edit','deletion']){
-    const e=editor(),remote=book('2026-11-04T10:00:00Z');
-    if(contribution==='local-book')e.state.notebooks.push({...book('2026-11-04T10:00:00Z'),id:'local-only'});
-    if(contribution==='newer-edit')e.state.notebooks[0].updatedAt='2026-11-04T12:00:00Z';
-    if(contribution==='deletion')e.context.tombstones={'deleted-elsewhere':'2026-11-04T12:00:00Z'};
+    const e=editor(),model=e.context.WindsWorkspaceModel,local=e.state.notebooks[0]=fullBook();
+    model.capture(local,'this-device');
+    const remote=clone(local);
+    if(contribution==='local-book'){
+      const extra=fullBook('local-only');model.capture(extra,'this-device');e.state.notebooks.push(extra);
+    }
+    if(contribution==='newer-edit'){
+      local.updatedAt='2026-11-04T12:00:00Z';
+      local.pages[0].items.push({id:'local-stroke',type:'stroke',tool:'pen',color:'#123456',size:3,points:[[1,1,.5],[9,9,.5]]});
+      model.capture(local,'this-device');
+    }
+    if(contribution==='deletion'){
+      const gone=fullBook('deleted-elsewhere','2026-11-04T09:00:00Z');model.capture(gone,'this-device');
+      e.context.tombstones={'deleted-elsewhere':model.deletion(gone,Date.parse('2026-11-04T12:00:00Z'),'this-device')};
+    }
     const result=await e.context.cloud.mergeWorkspace({format:'winds-notes-backup',notebooks:[remote],deleted:{}},{report:true});
     assert.equal(result.needsUpload,true,contribution);assert.equal(result.changed,false,contribution);
+    assert.deepEqual(e.saveCalls,[],contribution+': nothing new to save locally');
   }
 });
 

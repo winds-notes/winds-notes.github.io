@@ -14,7 +14,7 @@ Erased regions are non-destructive, object-relative masks: original text, image 
 
 All handwritten and PDF pages now form one vertical stack in the writing workspace. Use the mouse wheel/trackpad, two-finger pan, or the **hand / Scroll notebook pages (S)** tool to drag without drawing. **Notebook options → Scroll pages…** and a notebook card's **Scroll pages…** select the same hand tool. Tap **Pen** to write again.
 
-The page nearest the reading position becomes active after scrolling stops. Tap a page's heading to focus it, or tap its preview to activate it at the current scroll position. The active page says **Writing here**. Inactive pages use nearby previews; only one page has the live writing canvas. The first contact on an inactive preview activates it; begin writing after activation. At page boundaries, choose the intended page heading before writing.
+The page nearest the reading position becomes active after scrolling stops. Tap a page's heading to focus it, or tap its preview to activate it at the current scroll position. Each page heading shows only its number (for example **Page 2**); the active page is highlighted. Inactive pages use nearby previews; only one page has the live writing canvas. The first contact on an inactive preview activates it; begin writing after activation. At page boundaries, choose the intended page heading before writing.
 
 ## Select, move and copy handwriting
 
