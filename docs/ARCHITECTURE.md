@@ -9,11 +9,11 @@ The site runs as **static HTML/CSS/JavaScript**, with no bundler or mandatory ba
 
 The library sorts through `sortNotebooks(books, mode)` (recent, name, newest, oldest; preference `winds-notes-sort-v1`) without reordering stored data; the hero shows **Continue** for the most recently edited notebook. A `<dialog>` lists keyboard shortcuts (`?`). Shapes share one `#shapeToolBtn` whose `data-tool` follows the chosen shape (`winds-notes-shape-v1`). None of this touches Pencil handlers, storage schema or sync.
 
-## Instant start and resume (v70)
+## Resume after reload and offline copy (v70–v72)
 
 Drive sign-in and synchronization (`cloud-drive.js`) are the original v68 implementation. A per-tab `winds-notes-resume-v1` record (written on `visibilitychange`/`pagehide`) reopens the notebook and page after a reload or tab discard, scoped to the account workspace and the first minute after startup.
 
-IndexedDB save transactions call `IDBTransaction.commit()` after queuing their writes, so saves started from `pagehide` survive reloads. The service worker serves `?v=<RELEASE>` app files cache-first and navigations network-first with a 3.5-second fallback to the installed shell; `/auth/` and `/live/` bypass it. Pencil handlers, touch suppression, native format version 1 and account database keys are unchanged.
+IndexedDB save transactions call `IDBTransaction.commit()` after queuing their writes, so saves started from `pagehide` survive reloads. The service worker is network-first for every same-origin request (cache fallback offline, navigations fall back to the installed shell); `/auth/` and `/live/` bypass it. Every deploy changes `RELEASE`/`CACHE` and the `?v=` URLs together. Pencil handlers, touch suppression, native format version 1 and account database keys are unchanged.
 
 ## Selection transforms and input defaults (v66)
 
