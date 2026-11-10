@@ -253,14 +253,6 @@ html[data-theme="dark"] .mandala-designs span{color:#b5b6bc}
 html[data-theme="dark"] .mandala-status{color:#b8b9be}
 html[data-theme="dark"] .mandala-filters input,html[data-theme="dark"] .mandala-filters select{background:#1c1c24}
 html[data-theme="dark"] .mandala-empty{color:#b7b8be}
-html[data-theme="dark"] .sync-chip{color:#9da5b3}
-html[data-theme="dark"] .sync-chip.sync-synced{color:#b6d3ca}
-html[data-theme="dark"] .sync-chip.sync-syncing,html[data-theme="dark"] .sync-chip.sync-connecting{color:#9187f2}
-html[data-theme="dark"] .sync-chip.sync-retrying{color:#f8a96d}
-html[data-theme="dark"] .sync-chip.sync-reconnect,html[data-theme="dark"] .sync-chip.sync-signedout{color:#fbb675;background:#312819;border:1px solid #665337}
-html[data-theme="dark"] .sync-chip.sync-reconnect:hover,html[data-theme="dark"] .sync-chip.sync-signedout:hover{background:#3c311f;color:#fdbf85}
-html[data-theme="dark"] .cloud-entry.is-synced:after,html[data-theme="dark"] .cloud-entry.needs-attention:after{border:2px solid #303036}
-html[data-theme="dark"] .cloud-entry.needs-attention{border-color:#665337;background:#2d2417;color:#fdbf85}
 html[data-theme="dark"] .shape-settings-trigger[aria-expanded="true"]{background:#1b182e}
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button{color:#c5c6cd;background:#151529}
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button:hover{background:#1a172c}
@@ -294,8 +286,6 @@ html[data-theme="dark"] .btn-primary{color:#fff}
 html[data-theme="dark"] input::placeholder,html[data-theme="dark"] textarea::placeholder{color:#6f7190}
 html[data-theme="dark"] .notebook-card{border-color:#262735;box-shadow:0 8px 26px rgba(0,0,0,.35)}
 html[data-theme="dark"] .toast{background:#e9e8ff;color:#1b1c2b}
-html[data-theme="dark"] .sync-chip.sync-reconnect,html[data-theme="dark"] .sync-chip.sync-signedout,html[data-theme="dark"] .cloud-entry.needs-attention{background:#3a2a12;border-color:#7a5418;color:#ffd08a}
-html[data-theme="dark"] .cloud-entry.is-synced:after,html[data-theme="dark"] .cloud-entry.needs-attention:after{border-color:#16171f}
 html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#33354a;border-radius:8px}
 html[data-theme="dark"] .hero-paper{color:#20213e}
 html[data-theme="dark"] .color-button span{box-shadow:0 0 0 1.5px rgba(255,255,255,.32)}

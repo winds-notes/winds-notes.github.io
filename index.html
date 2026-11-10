@@ -14,9 +14,7 @@
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
 <script src="./theme.js?v=71"></script>
-<!-- Public OAuth configuration and silent Drive reconnection run before the app loads. -->
 <script src="./google-config.js?v=71"></script>
-<script src="./oauth-redirect.js?v=71"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
 <link href="./styles.css?v=71" rel="stylesheet"/>
@@ -47,7 +45,7 @@
 <button aria-label="Back to notebooks" class="icon-button header-back" id="goLibrary" title="Back to notebooks"></button>
 <div class="notebook-title-wrap">
 <input aria-label="Notebook name" id="notebookTitle" maxlength="70" title="Rename notebook"/>
-<div class="title-status-row"><span class="save-status" id="saveStatus">Saved</span><button type="button" class="sync-chip sync-guest" id="syncChip" hidden aria-live="polite"><span id="syncChipLabel"></span></button></div>
+<span class="save-status" id="saveStatus">Saved</span>
 </div>
 <span aria-hidden="true" class="header-divider book-divider"></span>
 <button aria-label="Open page thumbnails" aria-pressed="false" class="tool-button pages-toggle" id="togglePages" title="Open page thumbnails"></button>

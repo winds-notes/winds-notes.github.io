@@ -4,20 +4,6 @@ The server implementation keeps an account connected after refreshing, opening a
 
 This feature is implemented and covered by mocked OAuth/server/browser tests. It is **not enabled on the existing GitHub Pages deployment** until the server is hosted and Google OAuth settings are configured. Google can independently revoke permission, and browsers can clear cookies or website data; no application can override those events.
 
-## Static hosting: automatic reconnection
-
-GitHub Pages cannot keep a refresh token, so Google's browser-only access token lasts about an hour. `oauth-redirect.js` renews it without the user tapping *Reconnect*, using Google's documented client-side OAuth flow with `prompt=none` and the account as `login_hint`:
-
-1. **At launch.** If the remembered account's token is expired (or expires within five minutes), a tiny script in `<head>` checks that Google is reachable, shows a "Reconnecting Google Drive…" splash and bounces once through Google to `oauth-callback.html`, which hands the token back and returns to the app. Nothing is shown by Google while the user is signed in to Google in that browser and has granted access before.
-2. **While the app is open.** About five minutes before expiry, and after returning to the app, a hidden iframe makes the same silent request once writing is idle. Browsers that block Google's sign-in cookies in frames (Safari/iPadOS) fail quickly and retry at most every 30 minutes; the next launch renews with step 1.
-3. **Fallback.** When Google needs interaction, the amber **Resume sync** chip (editor) or **Resume Drive sync** button (library) reconnects the same account in one tap, saving local notes first. The notebook and page reopen after the bounce.
-
-**Setup (once):** in Google Cloud Console → Google Auth Platform → Clients → the Web client, add the exact redirect URI `https://<your site>/oauth-callback.html` (for this deployment `https://winds-notes.github.io/oauth-callback.html`). Then set `window.WINDS_GOOGLE_REDIRECT_URI` to the same URL in `google-config.js` and redeploy `index.html`, `google-config.js`, `oauth-redirect.js`, `oauth-callback.html`, `cloud-drive.js`, `app.js`, `styles.css` and `sw.js` together.
-
-**Safety rules.** Google shows an "Access blocked: redirect_uri_mismatch" page instead of redirecting when the callback URL is not registered, so top-level redirects run only when the URL is configured explicitly or a hidden-iframe probe has received a real Google response on this device. Every request uses a random `state` that must match on return. A silent token is applied only if its verified Google `sub` equals the remembered account. A silent attempt that fails (for example `interaction_required`) stops launch bounces for that account until it signs in again; launch bounces are limited to one per three minutes; a silent bounce that never returned marks redirects broken on that device. The token is removed from the address bar immediately and is stored exactly like the existing short-lived session. No refresh token or secret exists in the browser, and nothing runs from the Pencil handlers. Set `window.WINDS_GOOGLE_SILENT_RENEWAL = false` to disable the feature.
-
-The server mode below remains the option for renewal without any Google cookie dependence.
-
 ## Hosting
 
 Run the website and authentication endpoints together on one HTTPS origin using Node.js 22 or newer. Start one server process with `npm start`. No npm dependencies or build step are needed.

@@ -638,13 +638,6 @@
     const index=Math.min(Math.max(0,Number(saved.pageIndex)|0),n.pages.length-1);
     if(index>0)switchPage(index);
   }
-  async function prepareNavigation(){
-    cancelBoundaryFill(true);finishActiveStroke();composeInkNow();commitText();
-    while(state.pendingInteractions)await delay(80);
-    await saveNow(true);
-    if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size)throw new Error('Your latest notes are still saving. Try again in a moment.');
-    rememberResumePoint();
-  }
   function openNotebook(id){
     cancelBoundaryFill(true);
     finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>openNotebook(id),100);return;}
@@ -2795,7 +2788,6 @@
       isEditing:()=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
-      prepareNavigation,
       sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id])&&!state.notebooks.some(n=>n.id===id),openNotebook,toast},
       live:{busy:idle=>Boolean(globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<idle),
         room:id=>{const n=state.notebooks.find(book=>book.id===id);return n?(n._sharing?'shared:'+n._sharing.folderId:'account'):null;},
