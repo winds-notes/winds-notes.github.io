@@ -3,11 +3,11 @@
  * Versioned app files: cache first, so the app opens instantly on iPad even on
  * a slow connection. Every local script/style URL in index.html carries the
  * release version below; a new release changes the URLs and this cache name. */
-const RELEASE='70';
-const CACHE='winds-notes-shell-v70-instant';
+const RELEASE='71';
+const CACHE='winds-notes-shell-v71-appearance';
 const NAV_TIMEOUT_MS=3500;
 importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
-const VERSIONED=['google-config.js','oauth-redirect.js','styles.css','mandala-art.js','creative-tools.js','interaction-tools.js',
+const VERSIONED=['theme.js','google-config.js','oauth-redirect.js','styles.css','dark.css','mandala-art.js','creative-tools.js','interaction-tools.js',
   'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
   'native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','cloud-drive.js','boundary-fill.js',
   'mandala-tools.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);

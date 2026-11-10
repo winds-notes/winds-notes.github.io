@@ -625,3 +625,53 @@
 .pop-menu.shape-menu .shape-grid button[aria-checked="true"]{background:#eeebff;border-color:#d6cffd;color:var(--purple)}
 .shape-option-icon svg{width:24px;height:24px}
 .shape-menu-hint{margin:9px 4px 2px;font-size:10px;line-height:1.4;color:#9a9cb2}
+
+/* ===== v71 · Shapes label, appearance, library sort, continue, shortcuts ===== */
+/* "▢ Shapes ⌄" mirrors "◩ Fill ⌄". */
+.editor-header .shape-tool-trigger{width:auto;min-width:43px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0 9px;
+  font-size:11px;font-weight:800;letter-spacing:-.01em;color:#59637a;white-space:nowrap}
+.editor-header .shape-tool-trigger.active{color:var(--purple)}
+.shape-current-icon{display:grid;place-items:center}
+.shape-current-icon svg{width:19px;height:19px}
+@media(max-width:900px){.editor-header .shape-tool-trigger{padding:0 7px}.shape-tool-label{display:none}}
+
+/* Appearance */
+.theme-button{width:42px;height:42px;border:1px solid #e9eaf3;background:#fff;border-radius:11px;color:#545476}
+.theme-button svg{width:18px;height:18px}
+.theme-button[aria-expanded="true"]{background:#f1efff;color:var(--purple)}
+.pop-menu.theme-menu{width:236px;min-width:0;padding:10px}
+.theme-menu .menu-heading{padding:4px 6px 8px}
+.pop-menu.theme-menu button{gap:12px;padding:10px 10px;border-radius:10px}
+.pop-menu.theme-menu button[aria-checked="true"]{background:#eeebff;color:var(--purple)}
+.pop-menu.theme-menu button[aria-checked="true"]:after{content:'✓';margin-left:auto;font-weight:800}
+.theme-swatch{width:26px;height:18px;border-radius:6px;border:1px solid #d9dbe7;flex:none}
+.theme-swatch-light{background:#fff}
+.theme-swatch-dark{background:#1a1b24;border-color:#3a3b4d}
+.theme-swatch-system{background:linear-gradient(135deg,#fff 50%,#1a1b24 50%)}
+.theme-menu-hint{margin:8px 6px 2px;font-size:10px;line-height:1.45;color:#9a9cb2}
+
+/* Library: sort and continue */
+.sort-wrap{display:flex;align-items:center;height:40px;border:1px solid #edeef3;border-radius:10px;background:#fff;padding:0 4px 0 10px}
+.sort-wrap select{border:0;background:transparent;font-size:12px;font-weight:700;color:#4a526d;height:100%;padding-right:6px;cursor:pointer}
+.sort-wrap select:focus-visible{outline:none}
+.sort-wrap:focus-within{outline:3px solid #b9b2ff;outline-offset:2px}
+.hero-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.hero-continue{max-width:100%;gap:8px;background:#ffffffcc;border:1px solid #dcd8fb}
+.hero-continue-label{color:#7a72c8;font-weight:800}
+.hero-continue-title{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+@media(max-width:600px){.section-controls .sort-wrap{grid-column:1/-1}.hero-continue-title{max-width:150px}}
+
+/* Keyboard shortcuts */
+.shortcuts-dialog{width:min(460px,calc(100vw - 32px));border:0;border-radius:20px;padding:24px 24px 20px;background:#fff;color:var(--ink);
+  box-shadow:0 24px 70px rgba(30,30,70,.25)}
+.shortcuts-dialog::backdrop{background:#181b3670;backdrop-filter:blur(3px)}
+.shortcuts-dialog header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.shortcuts-dialog h2{margin:0;font-size:21px;letter-spacing:-.5px}
+.shortcuts-intro{margin:6px 0 14px;font-size:12px;color:#8a8ca3}
+.shortcuts-list{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.shortcuts-list div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f6}
+.shortcuts-list dt{white-space:nowrap}
+.shortcuts-list dd{margin:0;font-size:12px;color:#5b5e78;text-align:right}
+kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 6px;border-radius:6px;border:1px solid #dfe0ea;border-bottom-width:2px;
+  background:#f8f8fc;font:700 11px/1 inherit;color:#3c3d54}
+@media(max-width:520px){.shortcuts-list{grid-template-columns:1fr}}

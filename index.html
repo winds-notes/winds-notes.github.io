@@ -12,12 +12,15 @@
 <link href="./manifest.webmanifest" rel="manifest"/>
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
+<!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
+<script src="./theme.js?v=71"></script>
 <!-- Public OAuth configuration and silent Drive reconnection run before the app loads. -->
-<script src="./google-config.js?v=70"></script>
-<script src="./oauth-redirect.js?v=70"></script>
+<script src="./google-config.js?v=71"></script>
+<script src="./oauth-redirect.js?v=71"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=70" rel="stylesheet"/>
+<link href="./styles.css?v=71" rel="stylesheet"/>
+<link href="./dark.css?v=71" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -26,14 +29,14 @@
 <section class="library-view" id="libraryView">
 <header class="library-header">
 <div class="brand"><div class="brand-mark"><img src="./assets/icon.svg" width="44" height="44" alt=""/></div><div class="brand-name">WiNDS<span class="brand-dot"> Notes</span><small>IDEAS IN MOTION</small></div></div>
-<div class="library-header-actions"><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in with Google to use your personal Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Sign in with Google</span></button></div>
+<div class="library-header-actions"><button class="icon-button theme-button" id="themeBtn" type="button" aria-label="Appearance: light or dark" aria-haspopup="true" aria-expanded="false" title="Appearance"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg></button><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in with Google to use your personal Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Sign in with Google</span></button></div>
 </header>
 <main class="library-main">
 <div class="hero">
-<div class="hero-copy"><div class="eyebrow"><span class="sparkle">✦</span> YOUR CREATIVE SPACE</div><h1>Every great idea<br/>starts <em>somewhere.</em></h1><p>Beautifully simple handwritten notes, sketches, and ideas — all in one place. Made for your iPad, tablet, and laptop.</p><button class="btn btn-primary hero-cta" id="heroCreate"><span id="heroPlus"></span> Create a notebook</button></div>
+<div class="hero-copy"><div class="eyebrow"><span class="sparkle">✦</span> YOUR CREATIVE SPACE</div><h1>Every great idea<br/>starts <em>somewhere.</em></h1><p>Beautifully simple handwritten notes, sketches, and ideas — all in one place. Made for your iPad, tablet, and laptop.</p><div class="hero-actions"><button class="btn btn-primary hero-cta" id="heroCreate"><span id="heroPlus"></span> Create a notebook</button><button class="btn btn-outline hero-continue" id="heroContinue" type="button" hidden><span class="hero-continue-label">Continue</span><span class="hero-continue-title" id="heroContinueTitle"></span><span aria-hidden="true">→</span></button></div></div>
 <div aria-hidden="true" class="hero-graphic"><div class="hero-paper paper-back"></div><div class="hero-paper paper-front"><div class="hero-paper-tag">THOUGHTS / 001</div><div class="hero-hello">Make space<br/>for <i>ideas.</i></div><div class="hero-underline"></div><div class="hero-doodle">✳</div><div class="hero-lines"><span></span><span></span><span></span></div></div><div class="hero-pencil"></div><div class="hero-star">✳</div></div>
 </div>
-<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button class="btn btn-outline btn-small" id="importPdfHome" type="button">Import PDF</button><button type="button" class="btn btn-outline btn-small" id="openSharedFromDrive">Open shared from Drive</button><button type="button" class="btn btn-outline btn-small" id="openSharedNotebook">Open shared link</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
+<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><label class="sort-wrap" title="Sort notebooks"><span class="sr-only">Sort notebooks</span><select id="sortNotebooks" aria-label="Sort notebooks"><option value="recent">Recently edited</option><option value="name">Name A–Z</option><option value="created">Newest first</option><option value="oldest">Oldest first</option></select></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button class="btn btn-outline btn-small" id="importPdfHome" type="button">Import PDF</button><button type="button" class="btn btn-outline btn-small" id="openSharedFromDrive">Open shared from Drive</button><button type="button" class="btn btn-outline btn-small" id="openSharedNotebook">Open shared link</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
 
 <footer class="designer-credit">Designed by <a href="https://alakesh-kalita.github.io/" target="_blank" rel="noopener noreferrer">Alakesh Kalita</a><span aria-hidden="true"> · </span>WiNDS Notes<nav class="legal-links" aria-label="Policies"><a href="./privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a><a href="./terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a></nav></footer>
 </main>
@@ -116,7 +119,7 @@
 <label id="eraserModeControl" class="eraser-mode-control" for="eraserMode">Erase<select id="eraserMode" aria-label="Eraser target"><option value="all" selected>All objects</option><option value="ink">Ink only</option></select></label>
 <p id="eraserHelp">Erases only the brushed area, including pasted text and images. PDF backgrounds stay fixed.</p>
 </div>
-<div class="pop-menu" hidden="" id="moreMenu"><button data-action="editText">Edit selected text…</button><button data-action="copy">Copy selection</button><button data-action="cut">Cut selection</button><button data-action="paste">Paste…</button><button data-action="pasteInternal">Paste copied object</button><button data-action="scroll">Scroll pages…</button><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button class="danger-text" data-action="deletePage">Delete current page…</button><button data-action="open">Open notebook file…</button><button data-action="pdf">Import PDF pages…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
+<div class="pop-menu" hidden="" id="moreMenu"><button data-action="editText">Edit selected text…</button><button data-action="copy">Copy selection</button><button data-action="cut">Cut selection</button><button data-action="paste">Paste…</button><button data-action="pasteInternal">Paste copied object</button><button data-action="scroll">Scroll pages…</button><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button class="danger-text" data-action="deletePage">Delete current page…</button><button data-action="open">Open notebook file…</button><button data-action="pdf">Import PDF pages…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="appearance">Appearance (light / dark)…</button><button data-action="shortcuts">Keyboard shortcuts…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
 <div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><a id="preparedExportLink" class="prepared-export-link" hidden download>Download prepared export</a><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
 <div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Fill colors and closed boundaries">
   <div class="menu-heading">FILL &amp; BOUNDARIES</div>
@@ -180,6 +183,8 @@
     </div>
   </section>
 </div>
+<div class="pop-menu theme-menu" id="themeMenu" hidden="" role="menu" aria-label="Appearance"><div class="menu-heading">APPEARANCE</div><button type="button" role="menuitemradio" data-theme-mode="system" aria-checked="true"><span class="theme-swatch theme-swatch-system" aria-hidden="true"></span>Match device</button><button type="button" role="menuitemradio" data-theme-mode="light" aria-checked="false"><span class="theme-swatch theme-swatch-light" aria-hidden="true"></span>Light</button><button type="button" role="menuitemradio" data-theme-mode="dark" aria-checked="false"><span class="theme-swatch theme-swatch-dark" aria-hidden="true"></span>Dark</button><p class="theme-menu-hint">Pages stay white, so your writing and exports look the same.</p></div>
+<dialog class="shortcuts-dialog" id="shortcutsDialog" aria-labelledby="shortcutsTitle"><header><h2 id="shortcutsTitle">Keyboard shortcuts</h2><button type="button" class="cloud-close" id="shortcutsClose" aria-label="Close keyboard shortcuts">×</button></header><p class="shortcuts-intro">For iPad with a keyboard, or a laptop.</p><dl class="shortcuts-list"><div><dt><kbd>P</kbd></dt><dd>Pen</dd></div><div><dt><kbd>H</kbd></dt><dd>Highlighter</dd></div><div><dt><kbd>E</kbd></dt><dd>Eraser</dd></div><div><dt><kbd>R</kbd></dt><dd>Shapes (last used)</dd></div><div><dt><kbd>T</kbd></dt><dd>Text</dd></div><div><dt><kbd>V</kbd></dt><dd>Select</dd></div><div><dt><kbd>L</kbd></dt><dd>Select handwriting area</dd></div><div><dt><kbd>S</kbd></dt><dd>Scroll pages</dd></div><div><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd></div><div><dt><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd></dt><dd>Redo</dd></div><div><dt><kbd>⌘</kbd> <kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>Copy, cut, paste</dd></div><div><dt><kbd>Delete</kbd></dt><dd>Delete selection</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close menus, clear selection</dd></div><div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div></dl></dialog>
 <div class="cloud-backdrop" id="sharedAccessBackdrop" hidden><section class="cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="sharedAccessTitle"><button class="cloud-close" id="sharedAccessClose" aria-label="Close shared notebook access">×</button><h2 id="sharedAccessTitle">Open your shared notebook</h2><p id="sharedAccessMessage" class="cloud-description"></p><p id="sharedAccessStatus" class="cloud-message" role="status"></p><div class="cloud-actions"><a id="sharedAccessDrive" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Check access in Google Drive</a><button id="sharedAccessAuthorize" class="btn btn-primary">Authorize this notebook</button><button id="sharedAccessCopy" class="btn btn-outline" hidden>Share a new independent copy</button><button id="sharedAccessRetry" class="btn btn-outline">Retry opening notebook</button></div></section></div>
 <div class="cloud-backdrop" id="cloudBackdrop" hidden>
   <section class="cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
@@ -237,25 +242,25 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./mandala-art.js?v=70"></script>
-<script src="./creative-tools.js?v=70"></script>
-<script src="./interaction-tools.js?v=70"></script>
-<script src="./selection-preview.js?v=70"></script>
-<script src="./eraser-preview.js?v=70"></script>
-<script src="./page-stack.js?v=70"></script>
-<script src="./workspace-model.js?v=70"></script>
-<script src="./text-tools.js?v=70"></script>
-<script src="./pdf-export.js?v=70"></script>
-<script src="./pdf-import.js?v=70"></script>
-<script src="./native-file.js?v=70"></script>
-<script src="./clipboard.js?v=70"></script>
-<script src="./shared-notebook-model.js?v=70"></script>
-<script src="./notebook-sharing.js?v=70"></script>
-<script src="./live-sync.js?v=70"></script>
+<script src="./mandala-art.js?v=71"></script>
+<script src="./creative-tools.js?v=71"></script>
+<script src="./interaction-tools.js?v=71"></script>
+<script src="./selection-preview.js?v=71"></script>
+<script src="./eraser-preview.js?v=71"></script>
+<script src="./page-stack.js?v=71"></script>
+<script src="./workspace-model.js?v=71"></script>
+<script src="./text-tools.js?v=71"></script>
+<script src="./pdf-export.js?v=71"></script>
+<script src="./pdf-import.js?v=71"></script>
+<script src="./native-file.js?v=71"></script>
+<script src="./clipboard.js?v=71"></script>
+<script src="./shared-notebook-model.js?v=71"></script>
+<script src="./notebook-sharing.js?v=71"></script>
+<script src="./live-sync.js?v=71"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=70"></script>
-<script defer src="./boundary-fill.js?v=70"></script>
-<script defer src="./mandala-tools.js?v=70"></script>
-<script defer="" src="./app.js?v=70"></script>
+<script defer src="./cloud-drive.js?v=71"></script>
+<script defer src="./boundary-fill.js?v=71"></script>
+<script defer src="./mandala-tools.js?v=71"></script>
+<script defer="" src="./app.js?v=71"></script>
 </body>
 </html>
