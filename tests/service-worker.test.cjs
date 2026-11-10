@@ -47,7 +47,7 @@ test('pages come from the network when online and from the installed copy when o
   assert.equal(await (await failing.respond('/','navigate')).text(),'installed page');
 });
 
-test('OAuth return, sign-in and live endpoints are never served from the cache',async()=>{
+test('sign-in and live endpoints are never served from the cache',async()=>{
   const sw=worker({cached:{},network:()=>ok('x')});
-  for(const url of ['/oauth-callback.html','/auth/google/session','/live/events'])assert.equal(await sw.respond(url),null,url);
+  for(const url of ['/auth/google/session','/live/events'])assert.equal(await sw.respond(url),null,url);
 });

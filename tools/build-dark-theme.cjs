@@ -204,8 +204,6 @@ ${SCOPE} .btn-primary{color:#fff}
 ${SCOPE} input::placeholder,${SCOPE} textarea::placeholder{color:#6f7190}
 ${SCOPE} .notebook-card{border-color:#262735;box-shadow:0 8px 26px rgba(0,0,0,.35)}
 ${SCOPE} .toast{background:#e9e8ff;color:#1b1c2b}
-${SCOPE} .sync-chip.sync-reconnect,${SCOPE} .sync-chip.sync-signedout,${SCOPE} .cloud-entry.needs-attention{background:#3a2a12;border-color:#7a5418;color:#ffd08a}
-${SCOPE} .cloud-entry.is-synced:after,${SCOPE} .cloud-entry.needs-attention:after{border-color:#16171f}
 ${SCOPE} ::-webkit-scrollbar-thumb{background:#33354a;border-radius:8px}
 ${SCOPE} .hero-paper{color:#20213e}
 ${SCOPE} .color-button span{box-shadow:0 0 0 1.5px rgba(255,255,255,.32)}

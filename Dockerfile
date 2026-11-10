@@ -2,8 +2,8 @@ FROM node:22-alpine
 WORKDIR /app
 RUN mkdir -p /data && chown node:node /data
 COPY package.json LICENSE manifest.webmanifest .nojekyll ./
-COPY index.html oauth-callback.html privacy.html terms.html styles.css dark.css legal.css ./
-COPY app.js theme.js oauth-redirect.js workspace-model.js selection-preview.js boundary-fill.js mandala-tools.js mandala-art.js creative-tools.js native-file.js cloud-drive.js notebook-sharing.js shared-notebook-model.js live-sync.js google-config.js pdf-export.js pdf-import.js clipboard.js text-tools.js interaction-tools.js eraser-preview.js page-stack.js sw.js ./
+COPY index.html privacy.html terms.html styles.css dark.css legal.css ./
+COPY app.js theme.js workspace-model.js selection-preview.js boundary-fill.js mandala-tools.js mandala-art.js creative-tools.js native-file.js cloud-drive.js notebook-sharing.js shared-notebook-model.js live-sync.js google-config.js pdf-export.js pdf-import.js clipboard.js text-tools.js interaction-tools.js eraser-preview.js page-stack.js sw.js ./
 COPY server/start.mjs server/google-auth.mjs server/live-relay.mjs ./server/
 COPY assets/ ./assets/
 COPY examples/ ./examples/

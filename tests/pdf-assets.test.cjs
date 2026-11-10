@@ -43,7 +43,7 @@ test('offline registration runs after slow startup as well as before window load
 });
 test('the editor stylesheet and dependencies use matching release URLs offline',()=>{
  const html=fs.readFileSync(require.resolve('../index.html'),'utf8'),worker=fs.readFileSync(require.resolve('../sw.js'),'utf8');
- for(const name of ['app.js','selection-preview.js','creative-tools.js','native-file.js','interaction-tools.js','eraser-preview.js','cloud-drive.js','live-sync.js','notebook-sharing.js','styles.css','google-config.js','oauth-redirect.js','text-tools.js','clipboard.js','pdf-import.js','workspace-model.js','page-stack.js']){
+ for(const name of ['app.js','selection-preview.js','creative-tools.js','native-file.js','interaction-tools.js','eraser-preview.js','cloud-drive.js','live-sync.js','notebook-sharing.js','styles.css','google-config.js','text-tools.js','clipboard.js','pdf-import.js','workspace-model.js','page-stack.js']){
    const prefix='./'+name+'?v=';
    const url=[...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(match=>match[1]).find(url=>url.startsWith(prefix));
    assert.ok(url,name+' needs a versioned URL');
