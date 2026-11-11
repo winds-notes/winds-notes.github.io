@@ -572,6 +572,11 @@
     if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
     return data;
   }
+  function includedRevisions(snapshot,fileId){
+    const history=snapshot.workspaceRevisionHistory;
+    if(snapshot.syncVersion!==1||history?.fileId!==fileId||!Array.isArray(history.included)||history.included.length>200)return [];
+    return history.included.filter(id=>typeof id==='string'&&id.length>0&&id.length<=200);
+  }
   async function refreshWorkspaceHistory(workspace,expected,manual){
     if(workspaceHistory.id!==workspace.id)workspaceHistory={id:workspace.id,revisions:new Map(),checked:0};
     const history=workspaceHistory,pinned=[];let page='';
@@ -581,44 +586,59 @@
       const data=await readDriveJson(response,expected,manual);pinned.push(...(data.revisions||[]).filter(r=>r.keepForever));page=data.nextPageToken||'';
       if(pinned.length>200)throw new Error('Too many protected workspace versions. Your local notes remain safe.');
     }while(page);
-    const versions=[{id:workspace.headRevisionId},...pinned.filter(r=>r.id!==workspace.headRevisionId)],visible=new Set(versions.map(r=>r.id));
+    const pinnedIds=new Set(pinned.map(revision=>revision.id));
+    const olderIds=[...pinnedIds].filter(id=>id!==workspace.headRevisionId);
+    const versions=[workspace.headRevisionId,...olderIds];
+    const visible=new Set(versions);
+    history.pinnedIds=pinnedIds;
     for(const id of history.revisions.keys())if(!visible.has(id))history.revisions.delete(id);
     const before=localVersion;
-    for(const revision of versions){
-      let saved=history.revisions.get(revision.id);
+    let covered=new Set();
+    for(const id of versions){
+      const isHead=id===workspace.headRevisionId;
+      if(!isHead&&covered.has(id)){
+        history.revisions.delete(id);
+        continue;
+      }
+      let saved=history.revisions.get(id);
       if(!saved){
         try{
-          const protectedRevision=pinned.some(r=>r.id===revision.id);
-          const data=await fetchWorkspace(workspace.id,expected,manual,protectedRevision?revision.id:null);
+          const protectedRevision=pinnedIds.has(id);
+          const data=await fetchWorkspace(workspace.id,expected,manual,protectedRevision?id:null);
           if(!protectedRevision){
             const current=await findWorkspace(expected,manual);
             if(current?.headRevisionId!==workspace.headRevisionId){const error=new Error('The workspace changed while downloading. Retrying safely.');error.syncDeferred=true;throw error;}
           }
           saved={data,applied:false};
         }
-        catch(error){if(error.status===404&&revision.id!==workspace.headRevisionId)continue;throw error;}
-        history.revisions.set(revision.id,saved);
+        catch(error){if(error.status===404&&!isHead)continue;throw error;}
+        history.revisions.set(id,saved);
       }
       if(!saved.applied){
         const merged=await bridge.mergeWorkspace(saved.data,{manual,report:true});ensureIdle(expected,manual);
         saved.applied=true;if(merged?.changed!==false)syncDetails.received=Date.now();
       }
+      if(isHead)covered=new Set(includedRevisions(saved.data,workspace.id));
     }
     ensureIdle(expected,manual);
     const head=history.revisions.get(workspace.headRevisionId)?.data;
     if(!head)throw new Error('The latest workspace version is unavailable.');
     if(global.WindsWorkspaceModel.equivalent(bridge.getData(),head)&&before===localVersion)lastSyncedVersion=localVersion;
     else localVersion++;
-    // Only discard a pinned version after a newer durable head contains all its
-    // causal history (including deletion markers and any recovery notebooks).
-    if(pinned.length>=16){let remaining=8;
+    // Defer routine cleanup until the current workspace has been uploaded.
+    // Near Drive's revision cap, free space for that upload first.
+    const workspaceUpToDate=!manual&&lastSyncedVersion===localVersion;
+    if(pinnedIds.has(workspace.headRevisionId)&&pinned.length>=16&&(workspaceUpToDate||pinned.length>=190)){
+      let remaining=pinned.length>=190?8:2;
       const headTime=Date.parse(workspace.modifiedTime);
       for(const revision of pinned){
         const saved=history.revisions.get(revision.id)?.data;
-        if(revision.id===workspace.headRevisionId||!(Date.parse(revision.modifiedTime)<headTime)||!saved||!global.WindsWorkspaceModel.covers(head,saved))continue;
+        if(revision.id===workspace.headRevisionId||!(Date.parse(revision.modifiedTime)<headTime))continue;
+        if(!covered.has(revision.id)&&(!saved||!global.WindsWorkspaceModel.covers(head,saved)))continue;
         try{await driveRequest(`${API}/${encodeURIComponent(workspace.id)}/revisions/${encodeURIComponent(revision.id)}`,{method:'DELETE'},expected,manual);}
         catch(error){if(error.status===403)break;if(error.status!==404)throw error;}
-        history.revisions.delete(revision.id);if(--remaining===0)break;
+        history.revisions.delete(revision.id);pinnedIds.delete(revision.id);
+        if(--remaining===0)break;
       }
     }
     history.checked=Date.now();
@@ -681,7 +701,8 @@
     ensureIdle(expected,manual);
     if(!manual&&activeId&&lastSyncedVersion===localVersion)return;
     const versionAtStart=localVersion;
-    const snapshot=bridge.getData();
+    const snapshot={...bridge.getData()};
+    delete snapshot.workspaceRevisionHistory;
     const count=snapshot.notebooks.length;
     if(!count&&!Object.keys(snapshot.deleted||{}).length){
       lastSyncedVersion=versionAtStart;
@@ -689,6 +710,18 @@
       return;
     }
     ensureIdle(expected,manual);
+    if(activeId&&workspaceHistory.id===activeId&&workspaceHistory.pinnedIds){
+      // Carry forward only revisions whose edits are covered by this upload.
+      // A concurrent upload absent from this list still has to be reconciled.
+      const included=new Set();
+      for(const [id,saved] of workspaceHistory.revisions){
+        if(!saved.applied||!global.WindsWorkspaceModel.covers(snapshot,saved.data))continue;
+        included.add(id);
+        for(const earlier of includedRevisions(saved.data,activeId))included.add(earlier);
+      }
+      const retained=[...included].filter(id=>workspaceHistory.pinnedIds.has(id));
+      if(retained.length)snapshot.workspaceRevisionHistory={fileId:activeId,included:retained};
+    }
     const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
     ensureIdle(expected,manual);
     activeId=created.id;
