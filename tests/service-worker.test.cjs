@@ -1,15 +1,11 @@
-// Fetch strategy of sw.js: instant cached app files, fresh pages when online.
+// Fetch strategy of sw.js: network first (newest release online), cache fallback offline.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.dirname(require.resolve('../app.js'));
 const ORIGIN='https://notes.example';
 
 function worker({cached={},network}){
   const events=new Map(),fetches=[],puts=[];
-  const match=async(request,options)=>{
-    const url=typeof request==='string'?new URL(request,ORIGIN+'/').href:request.url;
-    const key=options?.ignoreSearch?url.split('?')[0]:url;
-    return cached[key]||null;
-  };
+  const match=async request=>{const url=typeof request==='string'?new URL(request,ORIGIN+'/').href:request.url;return cached[url]||undefined;};
   const context=vm.createContext({URL,Response,Promise,setTimeout,clearTimeout,
     self:{addEventListener:(name,handler)=>events.set(name,handler),location:{origin:ORIGIN},skipWaiting(){},clients:{claim(){}}},
     caches:{match,open:async()=>({put:async(request)=>{puts.push(request.url||request);}}),keys:async()=>[]},
@@ -25,26 +21,26 @@ function worker({cached={},network}){
   return {respond,fetches,puts};
 }
 const ok=body=>new Response(body,{status:200});
-Object.defineProperty(Response.prototype,'type',{get(){return 'basic';},configurable:true});
 
-test('versioned app files open from the offline cache without waiting for the network',async()=>{
-  const release=fs.readFileSync(path.join(root,'sw.js'),'utf8').match(/const RELEASE='(\d+)'/)[1];
-  const url=`/app.js?v=${release}`;
-  const sw=worker({cached:{[ORIGIN+url]:ok('cached app')},network:()=>{throw new Error('network should not be used');}});
-  assert.equal(await (await sw.respond(url)).text(),'cached app');
-  assert.deepEqual(sw.fetches,[]);
-  const fresh=worker({cached:{},network:()=>ok('downloaded')});
-  assert.equal(await (await fresh.respond('/app.js?v=999')).text(),'downloaded');
-  assert.equal(fresh.puts.length,1,'a new release file is cached for the next launch');
+test('online devices always load the newest app files from the network',async()=>{
+  const sw=worker({cached:{[ORIGIN+'/app.js?v=72']:ok('old cached app')},network:()=>ok('newest app')});
+  assert.equal(await (await sw.respond('/app.js?v=72')).text(),'newest app');
+  assert.equal(sw.fetches.length,1);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(sw.puts.length,1,'the offline copy is refreshed');
 });
 
-test('pages come from the network when online and from the installed copy when offline or failing',async()=>{
-  const online=worker({cached:{[ORIGIN+'/index.html']:ok('old page')},network:()=>ok('new page')});
-  assert.equal(await (await online.respond('/','navigate')).text(),'new page');
-  const offline=worker({cached:{[ORIGIN+'/']:ok('installed page')},network:()=>Promise.reject(new TypeError('offline'))});
+test('offline devices open the installed copy, including pages with a query string',async()=>{
+  const offline=worker({cached:{[ORIGIN+'/app.js?v=72']:ok('cached app'),[ORIGIN+'/index.html']:ok('installed page')},network:()=>Promise.reject(new TypeError('offline'))});
+  assert.equal(await (await offline.respond('/app.js?v=72')).text(),'cached app');
   assert.equal(await (await offline.respond('/?shared=abc','navigate')).text(),'installed page');
-  const failing=worker({cached:{[ORIGIN+'/index.html']:ok('installed page')},network:()=>new Response('error',{status:503})});
-  assert.equal(await (await failing.respond('/','navigate')).text(),'installed page');
+});
+
+test('every deploy uses a new cache name and matching release URLs',()=>{
+  const worker=fs.readFileSync(path.join(root,'sw.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  const release=worker.match(/const RELEASE='(\d+)'/)[1];
+  assert.match(worker.match(/const CACHE='([^']+)'/)[1],new RegExp('v'+release+'\\b'),'cache name changes with the release');
+  for(const [,version] of html.matchAll(/(?:src|href)="\.\/[\w-]+\.(?:js|css)\?v=(\d+)"/g))assert.equal(version,release);
 });
 
 test('sign-in and live endpoints are never served from the cache',async()=>{
