@@ -67,8 +67,49 @@
     "Chalk": Object.freeze({"group": "pigment", "description": "Grainy expressive marks", "detail": "Porous \u00b7 powder texture"})
   });
   const STROKE_STYLES = new Set(['solid','dashed','dotted','none']);
-  const FILLABLE = new Set(['rectangle', 'square', 'ellipse', 'circle', 'triangle', 'diamond', 'star']);
-  const isFillableShape = kind => FILLABLE.has(kind);
+  const SHAPE_GROUPS = Object.freeze([
+    {label:'Basic',shapes:{rectangle:'Rectangle',roundedRectangle:'Rounded rectangle',square:'Square',ellipse:'Ellipse',circle:'Circle',semicircle:'Semicircle'}},
+    {label:'Polygons',shapes:{triangle:'Triangle',rightTriangle:'Right triangle',diamond:'Diamond',trapezoid:'Trapezoid',parallelogram:'Parallelogram',pentagon:'Pentagon',hexagon:'Hexagon',octagon:'Octagon'}},
+    {label:'Symbols',shapes:{star:'Star',heart:'Heart',cross:'Cross',speechBubble:'Speech bubble',chevron:'Chevron',shield:'Shield'}},
+    {label:'Lines & arrows',shapes:{line:'Line',arrow:'Arrow'}}
+  ].map(group=>Object.freeze({...group,shapes:Object.freeze(group.shapes)})));
+  const SHAPE_NAMES = Object.freeze(Object.assign({},...SHAPE_GROUPS.map(group=>group.shapes)));
+  const isShapeKind = kind => Object.prototype.hasOwnProperty.call(SHAPE_NAMES,kind);
+  const isFillableShape = kind => isShapeKind(kind)&&kind!=='line'&&kind!=='arrow';
+  // Each outline uses unit coordinates. A six-value entry is a cubic curve.
+  const SHAPE_OUTLINES = new Map(Object.entries({
+    roundedRectangle:[[.16,0],[.84,0],[.93,0,1,.07,1,.16],[1,.84],[1,.93,.93,1,.84,1],[.16,1],[.07,1,0,.93,0,.84],[0,.16],[0,.07,.07,0,.16,0]],
+    semicircle:[[0,1],[0,.448,.224,0,.5,0],[.776,0,1,.448,1,1]],
+    rightTriangle:[[0,0],[1,1],[0,1]],
+    trapezoid:[[.22,0],[.78,0],[1,1],[0,1]],
+    parallelogram:[[.24,0],[1,0],[.76,1],[0,1]],
+    pentagon:[[.5,0],[1,.38],[.81,1],[.19,1],[0,.38]],
+    hexagon:[[.25,0],[.75,0],[1,.5],[.75,1],[.25,1],[0,.5]],
+    octagon:[[.29,0],[.71,0],[1,.29],[1,.71],[.71,1],[.29,1],[0,.71],[0,.29]],
+    heart:[[.5,.2],[.34,-.13,0,.01,0,.3],[0,.54,.25,.81,.5,1],[.75,.81,1,.54,1,.3],[1,.01,.66,-.13,.5,.2]],
+    cross:[[.34,0],[.66,0],[.66,.34],[1,.34],[1,.66],[.66,.66],[.66,1],[.34,1],[.34,.66],[0,.66],[0,.34],[.34,.34]],
+    speechBubble:[[.12,0],[.88,0],[.95,0,1,.05,1,.12],[1,.6],[1,.67,.95,.72,.88,.72],[.46,.72],[.22,1],[.27,.72],[.12,.72],[.05,.72,0,.67,0,.6],[0,.12],[0,.05,.05,0,.12,0]],
+    chevron:[[0,0],[.57,0],[1,.5],[.57,1],[0,1],[.43,.5]],
+    shield:[[0,.13],[.5,0],[1,.13],[1,.49],[1,.75,.75,.9,.5,1],[.25,.9,0,.75,0,.49]]
+  }));
+  const SHAPE_ICONS = new Map([...SHAPE_OUTLINES].map(([kind,outline])=>{
+    const path=outline.map((entry,i)=>`${i===0?'M':entry.length===6?'C':'L'}${entry.map(n=>+(3+n*18).toFixed(2)).join(' ')}`).join(' ');
+    return [kind,`<path d="${path}Z"/>`];
+  }));
+  const shapeIcon = kind => SHAPE_ICONS.get(kind);
+  const SHAPE_VERTICES = new Map([...SHAPE_OUTLINES].map(([kind,outline])=>{
+    // Sample curves once so hit testing follows the same outline as painting.
+    const vertices=[outline[0]];
+    for(const entry of outline.slice(1)){
+      if(entry.length===2){vertices.push(entry);continue;}
+      const [x,y]=vertices[vertices.length-1], [a,b,c,d,ex,ey]=entry;
+      for(let i=1;i<=24;i++){
+        const t=i/24,u=1-t;
+        vertices.push([u*u*u*x+3*u*u*t*a+3*u*t*t*c+t*t*t*ex,u*u*u*y+3*u*u*t*b+3*u*t*t*d+t*t*t*ey]);
+      }
+    }
+    return [kind,vertices];
+  }));
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const midpoint = (a,b) => [(a[0]+b[0])*0.5, (a[1]+b[1])*0.5];
 
@@ -285,10 +326,24 @@
     const curve=penCurve(item,points,0,true);if(curve)drawPenCurve(ctx,curve);
   }
 
+  function shapeBox({x,y,w,h}) {
+    return {left:x+Math.min(0,w),top:y+Math.min(0,h),width:Math.abs(w),height:Math.abs(h)};
+  }
   function shapePath(ctx, item) {
     const {x,y,w,h} = item;
+    const outline=SHAPE_OUTLINES.get(item.kind);
     ctx.beginPath();
-    if(item.kind==='rectangle' || item.kind==='square') ctx.rect(x,y,w,h);
+    if(outline){
+      const {left,top,width,height}=shapeBox(item);
+      ctx.moveTo(left+outline[0][0]*width,top+outline[0][1]*height);
+      for(let i=1;i<outline.length;i++){
+        const command=outline[i], [a,b,c,d,ex,ey]=command;
+        if(command.length===6)ctx.bezierCurveTo(left+a*width,top+b*height,left+c*width,top+d*height,left+ex*width,top+ey*height);
+        else ctx.lineTo(left+a*width,top+b*height);
+      }
+      ctx.closePath();
+    }
+    else if(item.kind==='rectangle' || item.kind==='square') ctx.rect(x,y,w,h);
     else if(item.kind==='ellipse' || item.kind==='circle') ctx.ellipse(x+w/2,y+h/2,Math.max(0.1,Math.abs(w/2)),Math.max(0.1,Math.abs(h/2)),0,0,Math.PI*2);
     else if(item.kind==='triangle') {
       ctx.moveTo(x+w/2,y);ctx.lineTo(x+w,y+h);ctx.lineTo(x,y+h);ctx.closePath();
@@ -328,8 +383,13 @@
       const rx=Math.max(.1,Math.abs(w)/2),ry=Math.max(.1,Math.abs(h)/2);
       return Math.hypot((px-x-w/2)/rx,(py-y-h/2)/ry)<=1+reach/Math.min(rx,ry);
     }
+    const custom=SHAPE_VERTICES.get(item.kind);
     let vertices;
-    if(item.kind==='triangle')vertices=[[x+w/2,y],[x+w,y+h],[x,y+h]];
+    if(custom){
+      const {left,top,width,height}=shapeBox(item);
+      vertices=custom.map(([u,v])=>[left+u*width,top+v*height]);
+    }
+    else if(item.kind==='triangle')vertices=[[x+w/2,y],[x+w,y+h],[x,y+h]];
     else if(item.kind==='diamond')vertices=[[x+w/2,y],[x+w,y+h/2],[x+w/2,y+h],[x,y+h/2]];
     else if(item.kind==='star')vertices=Array.from({length:10},(_,i)=>{const angle=-Math.PI/2+i*Math.PI/5,r=i%2?.44:1;return [x+w/2+Math.cos(angle)*Math.abs(w)/2*r,y+h/2+Math.sin(angle)*Math.abs(h)/2*r];});
     else vertices=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
@@ -688,7 +748,7 @@
   }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, isFillableShape, drawShape, shapePath,shapeHit,
+  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, SHAPE_GROUPS, SHAPE_NAMES, isShapeKind, isFillableShape, shapeIcon, drawShape, shapePath,shapeHit,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,

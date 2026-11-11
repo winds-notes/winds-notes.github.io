@@ -8,7 +8,11 @@
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const COVERS = new Set(['purple','blue','peach','green','lilac','yellow']);
   const PAPERS = new Set(['ruled','grid','dots','blank']);
-  const SHAPES = new Set(['rectangle','square','ellipse','circle','line','arrow','triangle','diamond','star']);
+  const SHAPES = new Set([
+    'rectangle','square','ellipse','circle','line','arrow','triangle','diamond','star',
+    'roundedRectangle','semicircle','rightTriangle','trapezoid','parallelogram','pentagon','hexagon','octagon',
+    'heart','cross','speechBubble','chevron','shield'
+  ]);
   const isObject = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const num = (x, fallback=0) => typeof x === 'number' && Number.isFinite(x) && Math.abs(x)<1e7 ? x : fallback;
   const str = (x, max, fallback='') => typeof x === 'string' ? x.slice(0,max) : fallback;

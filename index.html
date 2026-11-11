@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=77"></script>
-<script src="./google-config.js?v=77"></script>
+<script src="./theme.js?v=80"></script>
+<script src="./google-config.js?v=80"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=77" rel="stylesheet"/>
-<link href="./dark.css?v=77" rel="stylesheet"/>
+<link href="./styles.css?v=80" rel="stylesheet"/>
+<link href="./dark.css?v=80" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -27,7 +27,7 @@
 <section class="library-view" id="libraryView">
 <header class="library-header">
 <div class="brand"><div class="brand-mark"><img src="./assets/icon.svg" width="44" height="44" alt=""/></div><div class="brand-name">WiNDS<span class="brand-dot"> Notes</span><small>IDEAS IN MOTION</small></div></div>
-<div class="library-header-actions"><button class="theme-button" id="themeBtn" type="button" aria-label="Theme: light or dark" aria-haspopup="true" aria-expanded="false" title="Choose a theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg><span class="theme-button-label">Theme</span></button><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in with Google to use your personal Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Sign in with Google</span></button></div>
+<div class="library-header-actions"><button class="theme-button" id="themeBtn" aria-controls="themeMenu" aria-haspopup="menu" type="button" aria-label="Theme: light or dark" aria-expanded="false" title="Choose a theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg><span class="theme-button-label">Theme</span></button><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in with Google to use your personal Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Sign in with Google</span></button></div>
 </header>
 <main class="library-main">
 <div class="hero">
@@ -59,12 +59,12 @@
 <span class="eraser-tool-group"><button aria-label="Eraser" aria-pressed="false" id="eraserBtn" class="tool-button eraser-trigger" data-tool="eraser" title="Erase all editable objects (E)"></button><button type="button" id="eraserSettingsBtn" class="eraser-settings-button" aria-label="Eraser settings" aria-expanded="false" aria-haspopup="dialog" aria-controls="eraserMenu" title="Change eraser size or target">⌄</button></span>
 <button aria-label="Scroll notebook pages" aria-pressed="false" class="tool-button" data-tool="pan" title="Scroll pages · drag without drawing (S)">✋</button><button aria-label="Area select handwriting" aria-pressed="false" class="tool-button" data-tool="area" title="Select handwriting · drag a box around multiple strokes (L)">▧</button><button aria-label="Select and move" aria-pressed="false" class="tool-button" data-tool="select" title="Select and move (V)"></button>
 <button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
-<span class="shape-tool-group"><button aria-label="Shapes · Rectangle" aria-pressed="false" class="tool-button shape-tool-trigger" id="shapeToolBtn" data-tool="rectangle" type="button" title="Shapes · Rectangle (R)"></button><button type="button" class="tool-button fill-settings-trigger shape-settings-trigger" id="shapeMenuBtn" aria-label="Choose a shape" aria-haspopup="true" aria-expanded="false" title="Choose a shape">⌄</button></span>
-<button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/>
-<button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" data-tool="artist" type="button" title="Artist studio — 25 graphite, ink and pigment materials"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
+<span class="shape-tool-group"><button aria-label="Shapes · Rectangle" aria-pressed="false" class="tool-button shape-tool-trigger" id="shapeToolBtn" data-tool="rectangle" type="button" title="Shapes · Rectangle (R)"></button><button type="button" class="tool-button fill-settings-trigger shape-settings-trigger" id="shapeMenuBtn" aria-controls="shapeMenu" aria-haspopup="menu" aria-label="Choose a shape" aria-expanded="false" title="Choose a shape">⌄</button></span>
+<button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-controls="fillMenu" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/>
+<button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" aria-controls="artistMenu" data-tool="artist" type="button" title="Artist studio — 25 graphite, ink and pigment materials"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
-<div aria-label="Ink colors" class="color-palette" id="colorPalette"></div><button aria-label="More ink colors" aria-expanded="false" class="tool-button custom-color-button" id="customColorBtn" title="More colors and custom color">🎨</button>
+<div aria-label="Ink colors" class="color-palette" id="colorPalette"></div><button aria-label="More ink colors" aria-expanded="false" class="tool-button custom-color-button" id="customColorBtn" aria-controls="colorMenu" title="More colors and custom color">🎨</button>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <label class="size-control" id="drawingSizeControl" title="Pen thickness">
 <span class="size-preview" id="sizePreview"></span>
@@ -73,9 +73,9 @@
 </label>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <button aria-label="Insert an image" class="tool-button" id="insertImageBtn" title="Insert an image"></button>
-<button aria-label="Add smileys and stickers" aria-expanded="false" class="tool-button emoji-tool" id="emojiBtn" title="Smileys and stickers">☺</button>
-<button aria-expanded="false" aria-label="Change paper template" class="tool-button" id="paperStyleBtn" title="Change paper template"></button>
-<button aria-expanded="false" aria-label="Page orientation: Portrait or Landscape" class="tool-button" id="pageOrientationBtn" title="Page orientation: Portrait / Landscape"></button>
+<button aria-label="Add smileys and stickers" aria-expanded="false" class="tool-button emoji-tool" id="emojiBtn" aria-controls="emojiMenu" title="Smileys and stickers">☺</button>
+<button aria-expanded="false" aria-label="Change paper template" class="tool-button" id="paperStyleBtn" aria-controls="paperMenu" title="Change paper template"></button>
+<button aria-expanded="false" aria-label="Page orientation: Portrait or Landscape" class="tool-button" id="pageOrientationBtn" aria-controls="orientationMenu" title="Page orientation: Portrait / Landscape"></button>
 <label class="pencil-toggle" title="Use a stylus to draw; fingers scroll and pinch. Mouse editing remains available.">
 <input id="pencilOnly" type="checkbox" checked autocomplete="off"/>
 <span id="pencilOnlyIcon"></span>
@@ -84,7 +84,7 @@
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Page zoom" class="stage-tools">
 <button aria-label="Zoom out" class="small-icon-button" id="zoomOut" title="Zoom out"></button>
-<button type="button" class="zoom-value" id="zoomValue" title="Choose zoom level · pinch with two fingers">100%</button>
+<button type="button" class="zoom-value" id="zoomValue" aria-controls="zoomMenu" aria-expanded="false" title="Choose zoom level · pinch with two fingers">100%</button>
 <button aria-label="Zoom in" class="small-icon-button" id="zoomIn" title="Zoom in"></button>
 </div>
 </div>
@@ -101,12 +101,15 @@
 </div>
 <button aria-label="Add a page" class="icon-button add-page-top" id="addPageTop" title="Add a page"></button>
 <span aria-hidden="true" class="header-divider right-divider"></span>
-<button aria-expanded="false" aria-label="Notebook options" class="icon-button" id="moreOptionsBtn" title="Notebook options"></button>
-<button aria-expanded="false" aria-label="Export PDF or image" class="btn btn-primary btn-export" id="exportBtn" title="Export PDF or image"><span id="exportIcon"></span><span>Export</span></button>
+<button aria-expanded="false" aria-label="Notebook options" class="icon-button" id="moreOptionsBtn" aria-controls="moreMenu" aria-haspopup="dialog" title="Notebook options"></button>
+<button aria-expanded="false" aria-label="Export PDF or image" class="btn btn-primary btn-export" id="exportBtn" aria-controls="exportMenu" title="Export PDF or image"><span id="exportIcon"></span><span>Export</span></button>
 </div>
 <span class="sr-only" id="pageBreadcrumb">Page 1 of 1</span>
 <div class="pop-menu paper-menu" hidden="" id="paperMenu"><div class="menu-heading">PAPER TEMPLATE</div><button data-paper="ruled"><span class="paper-preview mini-ruled"></span> Ruled</button><button data-paper="grid"><span class="paper-preview mini-grid"></span> Grid</button><button data-paper="dots"><span class="paper-preview mini-dots"></span> Dotted</button><button data-paper="blank"><span class="paper-preview mini-blank"></span> Blank</button></div>
-<div class="pop-menu shape-menu" hidden="" id="shapeMenu" role="menu" aria-label="Shapes"><div class="menu-heading">SHAPES</div><div class="shape-grid"><button type="button" role="menuitemradio" aria-checked="true" data-shape="rectangle"><span class="shape-option-icon" data-shape-icon="rectangle" aria-hidden="true"></span><span>Rectangle</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="square"><span class="shape-option-icon" data-shape-icon="square" aria-hidden="true"></span><span>Square</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="ellipse"><span class="shape-option-icon" data-shape-icon="ellipse" aria-hidden="true"></span><span>Ellipse</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="circle"><span class="shape-option-icon" data-shape-icon="circle" aria-hidden="true"></span><span>Circle</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="triangle"><span class="shape-option-icon" data-shape-icon="triangle" aria-hidden="true"></span><span>Triangle</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="diamond"><span class="shape-option-icon" data-shape-icon="diamond" aria-hidden="true"></span><span>Diamond</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="star"><span class="shape-option-icon" data-shape-icon="star" aria-hidden="true"></span><span>Star</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="line"><span class="shape-option-icon" data-shape-icon="line" aria-hidden="true"></span><span>Line</span></button><button type="button" role="menuitemradio" aria-checked="false" data-shape="arrow"><span class="shape-option-icon" data-shape-icon="arrow" aria-hidden="true"></span><span>Arrow</span></button></div><p class="shape-menu-hint">Fill color and border style: ⌄ beside Fill</p></div>
+<div class="pop-menu shape-menu" hidden id="shapeMenu" role="menu" aria-label="Shapes">
+  <div id="shapeChoices"></div>
+  <p class="shape-menu-hint">For fill and border styles, open Fill settings.</p>
+</div>
 <div class="pop-menu orientation-menu" hidden="" id="orientationMenu"><div class="menu-heading">PAGE ORIENTATION</div><button data-orientation="portrait">▯ &nbsp; Portrait</button><button data-orientation="landscape">▭ &nbsp; Landscape</button></div>
 <div class="pop-menu eraser-menu" id="eraserMenu" hidden role="dialog" aria-label="Eraser settings">
 <div class="eraser-menu-heading"><strong>Eraser</strong><button type="button" id="closeEraserMenu" aria-label="Close eraser settings">Done</button></div>
@@ -117,7 +120,62 @@
 <label id="eraserModeControl" class="eraser-mode-control" for="eraserMode">Erase<select id="eraserMode" aria-label="Eraser target"><option value="all" selected>All objects</option><option value="ink">Ink only</option></select></label>
 <p id="eraserHelp">Erases only the brushed area, including pasted text and images. PDF backgrounds stay fixed.</p>
 </div>
-<div class="pop-menu" hidden="" id="moreMenu"><button data-action="editText">Edit selected text…</button><button data-action="copy">Copy selection</button><button data-action="cut">Cut selection</button><button data-action="paste">Paste…</button><button data-action="pasteInternal">Paste copied object</button><button data-action="scroll">Scroll pages…</button><button data-action="fit">Fit page to width</button><button data-action="rename">Rename notebook</button><button data-action="duplicate">Duplicate current page</button><button class="danger-text" data-action="deletePage">Delete current page…</button><button data-action="open">Open notebook file…</button><button data-action="pdf">Import PDF pages…</button><button data-action="pencilTest">Apple Pencil input test…</button><button data-action="appearance">Theme (light / dark)…</button><button data-action="shortcuts">Keyboard shortcuts…</button><button data-action="drive">Google Drive sign-in &amp; sync…</button><button data-action="backup">Back up all notebooks</button><button data-action="restore">Restore notebook backup…</button><button class="danger-text" data-action="deleteNotebook">Delete notebook</button></div>
+<div class="pop-menu notebook-options" hidden id="moreMenu" role="dialog" aria-labelledby="notebookOptionsTitle">
+  <div class="notebook-options-header">
+    <div class="notebook-options-title"><h2 id="notebookOptionsTitle">Notebook options</h2><button type="button" id="closeNotebookOptions" aria-label="Close notebook options">×</button></div>
+    <label class="notebook-action-search"><span aria-hidden="true" id="notebookActionSearchIcon"></span><input type="search" id="notebookActionSearch" placeholder="Find an action" aria-label="Find a notebook action" autocomplete="off"/></label>
+    <div class="menu-page-navigation" role="group" aria-label="Navigate pages">
+      <button type="button" data-action="previousPage" aria-label="Previous page"></button><span id="menuPageIndicator"></span><button type="button" data-action="nextPage" aria-label="Next page"></button>
+    </div>
+  </div>
+  <div class="notebook-action-groups">
+    <section data-command-group id="selectionMenuGroup">
+      <h3>Selection</h3>
+      <button type="button" data-action="editText" data-command data-icon="text">Edit selected text…</button>
+      <button type="button" data-action="copy" data-command data-icon="copy">Copy selection</button>
+      <button type="button" data-action="cut" data-command data-icon="cut">Cut selection</button>
+    </section>
+    <section data-command-group>
+      <h3>Editing</h3>
+      <button type="button" data-action="undo" data-command data-icon="undo">Undo</button>
+      <button type="button" data-action="redo" data-command data-icon="redo">Redo</button>
+      <button type="button" data-action="paste" data-command data-icon="clipboard" data-keywords="text clipboard">Paste…</button>
+      <button type="button" data-action="pasteInternal" data-command data-icon="copy">Paste copied object</button>
+    </section>
+    <section data-command-group>
+      <h3>Page</h3>
+      <button type="button" data-action="scroll" data-command data-icon="pan">Scroll pages</button>
+      <button type="button" data-action="fit" data-command data-icon="orientation" data-keywords="zoom reset">Fit page to width</button>
+      <button type="button" data-action="duplicate" data-command data-icon="copy">Duplicate current page</button>
+      <button type="button" class="danger-text" data-action="deletePage" data-command data-icon="trash">Delete current page…</button>
+    </section>
+    <section data-command-group>
+      <h3>Insert</h3>
+      <button type="button" data-action="image" data-command data-icon="image" data-keywords="picture photo">Insert an image…</button>
+      <button type="button" data-action="stickers" data-command data-icon="smile" data-keywords="emoji education">Stickers…</button>
+      <button type="button" data-action="pdf" data-command data-icon="paper">Import PDF pages…</button>
+    </section>
+    <section data-command-group>
+      <h3>Notebook</h3>
+      <button type="button" data-action="rename" data-command data-icon="pen">Rename notebook…</button>
+      <button type="button" data-action="open" data-command data-icon="upload">Open notebook file…</button>
+      <button type="button" class="danger-text" data-action="deleteNotebook" data-command data-icon="trash">Delete notebook…</button>
+    </section>
+    <section data-command-group>
+      <h3>Sync &amp; backup</h3>
+      <button type="button" data-action="drive" data-command data-icon="cloud" data-keywords="sign in account compression">Google Drive…</button>
+      <button type="button" data-action="backup" data-command data-icon="download">Back up all notebooks</button>
+      <button type="button" data-action="restore" data-command data-icon="upload">Restore notebook backup…</button>
+    </section>
+    <section data-command-group>
+      <h3>Preferences</h3>
+      <button type="button" data-action="appearance" data-command data-icon="moon" data-keywords="light dark appearance">Theme…</button>
+      <button type="button" data-action="shortcuts" data-command data-icon="keyboard">Keyboard shortcuts…</button>
+      <button type="button" data-action="pencilTest" data-command data-icon="pencil" data-keywords="stylus diagnostics">Apple Pencil input test…</button>
+    </section>
+  </div>
+  <p class="notebook-action-empty" id="notebookActionEmpty" role="status" hidden>No matching actions.</p>
+</div>
 <div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><a id="preparedExportLink" class="prepared-export-link" hidden download>Download prepared export</a><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
 <div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Fill colors and closed boundaries">
   <div class="menu-heading">FILL &amp; BOUNDARIES</div>
@@ -158,9 +216,19 @@
 </aside>
 <div class="modal-backdrop" hidden="" id="modalBackdrop"><div aria-labelledby="modalTitle" aria-modal="true" class="modal" role="dialog"><button aria-label="Close dialog" class="modal-close" id="closeModal"></button><div class="modal-eyebrow">A FRESH START ✦</div><h2 id="modalTitle">Create a notebook</h2><p>Give your ideas a home. You can change everything later.</p><label class="field-label" for="newNotebookTitle">NOTEBOOK NAME</label><input class="modal-input" id="newNotebookTitle" maxlength="70" value="Untitled notebook"/><label class="field-label">CHOOSE A COVER</label><div class="cover-choices" id="coverChoices"></div><label class="field-label" for="newPaperStyle">PAPER STYLE</label><select class="modal-select" id="newPaperStyle"><option value="ruled">Ruled paper</option><option value="grid">Grid paper</option><option value="dots">Dotted paper</option><option value="blank">Blank paper</option></select><label class="field-label" for="newPageOrientation">PAGE ORIENTATION</label><select class="modal-select" id="newPageOrientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select><div class="modal-footer"><button class="btn btn-outline" id="cancelModal">Cancel</button><button class="btn btn-primary" id="createNotebookConfirm">Create notebook</button></div></div></div>
 <div id="notebookCardMenu" class="notebook-card-actions" role="menu" aria-label="Notebook actions" hidden>
-  <button id="cardScrollNotebook" type="button" role="menuitem">Scroll pages…</button><button type="button" id="cardShareNotebook" role="menuitem">Share notebook…</button>
+  <button type="button" id="cardShareNotebook" role="menuitem">Share notebook…</button>
+  <button type="button" id="cardRenameNotebook" role="menuitem">Rename notebook…</button>
+  <button id="cardScrollNotebook" type="button" role="menuitem">Scroll pages</button>
   <button type="button" id="cardDeleteNotebook" role="menuitem" class="danger-text">Delete notebook</button>
 </div>
+<dialog class="shortcuts-dialog rename-dialog" id="renameDialog" aria-labelledby="renameDialogTitle">
+  <form id="renameNotebookForm">
+    <h2 id="renameDialogTitle">Rename notebook</h2>
+    <label class="field-label" for="renameNotebookTitle">Notebook name</label>
+    <input class="modal-input" id="renameNotebookTitle" maxlength="70" required/>
+    <div class="modal-footer"><button type="button" class="btn btn-outline" id="cancelRename">Cancel</button><button type="submit" class="btn btn-primary">Save name</button></div>
+  </form>
+</dialog>
 <div class="modal-backdrop" id="shareBackdrop" hidden>
   <section class="modal notebook-share-dialog" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
     <button type="button" class="modal-close" id="shareClose" aria-label="Close notebook sharing">×</button>
@@ -241,25 +309,25 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./mandala-art.js?v=77"></script>
-<script src="./creative-tools.js?v=77"></script>
-<script src="./interaction-tools.js?v=77"></script>
-<script src="./selection-preview.js?v=77"></script>
-<script src="./eraser-preview.js?v=77"></script>
-<script src="./page-stack.js?v=77"></script>
-<script src="./workspace-model.js?v=77"></script>
-<script src="./text-tools.js?v=77"></script>
-<script src="./pdf-export.js?v=77"></script>
-<script src="./pdf-import.js?v=77"></script>
-<script src="./native-file.js?v=77"></script>
-<script src="./clipboard.js?v=77"></script>
-<script src="./shared-notebook-model.js?v=77"></script>
-<script src="./notebook-sharing.js?v=77"></script>
-<script src="./live-sync.js?v=77"></script>
+<script src="./mandala-art.js?v=80"></script>
+<script src="./creative-tools.js?v=80"></script>
+<script src="./interaction-tools.js?v=80"></script>
+<script src="./selection-preview.js?v=80"></script>
+<script src="./eraser-preview.js?v=80"></script>
+<script src="./page-stack.js?v=80"></script>
+<script src="./workspace-model.js?v=80"></script>
+<script src="./text-tools.js?v=80"></script>
+<script src="./pdf-export.js?v=80"></script>
+<script src="./pdf-import.js?v=80"></script>
+<script src="./native-file.js?v=80"></script>
+<script src="./clipboard.js?v=80"></script>
+<script src="./shared-notebook-model.js?v=80"></script>
+<script src="./notebook-sharing.js?v=80"></script>
+<script src="./live-sync.js?v=80"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=77"></script>
-<script defer src="./boundary-fill.js?v=77"></script>
-<script defer src="./mandala-tools.js?v=77"></script>
-<script defer="" src="./app.js?v=77"></script>
+<script defer src="./cloud-drive.js?v=80"></script>
+<script defer src="./boundary-fill.js?v=80"></script>
+<script defer src="./mandala-tools.js?v=80"></script>
+<script defer="" src="./app.js?v=80"></script>
 </body>
 </html>
