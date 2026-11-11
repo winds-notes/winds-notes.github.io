@@ -13,11 +13,12 @@
     for(let i=0;i<text.length;i++){a=Math.imul(a^text.charCodeAt(i),16777619);b=Math.imul(b,33)^text.charCodeAt(i);}
     return `${text.length.toString(36)}-${(a>>>0).toString(36)}-${(b>>>0).toString(36)}`;
   }
-  function entries(book){
+  function entries(book,pageIds){
     const values=new Map(),put=(key,value)=>values.set(JSON.stringify(key),value);
     for(const key of ['title','cover','createdAt'])put(['book',key],book[key]??null);
     put(['order'],book.pages.map(p=>p.id));
     for(const page of book.pages){
+      if(pageIds&&!pageIds.has(page.id))continue;
       put(['page',page.id],{template:page.template||'ruled',orientation:page.orientation||'portrait',...(page.background?{background:page.background}:{})});
       put(['layers',page.id],page.items.map(i=>i.id));
       for(const item of page.items)put(['item',page.id,item.id],item);
@@ -45,10 +46,14 @@
     // Older clients did not record per-edit times. Keep their logical order.
     return compare(a.stamp,b.stamp);
   }
-  function capture(book,actor){
+  function capture(book,actor,changedPages){
     if(book._sharing)return false;
-    const values=entries(book),previous=book._sync;
+    const previous=book._sync;
     if(previous&&!valid(previous))throw Error('Invalid notebook sync history. Export a backup before retrying.');
+    // Structural changes and old-format notebooks require a full capture.
+    // An ordinary page save can keep the fingerprints of untouched pages.
+    const scoped=actor&&changedPages?.size&&previous?.fields['["order"]']?.hash===hash(book.pages.map(p=>p.id))?changedPages:null;
+    const values=entries(book,scoped);
     if(!previous){
       // A deterministic migration identity makes repeated old-format reads stable.
       const at=Number.isFinite(Date.parse(book.updatedAt))?new Date(book.updatedAt).toISOString():'';
@@ -57,8 +62,16 @@
       book._sync={version:1,clock:1,seen:{[origin]:1},fields};return true;
     }
     const changes=[];
-    for(const [key,value] of values)if(previous.fields[key]?.hash!==hash(value))changes.push([key,hash(value)]);
-    for(const [key,field] of Object.entries(previous.fields))if(field.hash!==null&&!values.has(key))changes.push([key,null]);
+    for(const [key,value] of values){
+      const digest=hash(value);
+      if(previous.fields[key]?.hash!==digest)changes.push([key,digest]);
+    }
+    const itemPrefixes=scoped?[...scoped].map(id=>`["item",${JSON.stringify(id)},`):[];
+    for(const [key,field] of Object.entries(previous.fields)){
+      if(field.hash===null||values.has(key))continue;
+      // With stable page order, only objects on captured pages can disappear.
+      if(!scoped||itemPrefixes.some(prefix=>key.startsWith(prefix)))changes.push([key,null]);
+    }
     if(!changes.length)return false;
     actor=actor||'legacy-edit-'+hash([book.id,book.updatedAt,[...values]]);
     const clock=previous.clock+1,fields={...previous.fields};

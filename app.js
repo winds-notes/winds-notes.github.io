@@ -368,7 +368,8 @@
     dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();
     saving=true;
     try{
-      for(const n of state.notebooks)if(full||bookIds.includes(n.id))globalThis.WindsWorkspaceModel.capture(n,workspaceActor);
+      const changedPages=full?null:new Set(pageIds);
+      for(const n of state.notebooks)if(full||bookIds.includes(n.id))globalThis.WindsWorkspaceModel.capture(n,workspaceActor,changedPages);
       saveTask=full?writeData({version:2,notebooks:state.notebooks}):writeChanged(bookIds,pageIds);
       await saveTask;
       if(version===saveVersion)statusText('Saved');
@@ -472,7 +473,9 @@
     const nextBooks=new Map(final.map(n=>[n.id,n]));
     for(const before of state.notebooks){
       if(before._sharing)continue;
-      const after=nextBooks.get(before.id),nextPages=new Map((after?.pages||[]).map(p=>[p.id,p]));
+      const after=nextBooks.get(before.id);
+      if(after===before)continue;
+      const nextPages=new Map((after?.pages||[]).map(p=>[p.id,p]));
       for(const p of before.pages){
         const next=nextPages.get(p.id),h=history.get(p.id);
         if(!next){history.delete(p.id);continue;}
@@ -521,15 +524,17 @@
     const needsUpload=final.length!==snapshot.notebooks.length||final.some(n=>!model.equal(n,remoteBooks.get(n.id)))||!model.equal(mergedDeleted,remoteDeleted);
     if(hasChanges){
       reconcileCloudHistory(final,model);
+      const activeNotebook=notebook();
       const activePage=page()?.id;
       state.notebooks=final;tombstones=mergedDeleted;
       const activeIndex=notebook()?.pages.findIndex(p=>p.id===activePage);if(activeIndex>=0)state.pageIndex=activeIndex;
+      const redraw=!activeNotebook||notebook()!==activeNotebook;
       dirtyAll=true;saveVersion++;
       if(await saveNow(true,report)===false)throw new Error('Received changes could not be saved locally. Sync will retry.');
       // A new stroke may have started while the IndexedDB write was in flight.
       // Keep that stroke and canvas intact, and compose remote changes when idle.
       if(workspaceId===account)globalThis.WindsDrive?.recordTiming?.('driveApply',Date.now()-receivedAt);
-      renderCloudChanges(account,receivedAt);
+      if(redraw)renderCloudChanges(account,receivedAt);
     }
     return report?{changed:hasChanges,needsUpload}:hasChanges;
   }
@@ -551,12 +556,19 @@
   }
   function renderContinue(){
     const button=$('heroContinue');if(!button)return;
-    const latest=sortNotebooks(state.notebooks,'recent')[0];
+    let saved;try{saved=JSON.parse(localStorage.getItem(`winds-notes-reading-position-${workspaceId}`));}catch{}
+    const latest=state.notebooks.find(n=>n.id===saved?.bookId)||sortNotebooks(state.notebooks,'recent')[0];
     button.hidden=!latest;
     if(!latest)return;
+    const index=latest.id===saved?.bookId?Math.max(0,latest.pages.findIndex(p=>p.id===saved.pageId)):0;
     button.dataset.notebook=latest.id;
-    $('heroContinueTitle').textContent=latest.title;
-    button.setAttribute('aria-label',`Continue writing ${latest.title}`);
+    button.dataset.page=latest.pages[index].id;
+    $('heroContinueTitle').textContent=index?`${latest.title} · Page ${index+1}`:latest.title;
+    button.setAttribute('aria-label',`Continue writing ${latest.title}, page ${index+1}`);
+  }
+  function rememberReadingPosition(){
+    const n=notebook(),p=page();if(!n||!p)return;
+    try{localStorage.setItem(`winds-notes-reading-position-${workspaceId}`,JSON.stringify({bookId:n.id,pageId:p.id}));}catch{}
   }
   function renderLibrary(){
     const query=$('searchNotebooks').value.trim().toLowerCase();
@@ -623,17 +635,20 @@
     if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size){const error=Error('Shared changes are waiting for durable local saving.');error.syncDeferred=true;throw error;}
     window.WindsLive?.refreshRooms();renderCloudChanges(expectedWorkspace);return saved;
   }
-  function openNotebook(id){
+  function openNotebook(id,pageId=null){
     cancelBoundaryFill(true);
-    finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>openNotebook(id),100);return;}
+    finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>openNotebook(id,pageId),100);return;}
     const n=state.notebooks.find(x=>x.id===id);if(!n)return;
+    composeInkNow();commitText();
     clearLiveLayer();prunePdfImages(n);
-    state.activeId=id;state.pageIndex=0;state.selected=-1;state.zoom=1;RENDER_SCALE=2;state.draft=null;
+    state.activeId=id;state.pageIndex=pageId?Math.max(0,n.pages.findIndex(p=>p.id===pageId)):0;
+    state.selected=-1;state.zoom=1;RENDER_SCALE=2;state.draft=null;
     state.sidebarOpen=false;thumbnailsDirty=true;
     view('editor');$('notebookTitle').value=n.title;
-    syncPageGeometry();updateSidebar();setTool('pen');renderEditor();resizePage();window.WindsPageStack.focus(page().id);requestAnimationFrame(updateToolbarArrows);window.WindsLive?.refreshRooms();
+    syncPageGeometry();updateSidebar();setTool('pen',{repaint:false});resizePage(true);renderEditor();
+    rememberReadingPosition();window.WindsPageStack.focus(page().id);requestAnimationFrame(updateToolbarArrows);window.WindsLive?.refreshRooms();
   }
-  function goLibrary(){cancelBoundaryFill(true);finishActiveStroke();if(state.pendingInteractions){setTimeout(goLibrary,100);return;}window.WindsPageStack.reset();eraserPreview?.reset();groupSelection=null;commitText();state.draft=null;composeInkNow();saveNow(true);state.activeId=null;view('library');renderLibrary();}
+  function goLibrary(){cancelBoundaryFill(true);finishActiveStroke();if(state.pendingInteractions){setTimeout(goLibrary,100);return;}rememberReadingPosition();window.WindsPageStack.reset();eraserPreview?.reset();groupSelection=null;commitText();state.draft=null;composeInkNow();saveNow(true);state.activeId=null;view('library');renderLibrary();}
   function renderEditor(){
     eraserPreview?.invalidate();
     const n=notebook();if(!n)return;
@@ -661,17 +676,18 @@
     cancelBoundaryFill(true);
     finishActiveStroke();if(state.pendingInteractions){setTimeout(()=>switchPage(index,preserveScroll),100);return;}
     finishActiveStroke();const n=notebook();if(!n||index<0||index>=n.pages.length)return;
-    clearLiveLayer();composeInkNow();commitText();state.pageIndex=index;state.selected=-1;state.draft=null;syncPageGeometry();resizePage();renderEditor();
+    clearLiveLayer();composeInkNow();commitText();state.pageIndex=index;state.selected=-1;state.draft=null;syncPageGeometry();resizePage(true);renderEditor();
+    rememberReadingPosition();
     if(!preserveScroll)window.WindsPageStack.focus(page().id);
     if(state.sidebarOpen){state.sidebarOpen=false;updateSidebar();}
   }
   function addPage(){
     finishActiveStroke();if(state.pendingInteractions){setTimeout(addPage,100);return;}const n=notebook();if(!n)return;
     composeInkNow();commitText();n.pages.splice(state.pageIndex+1,0,makePage(page()?.template||'ruled',page()?.orientation||'portrait'));
-    state.pageIndex++;state.selected=-1;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);
-    window.WindsPageStack.focus(page().id);toast('New page added');
+    state.pageIndex++;state.selected=-1;syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);
+    rememberReadingPosition();window.WindsPageStack.focus(page().id);toast('New page added');
   }
-  function duplicatePage(){finishActiveStroke();if(state.pendingInteractions){setTimeout(duplicatePage,100);return;}const n=notebook();if(!n)return;finishActiveStroke();composeInkNow();commitText();const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page duplicated');}
+  function duplicatePage(){finishActiveStroke();if(state.pendingInteractions){setTimeout(duplicatePage,100);return;}const n=notebook();if(!n)return;finishActiveStroke();composeInkNow();commitText();const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);rememberReadingPosition();toast('Page duplicated');}
   function deletePage(pageId,target={account:workspaceId,notebook:notebook()}){
     const n=notebook();if(!n||n!==target.notebook||workspaceId!==target.account||$('editorView').hidden)return;
     const index=n.pages.findIndex(p=>p.id===pageId);if(index<0)return;
@@ -682,7 +698,7 @@
     const activeId=page()?.id;n.pages.splice(index,1);
     const activeIndex=n.pages.findIndex(p=>p.id===activeId);
     state.pageIndex=activeIndex>=0?activeIndex:Math.min(index,n.pages.length-1);
-    state.selected=-1;syncPageGeometry();resizePage();renderEditor();scheduleSave(true);toast('Page removed');
+    state.selected=-1;syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);rememberReadingPosition();toast('Page removed');
   }
   function renderThumbs(force=false){
     thumbnailsDirty=true;
@@ -728,12 +744,12 @@
       }
     }
     p.orientation=orientation;state.selected=-1;
-    syncPageGeometry();resizePage();renderEditor();renderThumbs();
+    syncPageGeometry();resizePage(true);renderEditor();renderThumbs();
     scheduleSave();closeMenus();
     requestAnimationFrame(()=>{$('editorToolbar').scrollLeft=0;updateToolbarArrows();});
     toast(orientation==='landscape'?'Landscape page selected':'Portrait page selected');
   }
-  function setTool(tool,{inkOnly=false}={}){
+  function setTool(tool,{inkOnly=false,repaint=true}={}){
     if(boundaryFillSession)cancelBoundaryFill();
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
     if(tool==='eraser')state.eraserInkOnly=inkOnly;
@@ -744,7 +760,7 @@
     $('inkCanvas').classList.toggle('cursor-text',tool==='text');
     $('inkCanvas').classList.toggle('cursor-pan',tool==='pan');$('inkCanvas').classList.toggle('cursor-area',tool==='area');
     groupSelection=null;configureSize();
-    renderCanvas();if(tool==='eraser')prepareEraserPreview(true);else eraserPreview?.releaseCache();
+    if(repaint)renderCanvas();if(tool==='eraser')prepareEraserPreview(true);else eraserPreview?.releaseCache();
   }
   /* All figures share one toolbar button (like Fill): the button draws the
    * current shape and its ⌄ opens the shape picker. The last choice is kept. */
@@ -2177,7 +2193,7 @@
       const proposed={...target,pages:[...target.pages.slice(0,index+1),clean,...target.pages.slice(index+1)]};
       if(window.WindsFile.serialize(proposed).length>window.WindsFile.MAX_FILE_BYTES)throw Error('This notebook would exceed 100 MB. Add coloring pages to a new notebook instead.');
       check();imageCache.set(src,image);target.pages.splice(index+1,0,clean);state.pageIndex=index+1;state.selected=-1;
-      syncPageGeometry();resizePage();renderEditor();scheduleSave(true);window.WindsPageStack.focus(clean.id);
+      syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);rememberReadingPosition();window.WindsPageStack.focus(clean.id);
       return clean.id;
     }finally{canvas.width=canvas.height=1;}
   }
@@ -2337,7 +2353,7 @@
     $('notebookGrid').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('[data-open]'))openNotebook(e.target.dataset.open);});
     $('searchNotebooks').oninput=renderLibrary;
     $('sortNotebooks').onchange=e=>{try{localStorage.setItem(SORT_KEY,e.target.value);}catch{}renderLibrary();};
-    $('heroContinue').onclick=e=>{const id=e.currentTarget.dataset.notebook;if(state.notebooks.some(n=>n.id===id))openNotebook(id);};
+    $('heroContinue').onclick=e=>{const {notebook,page}=e.currentTarget.dataset;openNotebook(notebook,page);};
     $('themeBtn').onclick=()=>toggleMenu('themeBtn','themeMenu');
     const syncThemeMenu=()=>document.querySelectorAll('#themeMenu [data-theme-mode]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.themeMode===window.WindsTheme?.mode)));
     document.querySelectorAll('#themeMenu [data-theme-mode]').forEach(b=>{b.onclick=()=>{window.WindsTheme?.set(b.dataset.themeMode);syncThemeMenu();closeMenus();};});
