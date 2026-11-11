@@ -19,6 +19,7 @@
   const FIRST_TRANSIENT_RETRY_MS=2000;
   const ACTIVE_RECHECK_MS=1000;
   const MAX_BYTES=100*1024*1024;
+  const MIN_COMPRESS_BYTES=256*1024;
   const SESSION_KEY='winds-drive-session-v1';
   const ACCOUNT_KEY='winds-drive-last-account-v1';
   const PERSIST_PREFIX='winds-drive-persistent-session-v1-';
@@ -30,10 +31,12 @@
   let bridge=null,oauth=null,token=null,expires=0,profile=null,activeId=null,remoteRevision=null;
   let syncing=false,signingIn=false,generation=0,timer=0,expiryTimer=0,lastSync=0;
   let auto=true,localVersion=0,lastSyncedVersion=-1,deviceId='';
+  let compressUploads=false;
+  const compressionAvailable=typeof global.CompressionStream==='function'&&typeof global.DecompressionStream==='function'&&typeof global.Response==='function';
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
-  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false};
+  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null};
   let transientFailures=0;
   const timingSamples=new Map();
   const timingFields={
@@ -128,7 +131,7 @@
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     workspaceHistory={id:null,revisions:new Map(),checked:0};
-    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false};
+    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null};
     timingSamples.clear();
     transientFailures=0;
     global.WindsSharing?.cancel();
@@ -211,6 +214,7 @@
   }
   function loadAutoPreference(){
     try{auto=localStorage.getItem(`winds-drive-auto-${profile.sub}`)!=='false';}catch{auto=true;}
+    try{compressUploads=compressionAvailable&&localStorage.getItem(`winds-drive-compress-${profile.sub}`)==='true';}catch{compressUploads=false;}
   }
   function message(value,error=false){const el=$('cloudMessage');if(el){if(el.textContent!==value)el.textContent=value;el.classList.toggle('error',error);}}
   function updateSyncDetails(){
@@ -218,8 +222,11 @@
     const hidden=!profile||remoteSignedOut;if(panel.hidden!==hidden)panel.hidden=hidden;
     if(hidden||!panel.open||$('cloudBackdrop').hidden)return;
     const time=value=>value?new Date(value).toLocaleTimeString():'None in this tab yet';
+    const size=bytes=>bytes>=1024*1024?`${(bytes/1024/1024).toFixed(2)} MiB`:`${Math.round(bytes/1024)} KiB`;
+    const uploadSize=syncDetails.uploadSize;
     const values={cloudSyncMode:global.WINDS_REALTIME_ENABLED===true?'Drive + live previews enabled':'Drive only · live previews are not enabled on this site',
       cloudLastChecked:time(syncDetails.checked),cloudLastReceived:time(syncDetails.received),cloudLastUploaded:time(syncDetails.uploaded),
+      cloudWorkspaceUploadSize:!uploadSize?'No upload yet':uploadSize.sent===uploadSize.plain?size(uploadSize.sent):`${size(uploadSize.sent)} of ${size(uploadSize.plain)}`,
       cloudCycleDuration:syncDetails.elapsed===null?'Waiting for a completed cycle':`${(syncDetails.elapsed/1000).toFixed(2)} seconds`};
     for(const [stage,id] of Object.entries(timingFields)){
       if(stage.startsWith('live')){
@@ -236,7 +243,7 @@
     const yes=connected();
     // Metadata polling does not change account controls. Avoid rewriting the
     // dialog or flashing disabled states at the background polling cadence.
-    const next=JSON.stringify([yes,profile?.sub,profile?.email,expires,authorizationRequired,signingIn,manualBusy,auto]);
+    const next=JSON.stringify([yes,profile?.sub,profile?.email,expires,authorizationRequired,signingIn,manualBusy,auto,compressUploads]);
     if(next===uiState)return;
     uiState=next;
     $('cloudConnection').classList.toggle('connected',yes);
@@ -250,6 +257,9 @@
     $('googleDisconnect').hidden=!profile;
     $('googleDisconnect').disabled=signingIn;
     for(const id of ['googleSync','googleBackup','googleRestore','cloudAutoControl'])$(id).hidden=!yes;
+    const compressionControl=$('cloudCompressionControl'),compressionInput=$('cloudCompression');
+    if(compressionControl)compressionControl.hidden=!yes||!compressionAvailable;
+    if(compressionInput){compressionInput.checked=compressUploads;compressionInput.disabled=signingIn;}
     for(const id of ['googleSync','googleBackup','googleRestore'])$(id).disabled=signingIn||manualBusy;
     const sharedButton=$('googleBrowseShared');
     if(sharedButton){
@@ -292,7 +302,7 @@
       error.syncDeferred=true;throw error;
     }
   }
-  async function readDriveText(response,expected,manual=false){
+  async function readDriveText(response,expected,manual=false,workspace=false){
     ensureIdle(expected,manual);
     if(Number(response.headers?.get('content-length')||0)>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
     const reader=response.body?.getReader?.();
@@ -302,14 +312,23 @@
       return text;
     }
     const decoder=new TextDecoder(),parts=[];
-    let bytes=0,finished=false;
+    let bytes=0,finished=false,compressed=false;
     try{
       while(true){
         const chunk=await reader.read();ensureIdle(expected,manual);
         if(chunk.done){finished=true;break;}
+        // Valid JSON cannot start with the gzip magic byte. The decompressor
+        // checks the rest of the header, checksum and compressed stream.
+        if(workspace&&bytes===0&&chunk.value[0]===0x1f)compressed=true;
         bytes+=chunk.value.byteLength;
         if(bytes>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
-        parts.push(decoder.decode(chunk.value,{stream:true}));
+        parts.push(compressed?chunk.value:decoder.decode(chunk.value,{stream:true}));
+      }
+      if(compressed){
+        if(typeof global.DecompressionStream!=='function'||typeof global.Response!=='function')throw Error('Use an updated browser to open this compressed Drive workspace.');
+        const inflated=new Blob(parts).stream().pipeThrough(new global.DecompressionStream('gzip'));
+        // Apply the size and idle checks to the expanded bytes too.
+        return await readDriveText(new global.Response(inflated),expected,manual);
       }
       parts.push(decoder.decode());
       return parts.join('');
@@ -468,7 +487,7 @@
   }
   async function connectCallback(result){
     if(!result||result.error||!result.access_token){message('Google sign-in was cancelled or incomplete.',true);return;}
-    const previousSession={token,expires,profile,activeId,auto,remoteSignedOut,logoutStamp};
+    const previousSession={token,expires,profile,activeId,auto,compressUploads,remoteSignedOut,logoutStamp};
     const before=logoutEvent();
     const nextGeneration=nextSession();
     signingIn=true;clearTimeout(timer);
@@ -496,7 +515,7 @@
     }catch(err){
       console.error('WiNDS sign-in:',err);
       if(nextGeneration===generation){
-        ({token,expires,profile,activeId,auto,remoteSignedOut,logoutStamp}=previousSession);
+        ({token,expires,profile,activeId,auto,compressUploads,remoteSignedOut,logoutStamp}=previousSession);
         rememberSession();await bridge.switchWorkspace(profile?.sub||null).catch(()=>{});
         message(err.message||'Could not open this Google account.',true);updateUI();
       }
@@ -610,7 +629,7 @@
   async function fetchWorkspace(fileId,expected=generation,manual=false,revision=null){
     const path=revision?`/revisions/${encodeURIComponent(revision)}`:'';
     const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}${path}?alt=media`,{},expected,manual);
-    const text=await readDriveText(response,expected,manual);
+    const text=await readDriveText(response,expected,manual,true);
     const data=JSON.parse(text);
     if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
     return data;
@@ -716,16 +735,16 @@
   }
   async function upload(name,content,oldId,properties,expected=generation,manual=false){
     ensureIdle(expected,manual);
-    const blob=new Blob([content],{type:'application/json'});
+    const blob=content instanceof Blob?content:new Blob([content],{type:'application/json'});
     if(blob.size>MAX_BYTES)throw new Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
-    const metadata={name,mimeType:'application/json',appProperties:properties};
+    const metadata={name,mimeType:blob.type,appProperties:properties};
     const target=UPLOAD+(oldId?'/'+encodeURIComponent(oldId):'');
     let result;
     if(blob.size<=5*1024*1024){
       const boundary='winds_'+Math.random().toString(36).slice(2);
       const body=new Blob([
         `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`,
-        `--${boundary}\r\nContent-Type: application/json\r\n\r\n`,blob,
+        `--${boundary}\r\nContent-Type: ${blob.type}\r\n\r\n`,blob,
         `\r\n--${boundary}--\r\n`
       ],{type:`multipart/related; boundary=${boundary}`});
       result=await driveRequest(target+'?uploadType=multipart&fields=id,name,modifiedTime'+(name===WORKSPACE_NAME?'&keepRevisionForever=true':''),{
@@ -734,12 +753,12 @@
     }else{
       const init=await driveRequest(target+'?uploadType=resumable&fields=id,name,modifiedTime'+(name===WORKSPACE_NAME?'&keepRevisionForever=true':''),{
         method:oldId?'PATCH':'POST',
-        headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'application/json','X-Upload-Content-Length':String(blob.size)},
+        headers:{'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':blob.type,'X-Upload-Content-Length':String(blob.size)},
         body:JSON.stringify(metadata)
       },expected,manual);
       const location=init.headers.get('Location');
       if(!location||!location.startsWith('https://www.googleapis.com/'))throw new Error('Drive did not provide an authorized upload URL.');
-      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':'application/json'},body:blob},expected,manual);
+      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':blob.type},body:blob},expected,manual);
     }
     return readDriveJson(result,expected,manual);
   }
@@ -772,9 +791,21 @@
       if(retained.length)snapshot.workspaceRevisionHistory={fileId:activeId,included:retained};
     }
     const uploadStarted=Date.now();
-    const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
+    const plain=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
+    if(plain.size>MAX_BYTES)throw Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
+    let payload=plain;
+    if(compressUploads&&compressionAvailable&&plain.size>=MIN_COMPRESS_BYTES){
+      try{
+        const gzip=plain.stream().pipeThrough(new global.CompressionStream('gzip'));
+        const packed=await new global.Response(gzip).blob();
+        if(packed.size<plain.size*.9)payload=packed.slice(0,packed.size,'application/gzip');
+      }catch{/* A failed compression can use the original JSON. */}
+    }
+    ensureIdle(expected,manual);
+    const created=await upload(WORKSPACE_NAME,payload,activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
     ensureIdle(expected,manual);
     recordTiming('driveUpload',Date.now()-uploadStarted);
+    syncDetails.uploadSize={plain:plain.size,sent:payload.size};
     activeId=created.id;
     // The revision-based reader will verify this upload's head on the next poll.
     remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
@@ -975,6 +1006,12 @@
     $('googleRestore').onclick=browse;
     if($('googleBrowseShared'))$('googleBrowseShared').onclick=browseShared;
     $('googleDisconnect').onclick=disconnect;
+    if($('cloudCompression'))$('cloudCompression').onchange=e=>{
+      compressUploads=compressionAvailable&&e.target.checked;
+      if(profile)try{localStorage.setItem(`winds-drive-compress-${profile.sub}`,String(compressUploads));}catch{}
+      message(compressUploads?'Compression will apply to future saves. Use this WiNDS Notes version on your other devices.':'Future workspace uploads will use JSON.');
+      updateUI();
+    };
     $('cloudAutoBackup').onchange=e=>{
       auto=e.target.checked;
       if(profile)try{localStorage.setItem(`winds-drive-auto-${profile.sub}`,String(auto));}catch{}
