@@ -26,7 +26,7 @@
     if(version!==generation||!allowed())return;
     const data=event.data||'';
     if(inbox.length>=64||inboxBytes+data.length>262144){inbox=[];inboxBytes=0;previews.clear();needsCatchup=true;paintNeeded=true;}
-    else{inbox.push({type,data,room,cursor:event.lastEventId,version});inboxBytes+=data.length;}
+    else{inbox.push({type,data,room,cursor:event.lastEventId,version,receivedAt:Date.now()});inboxBytes+=data.length;}
     schedule(0);
   }
   function open(room){
@@ -62,7 +62,7 @@
         }else if(packet.kind==='append'&&packet.item){
           const key=packet.clientId+':'+packet.item.id;
           if(previews.size>=128)previews.delete(previews.keys().next().value);
-          previews.set(key,{packet,room:event.room,expires:Date.now()+30000});
+          previews.set(key,{packet,room:event.room,expires:Date.now()+30000,receivedAt:event.receivedAt});
         }
         paintNeeded=true;
       }
@@ -77,7 +77,8 @@
         for(const [id,pending] of outgoing){
           if(version!==generation||api.bridge.busy(IDLE))break;
           const room=roomFor(pending.bookId);if(!room){outgoing.delete(id);continue;}
-          const payload={...pending,clientId};
+          const {queuedAt,...operation}=pending;
+          const payload={...operation,clientId};
           const text=JSON.stringify(payload);if(new Blob([text]).size>MAX_BYTES){outgoing.delete(id);continue;}
           const params=new URLSearchParams({account:api.session().profile.sub,room});
           const response=await fetch('/live/publish?'+params,{method:'POST',credentials:'same-origin',cache:'no-store',signal:controller.signal,
@@ -85,6 +86,7 @@
           if(version!==generation)return;
           if(response.status===401){stop();api.authLost();return;}
           if(!response.ok)throw Error('Live relay unavailable');
+          if(queuedAt)global.WindsDrive?.recordTiming?.('liveSend',Date.now()-queuedAt);
           outgoing.delete(id);
         }
       }catch{if(version===generation)retryAfter=Date.now()+3000;}
@@ -97,7 +99,7 @@
     fresh={bookId,pageId};
     if(!['stroke','shape'].includes(item.type)||(item.type==='stroke'&&(item.points.length>512||(item.tool==='artist'&&item.points.length>64))))return;
     if(outgoing.size>=64)outgoing.delete(outgoing.keys().next().value);
-    const id=uuid();outgoing.set(id,{id,kind:'append',bookId,pageId,item});schedule();
+    const id=uuid();outgoing.set(id,{id,kind:'append',bookId,pageId,item,queuedAt:Date.now()});schedule();
   }
   function changed(bookId,pageId){
     if(!allowed()||!bookId||!pageId)return;

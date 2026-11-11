@@ -15,6 +15,8 @@
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
   const AUTO_POLL_MS=1000;
+  const DRIVE_RESPONSE_TIMEOUT_MS=15000;
+  const FIRST_TRANSIENT_RETRY_MS=2000;
   const ACTIVE_RECHECK_MS=1000;
   const MAX_BYTES=100*1024*1024;
   const SESSION_KEY='winds-drive-session-v1';
@@ -31,7 +33,31 @@
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
-  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
+  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false};
+  let transientFailures=0;
+  const timingSamples=new Map();
+  const timingFields={
+    editToSave:'cloudEditToSave',
+    driveUpload:'cloudUploadTime',
+    driveApply:'cloudDriveApplyTime',
+    driveRender:'cloudDriveRenderTime',
+    liveSend:'cloudPreviewSendTime',
+    livePaint:'cloudPreviewPaintTime'
+  };
+  function recordTiming(stage,elapsed){
+    if(!profile||signingIn||remoteSignedOut||!Object.hasOwn(timingFields,stage)||!Number.isFinite(elapsed)||elapsed<0)return;
+    if(!timingSamples.has(stage))timingSamples.set(stage,[]);
+    const samples=timingSamples.get(stage);
+    samples.push(elapsed);
+    if(samples.length>20)samples.shift();
+  }
+  function timingSummary(stage){
+    const samples=timingSamples.get(stage);
+    if(!samples?.length)return 'No samples yet';
+    const ordered=[...samples].sort((a,b)=>a-b);
+    const percentile=p=>Math.round(ordered[Math.ceil(ordered.length*p)-1]);
+    return `p50 ${percentile(.5)} ms · p95 ${percentile(.95)} ms · ${samples.length} samples`;
+  }
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
@@ -102,7 +128,9 @@
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     workspaceHistory={id:null,revisions:new Map(),checked:0};
-    syncDetails={checked:0,received:0,uploaded:0,elapsed:null};
+    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false};
+    timingSamples.clear();
+    transientFailures=0;
     global.WindsSharing?.cancel();
     global.WindsLive?.stop();
     $('cloudBackupList').hidden=true;
@@ -193,6 +221,14 @@
     const values={cloudSyncMode:global.WINDS_REALTIME_ENABLED===true?'Drive + live previews enabled':'Drive only · live previews are not enabled on this site',
       cloudLastChecked:time(syncDetails.checked),cloudLastReceived:time(syncDetails.received),cloudLastUploaded:time(syncDetails.uploaded),
       cloudCycleDuration:syncDetails.elapsed===null?'Waiting for a completed cycle':`${(syncDetails.elapsed/1000).toFixed(2)} seconds`};
+    for(const [stage,id] of Object.entries(timingFields)){
+      if(stage.startsWith('live')){
+        const row=$(id)?.parentElement;
+        const hidden=global.WINDS_REALTIME_ENABLED!==true;
+        if(row&&row.hidden!==hidden)row.hidden=hidden;
+      }
+      values[id]=timingSummary(stage);
+    }
     for(const [id,value] of Object.entries(values)){const el=$(id);if(el&&el.textContent!==value)el.textContent=value;}
   }
   function updateUI(){
@@ -290,7 +326,18 @@
     ensureIdle(expected,manual);
     const headers=new Headers(options.headers||{});
     headers.set('Authorization',`Bearer ${token}`);
-    const response=await fetch(url,{...options,headers,cache:'no-store',signal:driveController?.signal});
+    const sessionSignal=driveController?.signal;
+    // Bound the wait for headers on reads. The timeout ends when a download
+    // starts, and the session signal still cancels it on account changes.
+    const deadline=sessionSignal&&global.AbortSignal?.any&&(!options.method||options.method==='GET')?new global.AbortController():null;
+    const signal=deadline?global.AbortSignal.any([sessionSignal,deadline.signal]):sessionSignal;
+    const watchdog=deadline?setTimeout(()=>deadline.abort(),DRIVE_RESPONSE_TIMEOUT_MS):null;
+    let response;
+    try{response=await fetch(url,{...options,headers,cache:'no-store',signal});}
+    catch(error){
+      if(!deadline?.signal.aborted||sessionSignal.aborted)throw error;
+      const timeout=new Error('Google Drive did not respond in time.');timeout.status=408;throw timeout;
+    }finally{if(watchdog!==null)clearTimeout(watchdog);}
     ensureIdle(expected,manual);
     if(!response.ok){
       const text=await response.text();ensureIdle(expected,manual);
@@ -442,13 +489,9 @@
       await bridge.switchWorkspace(identity.sub);
       if(nextGeneration!==generation)return;
       remoteSignedOut=false;rememberSession();persistSession();rememberAccount();updateUI();
-      try{
-        if(!bridge.isWriting())await refreshFromDrive(nextGeneration);
-        if(nextGeneration!==generation)return;
-        message(`Connected to ${identity.email}. Notebook changes sync to this Google account when idle.`);
-      }catch(err){
-        if(nextGeneration===generation&&!err.syncDeferred)message(`Your local notebooks are open. ${err.message||'Drive is unavailable; sync will retry when idle.'}`,true);
-      }
+      // Local sign-in ends here. The ordinary idle scheduler handles the first
+      // Drive read, including lengthy checks of old protected revisions.
+      message(connectionMessage());
       localVersion++;
     }catch(err){
       console.error('WiNDS sign-in:',err);
@@ -618,7 +661,13 @@
         const merged=await bridge.mergeWorkspace(saved.data,{manual,report:true});ensureIdle(expected,manual);
         saved.applied=true;if(merged?.changed!==false)syncDetails.received=Date.now();
       }
-      if(isHead)covered=new Set(includedRevisions(saved.data,workspace.id));
+      if(isHead){
+        covered=new Set(includedRevisions(saved.data,workspace.id));
+        if(!manual&&!syncDetails.checked&&olderIds.some(older=>!covered.has(older))){
+          message('Current notebooks are open. Checking earlier Drive revisions automatically…');
+          updateSyncDetails();
+        }
+      }
     }
     ensureIdle(expected,manual);
     const head=history.revisions.get(workspace.headRevisionId)?.data;
@@ -722,8 +771,10 @@
       const retained=[...included].filter(id=>workspaceHistory.pinnedIds.has(id));
       if(retained.length)snapshot.workspaceRevisionHistory={fileId:activeId,included:retained};
     }
+    const uploadStarted=Date.now();
     const created=await upload(WORKSPACE_NAME,JSON.stringify(snapshot),activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
     ensureIdle(expected,manual);
+    recordTiming('driveUpload',Date.now()-uploadStarted);
     activeId=created.id;
     // The revision-based reader will verify this upload's head on the next poll.
     remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
@@ -740,8 +791,10 @@
     if(wait){if(manual)message('Finish writing and local saving, then select Sync now.');schedule(wait);return;}
     if(global.navigator?.onLine===false||document.hidden){schedule(AUTO_RETRY_MS);return;}
     const expected=generation,pollStartedAt=Date.now();
+    const firstCheck=!syncDetails.checked,previousUpload=lastSync;
     syncing=true;manualBusy=manual;updateUI();
     if(manual)message('Synchronizing this account’s notebooks with Google Drive…');
+    else if(firstCheck)message('Checking Google Drive for notebooks automatically…');
     let nextDelay=null;
     try{
       if(SERVER_AUTH&&!connected()&&!await renewServerSession()){nextDelay=AUTO_RETRY_MS;return;}
@@ -756,11 +809,24 @@
         ensureIdle(expected,false);
         await global.WindsSharing?.sync(sharingSession(),false,{exclude:priority,limit:1});
       }
+      if(expected===generation){
+        transientFailures=0;
+        if((firstCheck||syncDetails.retrying)&&!manual&&lastSync===previousUpload)message(connectionMessage());
+        syncDetails.retrying=false;
+      }
     }catch(err){
-      nextDelay=err.syncDeferred?Math.max(100,idleDelay()):AUTO_RETRY_MS;
-      if(expected===generation&&!err.syncDeferred){
+      if(expected!==generation)return;
+      const transient=err.status===408||err.status>=500||err.name==='TypeError';
+      if(err.syncDeferred)nextDelay=Math.max(100,idleDelay());
+      else if(transient)nextDelay=Math.min(AUTO_RETRY_MS,FIRST_TRANSIENT_RETRY_MS*2**Math.min(transientFailures++,5));
+      else nextDelay=AUTO_RETRY_MS;
+      if(!err.syncDeferred){
+        syncDetails.retrying=true;
         console.error('WiNDS Drive sync:',err);
-        if(expected===generation){message('Google Drive sync will retry automatically. Your notes remain saved on this device.',true);if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');}
+        if(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired))message(connectionMessage(),true);
+        else if(auto)message(`Google Drive sync will retry automatically in ${nextDelay/1000} seconds. Your notes remain saved on this device.`,true);
+        else message('Google Drive sync failed. Your notes remain saved on this device.',true);
+        if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');
       }
     }finally{
       if(expected===generation&&nextDelay===null)syncDetails.elapsed=Date.now()-pollStartedAt;
@@ -928,5 +994,5 @@
     initSessionChannel();
     await restoreSession();
   }
-  global.WindsDrive=Object.freeze({init,open,onLocalSave});
+  global.WindsDrive=Object.freeze({init,open,onLocalSave,recordTiming});
 })(window);
