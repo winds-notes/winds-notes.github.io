@@ -8,6 +8,14 @@
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const COVERS = new Set(['purple','blue','peach','green','lilac','yellow']);
   const PAPERS = new Set(['ruled','grid','dots','blank']);
+  const ARTIST_GRADES = new Set([
+    '4H','3H','2H','H','F','HB','B','2B','3B','4B','6B','8B',
+    'Charcoal','Vine Charcoal','Compressed Charcoal','Color Pencil','Soft Pastel','Oil Pastel','Chalk',
+    'Fineliner','Technical Pen','Fountain Pen','Brush Marker','Dry Brush','Ink Brush',
+    'Ballpoint Pen','Gel Pen','Dip Pen','Calligraphy Nib',
+    'Watercolor Wash','Watercolor Edge','Gouache','Round Acrylic','Flat Acrylic','Filbert','Fan Brush','Oil Paint','Palette Knife','Sponge',
+    'Airbrush','Ink Splatter','Stipple','Grain Brush','Glitter','Hatching'
+  ]);
   const SHAPES = new Set([
     'rectangle','square','ellipse','circle','line','arrow','triangle','diamond','star',
     'roundedRectangle','semicircle','rightTriangle','trapezoid','parallelogram','pentagon','hexagon','octagon',
@@ -42,7 +50,7 @@
     if(item.type==='stroke'){
       check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
       check(Array.isArray(item.points) && item.points.length>=1 && item.points.length<=200000,'Invalid pen points');
-      return {...base,tool:item.tool,...(item.tool==='artist' && item.flow!=null?{flow:Math.max(.1,Math.min(1,num(item.flow,1)))}:{}),grade:['4H','3H','2H','H','F','HB','B','2B','3B','4B','6B','8B','Charcoal','Vine Charcoal','Compressed Charcoal','Fineliner','Technical Pen','Fountain Pen','Brush Marker','Dry Brush','Soft Pastel','Oil Pastel','Chalk','Ink Brush','Color Pencil'].includes(item.grade)?item.grade:'HB',color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),points:item.points.map(p=>{
+      return {...base,tool:item.tool,...(item.tool==='artist' && item.flow!=null?{flow:Math.max(.1,Math.min(1,num(item.flow,1)))}:{}),grade:ARTIST_GRADES.has(item.grade)?item.grade:'HB',color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),points:item.points.map(p=>{
         check(Array.isArray(p) && p.length>=2 && Number.isFinite(p[0]) && Number.isFinite(p[1]),'Damaged pen stroke');
         return [num(p[0]),num(p[1]),Math.max(0,Math.min(1,num(p[2],.68)))];
       })};

@@ -10,6 +10,50 @@
 })(typeof window !== 'undefined' ? window : globalThis, function (ART) {
   'use strict';
 
+  const ARTIST_COLLECTIONS=Object.freeze({graphite:'Graphite',ink:'Ink',pigment:'Pigment',paint:'Paint',effects:'Effects'});
+  const extraArtistMaterials = {
+    'Ballpoint Pen': {group:'ink',description:'Fine handwriting',detail:'Slim line with subtle pressure',
+      profile:{kind:'ink',opacity:.9,width:.36,response:'technical'}},
+    'Gel Pen': {group:'ink',description:'Smooth notes and outlines',detail:'Opaque, even line',
+      profile:{kind:'ink',opacity:1,width:.66,response:'constant'}},
+    'Dip Pen': {group:'ink',description:'Fine-to-bold lettering',detail:'Flexible nib with tapered strokes',
+      profile:{kind:'ink',opacity:1,width:1.14,response:'fountain'}},
+    'Calligraphy Nib': {group:'ink',description:'Italic and broad-edge lettering',detail:'Angled chisel tip',
+      profile:{kind:'paint',opacity:1,width:1.65,grain:.08,softness:.1,spacing:.13,texture:'solid',squareTip:true,aspect:.29,angle:-.76,core:0,deposit:.78}},
+    'Watercolor Wash': {group:'paint',description:'Transparent color washes',detail:'Soft, diffuse pigment',
+      profile:{kind:'paint',opacity:.44,width:3.2,grain:.16,softness:.86,spacing:.32,texture:'wash',deposit:.34}},
+    'Watercolor Edge': {group:'paint',description:'Watercolor with dark edges',detail:'Granulated pigment with a defined rim',
+      profile:{kind:'paint',opacity:.62,width:2.8,grain:.35,softness:.22,spacing:.43,texture:'rim',deposit:.43}},
+    Gouache: {group:'paint',description:'Matte color blocks',detail:'Dense, velvety paint',
+      profile:{kind:'paint',opacity:.97,width:2.28,grain:.14,softness:.27,spacing:.22,texture:'matte',deposit:.62}},
+    'Round Acrylic': {group:'paint',description:'Opaque detail and curves',detail:'Round tip with fine bristle marks',
+      profile:{kind:'paint',opacity:1,width:1.72,grain:.32,softness:.16,spacing:.22,texture:'bristle',deposit:.62}},
+    'Flat Acrylic': {group:'paint',description:'Square-edged strokes',detail:'Wide, flat bristle tip',
+      profile:{kind:'paint',opacity:1,width:2.65,grain:.28,softness:.16,spacing:.27,texture:'bristle',squareTip:true,aspect:.5,angle:-.48,deposit:.65}},
+    Filbert: {group:'paint',description:'Rounded petals and leaves',detail:'Soft oval bristle tip',
+      profile:{kind:'paint',opacity:.87,width:2.32,grain:.26,softness:.35,spacing:.28,texture:'bristle',aspect:.56,angle:.35,deposit:.57}},
+    'Fan Brush': {group:'paint',description:'Grass, hair and foliage',detail:'Separated bristle bands',
+      profile:{kind:'paint',opacity:.91,width:2.95,grain:.45,softness:.18,spacing:.44,texture:'fan',aspect:.52,angle:-.9,deposit:.67}},
+    'Oil Paint': {group:'paint',description:'Rich brush marks',detail:'Dense pigment with raised ridges',
+      profile:{kind:'paint',opacity:1,width:2.5,grain:.35,softness:.17,spacing:.34,texture:'ridges',aspect:.76,deposit:.66}},
+    'Palette Knife': {group:'paint',description:'Scraped strokes and blocks',detail:'Crisp edge with broken color',
+      profile:{kind:'paint',opacity:1,width:2.92,grain:.45,softness:.1,spacing:.56,texture:'knife',squareTip:true,aspect:.38,angle:-.62,deposit:.8}},
+    Sponge: {group:'paint',description:'Mottled color and foliage',detail:'Open pores and soft edges',
+      profile:{kind:'paint',opacity:.84,width:2.96,grain:.63,softness:.35,spacing:.58,texture:'sponge',scatter:.17,deposit:.74}},
+    Airbrush: {group:'effects',description:'Soft shading and gradients',detail:'Diffuse spray with no hard outline',
+      profile:{kind:'effect',opacity:.37,width:3.52,grain:.14,softness:1,spacing:.36,texture:'air',core:0,deposit:.28}},
+    'Ink Splatter': {group:'effects',description:'Scattered ink droplets',detail:'Irregular specks at several sizes',
+      profile:{kind:'effect',opacity:.92,width:3.15,grain:.72,softness:.3,spacing:.87,texture:'splatter',scatter:.3,core:0,deposit:.9}},
+    Stipple: {group:'effects',description:'Dotted texture and shadows',detail:'Fine, separated dots',
+      profile:{kind:'effect',opacity:.87,width:2.15,grain:.76,softness:.16,spacing:.75,texture:'stipple',scatter:.12,core:0,deposit:.86}},
+    'Grain Brush': {group:'effects',description:'Paper-grain shading',detail:'Broken pigment across the stroke',
+      profile:{kind:'effect',opacity:.72,width:2.66,grain:.8,softness:.52,spacing:.52,texture:'grain',scatter:.18,core:0,deposit:.68}},
+    Glitter: {group:'effects',description:'Sparkled accents',detail:'Fine grains and small starbursts',
+      profile:{kind:'effect',opacity:.96,width:3,grain:.68,softness:.25,spacing:.8,texture:'glitter',scatter:.15,core:0,deposit:.95}},
+    Hatching: {group:'effects',description:'Slanted shading marks',detail:'Parallel diagonal marks',
+      profile:{kind:'effect',opacity:.98,width:2.45,grain:.21,softness:.16,spacing:1.02,texture:'hatch',squareTip:true,aspect:.83,angle:-.2,core:0,deposit:.84}}
+  };
+
   // Brush profiles are deliberately cheap to render on iPad. A single stroke
   // uses deterministic texture: no bitmap allocation or storage in pen handlers.
   const PENCIL_GRADES = Object.freeze({
@@ -37,7 +81,8 @@
     'Oil Pastel': Object.freeze({shade:'#996c98', opacity:.95, width:2.2, grain:.26, softness:.16, spacing:.16, kind:'wax', colorMode:'ink'}),
     Chalk: Object.freeze({shade:'#687c96', opacity:.67, width:2.55, grain:.68, softness:.38, spacing:.14, kind:'chalk', colorMode:'ink'}),
     'Ink Brush': Object.freeze({shade:'#1e2740', opacity:1, width:1.48, grain:0, kind:'ink', colorMode:'ink'}),
-    'Color Pencil': Object.freeze({shade:'#5a5b70', opacity:0.74, width:1.18, grain:0.32, softness:0.20, spacing:0.19, kind:'color', colorMode:'ink'})
+    'Color Pencil': Object.freeze({shade:'#5a5b70', opacity:0.74, width:1.18, grain:0.32, softness:0.20, spacing:0.19, kind:'color', colorMode:'ink'}),
+    ...Object.fromEntries(Object.entries(extraArtistMaterials).map(([name,{profile}])=>[name,Object.freeze({shade:'#1e2740',colorMode:'ink',...profile})]))
   });
   const ARTIST_MATERIALS = Object.freeze({
     "4H": Object.freeze({"group": "graphite", "description": "Pale construction", "detail": "Very light \u00b7 firm point"}),
@@ -64,7 +109,8 @@
     "Color Pencil": Object.freeze({"group": "pigment", "description": "Layered colored sketch", "detail": "Fine \u00b7 colored pigment"}),
     "Soft Pastel": Object.freeze({"group": "pigment", "description": "Powdery color studies", "detail": "Soft edges \u00b7 broken pigment"}),
     "Oil Pastel": Object.freeze({"group": "pigment", "description": "Dense waxy color", "detail": "Rich \u00b7 streaked pigment"}),
-    "Chalk": Object.freeze({"group": "pigment", "description": "Grainy expressive marks", "detail": "Porous \u00b7 powder texture"})
+    "Chalk": Object.freeze({"group": "pigment", "description": "Grainy expressive marks", "detail": "Porous \u00b7 powder texture"}),
+    ...Object.fromEntries(Object.entries(extraArtistMaterials).map(([name,{group,description,detail}])=>[name,Object.freeze({group,description,detail})]))
   });
   const STROKE_STYLES = new Set(['solid','dashed','dotted','none']);
   const SHAPE_GROUPS = Object.freeze([
@@ -441,7 +487,28 @@
     const response=settings.response==='constant'?1:settings.response==='technical'?.92+.16*p:settings.response==='fountain'?.34+1.06*Math.pow(p,1.1):settings.response==='marker'?.65+.75*Math.pow(p,.75):settings.kind==='ink'?.08+1.42*Math.pow(p,1.55):.28+.98*Math.pow(p,.8);
     return Math.max(settings.kind==='ink'?.35:.42,(item.size||3)*settings.width*response);
   }
-  function artistBoundsPadding(item){return pencilWidth(item,1)*.68+2;}
+  function artistBoundsPadding(item){return pencilWidth(item,1)*(pencilGrade(item.grade).squareTip?.75:.68)+2;}
+  const brushTooth = {
+    solid:()=>1,
+    wash:(x,y,r,fine,coarse)=>.62+.24*coarse+.14*fine,
+    rim:(x,y,r,fine,coarse)=>Math.min(1,.18+.42*coarse+.25*fine+Math.max(0,1-Math.abs(r-.77)*7)*.52),
+    matte:(x,y,r,fine,coarse)=>.64+.23*coarse+.13*fine,
+    bristle:(x,y,r,fine,coarse,seed)=>.28+.58*grainNoise(0,y>>1,seed)+.14*fine,
+    fan:(x,y,r,fine,coarse,seed)=>grainNoise(0,Math.floor(y/(1+x*.026)),seed)>.52?.79+.21*fine:.018,
+    ridges:(x,y,r,fine,coarse)=>.53+.38*(.5+.5*Math.sin(y*1.3+x*.12))+.09*fine,
+    knife:(x,y,r,fine,coarse,seed)=>grainNoise(x>>3,y>>1,seed)>.22?.7+.3*fine:.06,
+    sponge:(x,y,r,fine,coarse,seed)=>grainNoise(x>>3,y>>3,seed)>.44?.38+.62*coarse:.025,
+    air:(x,y,r,fine)=>.86+.14*fine,
+    splatter:(x,y,r,fine,coarse)=>coarse>.9||fine>.985?.6+.4*fine:.008,
+    stipple:(x,y,r,fine)=>fine>.9?fine:.005,
+    grain:(x,y,r,fine,coarse)=>fine+coarse*.4>.78?.52+.48*fine:.025,
+    glitter:(x,y,r,fine,coarse,seed)=>{
+      const dx=Math.abs(x%13-6),dy=Math.abs(y%13-6);
+      if((dx<=1&&dy<5||dy<=1&&dx<5)&&grainNoise(Math.floor(x/13),Math.floor(y/13),seed)>.59)return .9+.1*fine;
+      return fine>.956?fine:.005;
+    },
+    hatch:(x,y,r,fine)=>((x+y*2)%21)<4?.69+.31*fine:.01
+  };
   function artistStampPixels(grade,color){
     grade=artistGradeName(grade);
     const settings=pencilGrade(grade),side=settings.kind==='charcoal'?96:64;
@@ -449,10 +516,14 @@
     const rgb=[1,3,5].map(i=>parseInt(pigment.slice(i,i+2),16));
     const data=new Uint8ClampedArray(side*side*4),seed=Math.floor(hash(grade,0,17)*4294967295);
     for(let y=0;y<side;y++)for(let x=0;x<side;x++){
-      const dx=(x+.5)/side*2-1,dy=(y+.5)/side*2-1,r=Math.hypot(dx,dy);
+      const dx=(x+.5)/side*2-1,dy=(y+.5)/side*2-1;
+      const r=settings.squareTip?Math.max(Math.abs(dx),Math.abs(dy))/.98:Math.hypot(dx,dy);
       const fine=grainNoise(x,y,seed),coarse=grainNoise(x>>2,y>>2,seed^0x5bd1e995);
       let edge=Math.pow(clamp((1-r)/(settings.softness||.2),0,1),.8),tooth;
-      if(settings.kind==='charcoal'){
+      if(settings.texture){
+        tooth=brushTooth[settings.texture](x,y,r,fine,coarse,seed);
+        if(settings.texture==='air')edge*=edge;
+      }else if(settings.kind==='charcoal'){
         tooth=(.09+.91*coarse)*(fine>.72+.18*coarse?.12:1);
         edge*=.68+.32*grainNoise(x>>3,y>>3,seed);
       }else if(settings.kind==='color'){
@@ -524,8 +595,10 @@
     if(colors.length>128){artistStamps.delete(colors[0]);artistPatterns.delete(colors[0]);}
     return stamp;
   }
-  function prepareArtistColor(color){
-    if(/^#[0-9a-fA-F]{6}$/.test(color||''))for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.colorMode==='ink' && settings.kind!=='ink')artistStamp(grade,color);
+  function prepareArtistColor(color,grade){
+    if(!/^#[0-9a-fA-F]{6}$/.test(color||''))return;
+    const materials=grade?[[artistGradeName(grade),pencilGrade(grade)]]:Object.entries(PENCIL_GRADES);
+    for(const [name,settings] of materials)if(settings.colorMode==='ink'&&settings.kind!=='ink')artistStamp(name,color);
   }
   function artistPoint(item,p){return {x:p[0],y:p[1],p:pressureAt(p),r:pencilWidth(item,pressureAt(p))*.5};}
   function artistMidpoint(item,a,b){
@@ -548,23 +621,26 @@
     const grade=artistGradeName(item.grade),settings=pencilGrade(grade),pigment=artistPigment(item),flow=artistFlow(item),{a,b}=curve;
     ctx.save();ctx.fillStyle=pigment;ctx.strokeStyle=pigment;ctx.lineCap='round';ctx.lineJoin='round';
     if(settings.kind==='ink'){
-      ctx.globalAlpha=flow;
+      ctx.globalAlpha=flow*settings.opacity;
       // Reduced-flow ink joins edge-to-edge; overlapping internal round caps
       // would leave a dark bead at every input sample. Legacy opaque ink stays exact.
-      if(flow<1)drawPenCurve(ctx,curve,index===1,finish);else drawPenCurve(ctx,curve);
+      if(ctx.globalAlpha<1)drawPenCurve(ctx,curve,index===1,finish);else drawPenCurve(ctx,curve);
       ctx.restore();return;
     }
     const c=curve.control||{x:(a.x+b.x)*.5,y:(a.y+b.y)*.5,p:(a.p+b.p)*.5,r:(a.r+b.r)*.5};
     const length=Math.hypot(c.x-a.x,c.y-a.y)+Math.hypot(b.x-c.x,b.y-c.y);
     const p=(a.p+2*c.p+b.p)*.25,width=a.r+b.r;
     // A light continuous core joins the material deposits without dark beads.
-    ctx.globalAlpha=flow*settings.opacity*(settings.kind==='charcoal'?.025+.035*p:.055+.065*p);
-    ctx.lineCap='butt';ctx.lineWidth=Math.max(.3,width*.68);artistCurvePath(ctx,a,b,curve.control);ctx.stroke();
+    if(settings.core!==0){
+      ctx.globalAlpha=flow*settings.opacity*(settings.kind==='charcoal'?.025+.035*p:.055+.065*p);
+      ctx.lineCap='butt';ctx.lineWidth=Math.max(.3,width*.68);artistCurvePath(ctx,a,b,curve.control);ctx.stroke();
+    }
     const stamp=artistStamp(grade,pigment);
     if(stamp){
       const paper=artistPatterns.get(grade+'|'+pigment.toLowerCase());
       const steps=clamp(Math.ceil(length/Math.max(.65,width*settings.spacing)),1,96);
-      const angle=settings.kind==='charcoal'?-.60:-.22,cos=Math.cos(angle),sin=Math.sin(angle);
+      const angle=settings.angle??(settings.kind==='charcoal'?-.60:-.22),cos=Math.cos(angle),sin=Math.sin(angle);
+      const deposit=settings.deposit??(!paper ? .45 : settings.kind==='color' ? .28 : .36);
       const seed=Math.floor(hash(grade,index,13)*4294967295);
       ctx.save();ctx.rotate(angle);
       for(let i=0;i<steps;i++){
@@ -572,11 +648,10 @@
         let x=u*u*a.x+2*u*t*c.x+t*t*b.x,y=u*u*a.y+2*u*t*c.y+t*t*b.y;
         const pressure=u*u*a.p+2*u*t*c.p+t*t*b.p,w=2*(u*u*a.r+2*u*t*c.r+t*t*b.r);
         const dx=u*(c.x-a.x)+t*(b.x-c.x),dy=u*(c.y-a.y)+t*(b.y-c.y),len=Math.hypot(dx,dy)||1;
-        const scatter=(grainNoise(i,index,seed)-.5)*w*(settings.kind==='charcoal'?.12:.035);
+        const scatter=(grainNoise(i,index,seed)-.5)*w*(settings.scatter??(settings.kind==='charcoal'?.12:.035));
         x-=dy/len*scatter;y+=dx/len*scatter;
         const rx=x*cos+y*sin,ry=-x*sin+y*cos;
-        const sw=w*(settings.kind==='charcoal'?1.12:1),sh=w*(settings.kind==='charcoal'?.65:.88);
-        const deposit=!paper ? .45 : settings.kind==='color' ? .28 : .36;
+        const sw=w*(settings.kind==='charcoal'?1.12:1),sh=w*(settings.aspect??(settings.kind==='charcoal'?.65:.88));
         ctx.globalAlpha=flow*settings.opacity*(.15+.85*Math.pow(pressure,1.1))*deposit;
         ctx.drawImage(stamp,rx-sw/2,ry-sh/2,sw,sh);
       }
@@ -604,11 +679,14 @@
       const a=artistPoint(item,points[0]),settings=pencilGrade(item.grade),pigment=artistPigment(item),flow=artistFlow(item);
       ctx.save();ctx.fillStyle=pigment;
       if(settings.kind==='ink'){
-        ctx.globalAlpha=flow;ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();
+        ctx.globalAlpha=flow*settings.opacity;ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();
       }else{
         const stamp=artistStamp(artistGradeName(item.grade),pigment);
         ctx.globalAlpha=flow*settings.opacity*(.15+.85*Math.pow(a.p,1.1))*.58;
-        if(stamp)ctx.drawImage(stamp,a.x-a.r,a.y-a.r,a.r*2,a.r*2);
+        if(stamp&&settings.aspect){
+          ctx.translate(a.x,a.y);ctx.rotate(settings.angle??-.22);
+          ctx.drawImage(stamp,-a.r,-a.r*settings.aspect,a.r*2,a.r*2*settings.aspect);
+        }else if(stamp)ctx.drawImage(stamp,a.x-a.r,a.y-a.r,a.r*2,a.r*2);
         else{ctx.beginPath();ctx.arc(a.x,a.y,a.r,0,Math.PI*2);ctx.fill();}
       }
       ctx.restore();return;
@@ -748,7 +826,7 @@
   }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, STROKE_STYLES, SHAPE_GROUPS, SHAPE_NAMES, isShapeKind, isFillableShape, shapeIcon, drawShape, shapePath,shapeHit,
+  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, ARTIST_COLLECTIONS, STROKE_STYLES, SHAPE_GROUPS, SHAPE_NAMES, isShapeKind, isFillableShape, shapeIcon, drawShape, shapePath,shapeHit,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,

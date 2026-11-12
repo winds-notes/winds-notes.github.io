@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=80"></script>
-<script src="./google-config.js?v=80"></script>
+<script src="./theme.js?v=81"></script>
+<script src="./google-config.js?v=81"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=80" rel="stylesheet"/>
-<link href="./dark.css?v=80" rel="stylesheet"/>
+<link href="./styles.css?v=81" rel="stylesheet"/>
+<link href="./dark.css?v=81" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -61,7 +61,7 @@
 <button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
 <span class="shape-tool-group"><button aria-label="Shapes · Rectangle" aria-pressed="false" class="tool-button shape-tool-trigger" id="shapeToolBtn" data-tool="rectangle" type="button" title="Shapes · Rectangle (R)"></button><button type="button" class="tool-button fill-settings-trigger shape-settings-trigger" id="shapeMenuBtn" aria-controls="shapeMenu" aria-haspopup="menu" aria-label="Choose a shape" aria-expanded="false" title="Choose a shape">⌄</button></span>
 <button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-controls="fillMenu" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/>
-<button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" aria-controls="artistMenu" data-tool="artist" type="button" title="Artist studio — 25 graphite, ink and pigment materials"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
+<button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" aria-controls="artistMenu" data-tool="artist" type="button" title="Artist Studio"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
 <div aria-label="Ink colors" class="color-palette" id="colorPalette"></div><button aria-label="More ink colors" aria-expanded="false" class="tool-button custom-color-button" id="customColorBtn" aria-controls="colorMenu" title="More colors and custom color">🎨</button>
@@ -193,12 +193,13 @@
   <button class="fill-apply-button" type="button" id="applyShapeFill">Apply fill &amp; border to selected shape</button>
 </div>
 <div class="pop-menu artist-menu" hidden id="artistMenu" role="region" aria-label="Artist studio">
-  <div class="artist-studio-heading"><div><div class="menu-heading">ARTIST STUDIO</div><h2>Find your next mark.</h2></div><span class="artist-library-count">25<br><small>MATERIALS</small></span></div>
+  <div class="artist-studio-heading"><h2>Artist Studio</h2></div>
   <div class="artist-active-material"><div><strong id="artistMaterialName">HB</strong><span id="artistMaterialDetail">Balanced · paper grain</span></div><canvas id="artistActivePreview" width="640" height="100" aria-label="Selected material pressure preview" role="img"></canvas><div class="artist-pressure-scale"><span>LIGHT PRESSURE</span><span>FIRM PRESSURE</span></div></div>
   <div class="artist-controls"><label for="artistSize">Size <output id="artistSizeValue">7</output><input id="artistSize" aria-label="Artist size" type="range" min="1" max="32" step="0.5" value="7"/></label><label for="artistFlow">Flow <output id="artistFlowValue">100%</output><input id="artistFlow" aria-label="Artist flow" type="range" min="10" max="100" step="5" value="100"/></label></div>
-  <div class="artist-collections" role="group" aria-label="Material collection"><button type="button" data-artist-group="graphite" aria-pressed="true">Graphite <small>12</small></button><button type="button" data-artist-group="ink" aria-pressed="false">Ink <small>6</small></button><button type="button" data-artist-group="pigment" aria-pressed="false">Pigment <small>7</small></button></div>
+  <input type="search" class="artist-search" id="artistSearch" placeholder="Find a brush" aria-label="Find a brush" autocomplete="off"/>
+  <div class="artist-collections" id="artistCollections" role="group" aria-label="Material collection"></div>
+  <p class="artist-studio-note" id="artistNoResults" role="status" hidden>No matching brushes.</p>
   <div class="artist-grade-list" id="artistGradeList" aria-label="Artist materials"></div>
-  <p class="artist-studio-note">Pressure shapes each mark on a supported stylus. Color applies to ink, pencils and pastels; graphite and charcoal keep their natural shades. Flow changes pigment strength for new strokes.</p>
 </div>
 <div class="pop-menu zoom-menu" hidden id="zoomMenu" role="group" aria-label="Zoom presets"><div class="menu-heading">PAGE ZOOM</div><div class="zoom-preset-grid"><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button><button data-zoom="1.5">150%</button><button data-zoom="2">200%</button><button data-zoom="3">300%</button><button data-zoom="4">400%</button><button data-zoom="6">600%</button><button data-zoom="8">800%</button></div><p class="artist-help">Pinch with two fingers to zoom and pan.</p></div>
 <div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label></div>
@@ -309,25 +310,25 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./mandala-art.js?v=80"></script>
-<script src="./creative-tools.js?v=80"></script>
-<script src="./interaction-tools.js?v=80"></script>
-<script src="./selection-preview.js?v=80"></script>
-<script src="./eraser-preview.js?v=80"></script>
-<script src="./page-stack.js?v=80"></script>
-<script src="./workspace-model.js?v=80"></script>
-<script src="./text-tools.js?v=80"></script>
-<script src="./pdf-export.js?v=80"></script>
-<script src="./pdf-import.js?v=80"></script>
-<script src="./native-file.js?v=80"></script>
-<script src="./clipboard.js?v=80"></script>
-<script src="./shared-notebook-model.js?v=80"></script>
-<script src="./notebook-sharing.js?v=80"></script>
-<script src="./live-sync.js?v=80"></script>
+<script src="./mandala-art.js?v=81"></script>
+<script src="./creative-tools.js?v=81"></script>
+<script src="./interaction-tools.js?v=81"></script>
+<script src="./selection-preview.js?v=81"></script>
+<script src="./eraser-preview.js?v=81"></script>
+<script src="./page-stack.js?v=81"></script>
+<script src="./workspace-model.js?v=81"></script>
+<script src="./text-tools.js?v=81"></script>
+<script src="./pdf-export.js?v=81"></script>
+<script src="./pdf-import.js?v=81"></script>
+<script src="./native-file.js?v=81"></script>
+<script src="./clipboard.js?v=81"></script>
+<script src="./shared-notebook-model.js?v=81"></script>
+<script src="./notebook-sharing.js?v=81"></script>
+<script src="./live-sync.js?v=81"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=80"></script>
-<script defer src="./boundary-fill.js?v=80"></script>
-<script defer src="./mandala-tools.js?v=80"></script>
-<script defer="" src="./app.js?v=80"></script>
+<script defer src="./cloud-drive.js?v=81"></script>
+<script defer src="./boundary-fill.js?v=81"></script>
+<script defer src="./mandala-tools.js?v=81"></script>
+<script defer="" src="./app.js?v=81"></script>
 </body>
 </html>

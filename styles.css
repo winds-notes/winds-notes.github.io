@@ -398,10 +398,7 @@
 /* Artist studio: material library and deposition controls, outside the ink path. */
 .editor-header .pop-menu.artist-menu{width:420px;padding:18px;max-height:calc(100dvh - 76px);overscroll-behavior:contain;touch-action:pan-y}
 .artist-studio-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:13px}
-.artist-studio-heading .menu-heading{font-size:9px;letter-spacing:1.8px;color:#807493;padding:0}
 .artist-studio-heading h2{font-size:22px;font-family:Georgia,serif;font-weight:500;color:#302a43;margin:5px 0 0;letter-spacing:-.5px}
-.artist-library-count{font-size:23px;line-height:.9;color:#675591;text-align:center;padding:9px 10px;border-radius:10px;background:#f3eff8}
-.artist-library-count small{font-size:7px;font-weight:800;letter-spacing:1px}
 .artist-active-material{background:#f8f7f4;border:1px solid #eae6de;border-radius:12px;padding:12px 14px 10px;overflow:hidden}
 .artist-active-material>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .artist-active-material strong{font-size:15px;color:#3a3349}
@@ -413,9 +410,9 @@
 .artist-controls label{font-size:11px;font-weight:750;color:#50485d;display:block}
 .artist-controls output{float:right;font-size:10px;font-variant-numeric:tabular-nums;color:#8b7f98}
 .artist-controls input{display:block;width:100%;height:19px;margin:6px 0 0;accent-color:#74638d;cursor:pointer}
-.artist-collections{display:flex;gap:5px;border-bottom:1px solid #ebe8ee;margin-bottom:12px;padding-bottom:9px}
-.editor-header .artist-collections button{flex:1;padding:9px 7px;border:0;border-radius:8px;text-align:center;font-size:11px;font-weight:750;color:#82788d;background:transparent;justify-content:center}
-.artist-collections small{margin-left:5px;font-size:9px;opacity:.7}
+.artist-search{width:100%;min-height:42px;padding:8px 12px;margin-bottom:8px;border:1px solid #e6e2ee;border-radius:9px;background:#f8f7fb;color:#463d54;font-size:14px}
+.artist-collections{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;border-bottom:1px solid #ebe8ee;margin-bottom:12px;padding-bottom:9px}
+.editor-header .artist-collections button{min-height:42px;padding:8px 2px;border:0;border-radius:8px;text-align:center;font-size:11px;font-weight:750;color:#6b6179;background:transparent;justify-content:center}
 .editor-header .artist-collections button[aria-pressed=true]{background:#efeaf5;color:#5e477b}
 .editor-header .artist-grade-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .editor-header .artist-grade-list button{min-height:90px;padding:11px 12px;gap:4px;border-color:#e9e6ed;background:#fff;border-radius:10px;position:relative}
@@ -423,10 +420,11 @@
 .editor-header .artist-grade-list button.selected{border-color:#8e78ad;background:#faf7ff;box-shadow:inset 0 0 0 1px #8e78ad}
 .artist-grade-list button b{white-space:normal;font-size:12px;color:#473e54}
 .artist-grade-list button span{font-size:10px;color:#8a8293;font-weight:500}
-.artist-grade-list canvas.graphite-sample{height:26px;width:100%;margin-top:1px}
+.artist-grade-list canvas.graphite-sample{height:26px;width:100%;margin-top:1px;background:#f8f7f4;border-radius:5px}
 .artist-studio-note{font-size:10px;line-height:1.65;color:#928a9d;margin:13px 0 0}
 .artist-menu button:focus-visible{outline:2px solid #6552af;outline-offset:2px}
 @media(max-width:480px){.editor-header .pop-menu.artist-menu{padding:14px}.artist-studio-heading h2{font-size:21px}.artist-active-material>div:first-child{align-items:flex-start;flex-direction:column;gap:3px}}
+@media(pointer:coarse){.artist-search{font-size:16px}.editor-header .artist-collections button{min-height:44px}}
 .editor-header .artist-current-grade{max-width:65px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .cloud-sync-details{margin-top:13px;border:1px solid #e8e6f1;border-radius:10px;background:#faf9fd;padding:11px 12px;font-size:11px;color:#625c76}

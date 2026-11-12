@@ -1001,16 +1001,22 @@
     toggleMenu('fillSettingsBtn','fillMenu');
   }
   function setArtistGrade(grade){
-    if(!CREATIVE.PENCIL_GRADES[grade])return;
+    if(!Object.hasOwn(CREATIVE.PENCIL_GRADES,grade))return;
     state.artistGrade=grade;state.artistGroup=CREATIVE.ARTIST_MATERIALS[grade].group;
     $('artistGradeBadge').textContent=grade;
-    CREATIVE.prepareArtistColor(state.color);setTool('artist');closeMenus();
+    $('artistBtn').title=`Artist Studio · ${grade}`;
+    CREATIVE.prepareArtistColor(state.color,grade);setTool('artist');closeMenus();
     toast(`${grade} artist tool selected`);
   }
   function buildArtistLibrary(){
     const list=$('artistGradeList');
+    const collections=$('artistCollections');
+    for(const [group,label] of Object.entries(CREATIVE.ARTIST_COLLECTIONS)){
+      const button=document.createElement('button');button.type='button';button.dataset.artistGroup=group;
+      button.textContent=label;button.setAttribute('aria-pressed',String(group===state.artistGroup));collections.append(button);
+    }
     for(const [grade,material] of Object.entries(CREATIVE.ARTIST_MATERIALS)){
-      const button=document.createElement('button');button.type='button';button.dataset.grade=grade;button.dataset.collection=material.group;
+      const button=document.createElement('button');button.type='button';button.dataset.grade=grade;
       const title=document.createElement('b');title.textContent=grade;
       const description=document.createElement('span');description.textContent=material.description;
       const canvas=document.createElement('canvas');canvas.className='graphite-sample';canvas.width=280;canvas.height=52;canvas.dataset.artistPreview=grade;canvas.setAttribute('aria-hidden','true');
@@ -1022,22 +1028,32 @@
     $('artistMaterialName').textContent=state.artistGrade;$('artistMaterialDetail').textContent=material.detail;
     $('artistSize').value=state.size;$('artistSizeValue').textContent=String(state.size);
     $('artistFlow').value=Math.round(state.artistFlow*100);$('artistFlowValue').textContent=`${Math.round(state.artistFlow*100)}%`;
-    document.querySelectorAll('[data-artist-group]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.artistGroup===state.artistGroup)));
-    document.querySelectorAll('[data-grade]').forEach(button=>{
+    const words=$('artistSearch').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    $('artistCollections').querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(!words.length&&button.dataset.artistGroup===state.artistGroup)));
+    let shown=0;
+    $('artistGradeList').querySelectorAll('button').forEach(button=>{
       const selected=button.dataset.grade===state.artistGrade;
-      button.hidden=button.dataset.collection!==state.artistGroup;
+      const {group,description,detail}=CREATIVE.ARTIST_MATERIALS[button.dataset.grade];
+      const label=`${button.dataset.grade} ${group} ${description} ${detail}`.toLowerCase();
+      button.hidden=words.length?!words.every(word=>label.includes(word)):group!==state.artistGroup;
+      if(!button.hidden)shown++;
       button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
     });
+    $('artistNoResults').hidden=shown>0;
     function sample(canvas,grade,large){
       const ctx=canvas.getContext('2d'),w=canvas.width/2,h=canvas.height/2;
       ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,w,h);
       const points=Array.from({length:49},(_,i)=>{
         const t=i/48;return [12+(w-24)*t,h/2+(large?6:3)*Math.sin(t*Math.PI*2),.04+.96*t];
       });
-      const size=large?Math.min(state.size,14):4.5;
-      CREATIVE.drawArtistStroke(ctx,{tool:'artist',grade,color:state.color,size,flow:state.artistFlow,points});
+      const desiredSize=large?state.size:CREATIVE.PENCIL_GRADES[grade].texture?7:4.5;
+      const size=Math.min(desiredSize,(h-(large?14:7))/CREATIVE.pencilWidth({grade,size:1},1));
+      CREATIVE.drawArtistStroke(ctx,{tool:'artist',grade,color:state.color,size,flow:large?state.artistFlow:1,points});
     }
-    document.querySelectorAll('[data-artist-preview]').forEach(canvas=>{if(!canvas.parentElement.hidden)sample(canvas,canvas.dataset.artistPreview,false);});
+    $('artistGradeList').querySelectorAll('canvas').forEach(canvas=>{
+      if(canvas.parentElement.hidden||canvas.dataset.previewColor===state.color)return;
+      sample(canvas,canvas.dataset.artistPreview,false);canvas.dataset.previewColor=state.color;
+    });
     sample($('artistActivePreview'),state.artistGrade,true);
   }
   function syncColorControls(){
@@ -1057,7 +1073,7 @@
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
     if(boundaryFillSession){setFillOptions({color:c});return;}
-    state.color=c;CREATIVE.prepareArtistColor(c);syncColorControls();
+    state.color=c;CREATIVE.prepareArtistColor(c,state.artistGrade);syncColorControls();
   }
   function ensureStickerCollections(){
     const menu=$('emojiMenu');
@@ -2558,8 +2574,12 @@
     buildArtistLibrary();
     $('artistSize').oninput=()=>{$('penSize').value=$('artistSize').value;updateSize();};
     $('artistFlow').oninput=()=>{state.artistFlow=Number($('artistFlow').value)/100;renderArtistPreviews();};
-    $('artistBtn').onclick=e=>{e.stopPropagation();if(state.tool!=='artist')setTool('artist');toggleMenu('artistBtn','artistMenu');if(!$('artistMenu').hidden)renderArtistPreviews();};
-    $('artistMenu').onclick=e=>{const group=e.target.closest('[data-artist-group]');if(group){state.artistGroup=group.dataset.artistGroup;$('artistMenu').scrollTop=0;renderArtistPreviews();return;}const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
+    $('artistBtn').onclick=e=>{
+      e.stopPropagation();if(state.tool!=='artist')setTool('artist');
+      if(toggleMenu('artistBtn','artistMenu')){$('artistSearch').value='';renderArtistPreviews();}
+    };
+    $('artistSearch').oninput=renderArtistPreviews;
+    $('artistMenu').onclick=e=>{const group=e.target.closest('[data-artist-group]');if(group){state.artistGroup=group.dataset.artistGroup;$('artistSearch').value='';renderArtistPreviews();return;}const b=e.target.closest('[data-grade]');if(b)setArtistGrade(b.dataset.grade);};
     $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
     $('stickerCollections').onclick=e=>{
       const button=e.target.closest('[data-sticker-collection]');
