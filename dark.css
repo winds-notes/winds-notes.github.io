@@ -272,6 +272,23 @@ html[data-theme="dark"] .shortcuts-intro{color:#9ea0b3}
 html[data-theme="dark"] .shortcuts-list div{border-bottom:1px solid #33333d}
 html[data-theme="dark"] .shortcuts-list dd{color:#bfc0c7}
 html[data-theme="dark"] kbd{border:1px solid #3a3b43;background:#1c1c24;color:#cbccd2}
+html[data-theme="dark"] .graph-equation-label,html[data-theme="dark"] .graph-dialog legend{color:#c2c3ca}
+html[data-theme="dark"] .graph-equation-help,html[data-theme="dark"] .graph-error{color:#babbc1}
+html[data-theme="dark"] .graph-error{color:#d0b1b9}
+html[data-theme="dark"] #graphPreview{background:#1c1c1f;border:1px solid #373842}
+html[data-theme="dark"] .graph-dialog fieldset{border:1px solid #373741}
+html[data-theme="dark"] .graph-dialog fieldset label{color:#bfc0c6}
+html[data-theme="dark"] .graph-dialog input[type="number"]{border:1px solid #373944;background:#1c1c24;color:#cdced7}
+html[data-theme="dark"] .vector-help{color:#bcbdc3}
+html[data-theme="dark"] #vectorSurface{background:#1c1c1f;border:1px solid #373944}
+html[data-theme="dark"] .vector-anchor.active{fill:#9187f2}
+html[data-theme="dark"] .vector-style label,html[data-theme="dark"] .vector-anchor-controls label{color:#c1c1c9}
+html[data-theme="dark"] .vector-style input[type="color"]{border:1px solid #363945;background:#1c1c1f}
+html[data-theme="dark"] .vector-dialog input[type="number"]{border:1px solid #373944;background:#1c1c24;color:#cdced7}
+html[data-theme="dark"] .vector-anchor-controls button{border:1px solid #373944;background:#1e1c26;color:#c2c0cc}
+html[data-theme="dark"] .vector-anchor-controls button:hover:not(:disabled){background:#1c182f}
+html[data-theme="dark"] .pop-menu.shape-menu .vector-entry{background:#1b172c;color:#b2afca}
+html[data-theme="dark"] .pop-menu.shape-menu .vector-entry:hover{background:#1e1930}
 html[data-theme="dark"] .editor-header .tool-button[aria-expanded="true"],html[data-theme="dark"] .editor-header .icon-button[aria-expanded="true"],html[data-theme="dark"] .editor-header .eraser-settings-button[aria-expanded="true"],html[data-theme="dark"] .theme-button[aria-expanded="true"]{background:#1b182e}
 html[data-theme="dark"] .editor-header .notebook-options{border-color:#373842}
 html[data-theme="dark"] .notebook-options-header{background:#1c1c1f;border-bottom:1px solid #353541}

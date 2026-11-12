@@ -45,7 +45,7 @@
     });return erasures.length?{erasures}:{};
   }
   function normalizeItem(item){
-    check(isObject(item) && ['stroke','shape','text','image','sticker'].includes(item.type),'Unsupported or damaged page object');
+    check(isObject(item) && ['stroke','shape','text','image','sticker','graph','vector'].includes(item.type),'Unsupported or damaged page object');
     const base={id:makeId(),type:item.type,...erasureFields(item)};
     if(item.type==='stroke'){
       check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
@@ -70,6 +70,18 @@
     if(item.type==='shape'){
       check(SHAPES.has(item.kind),'Invalid shape type');
       return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1))),strokeStyle:['solid','dashed','dotted','none'].includes(item.strokeStyle)?item.strokeStyle:'solid',...rotationFields(item)};
+    }
+    if(item.type==='graph'){
+      const graphs=global.WindsGraph||(typeof module!=='undefined'&&module.exports?require('./graph-tools.js'):null);
+      check(graphs,'Reload WiNDS Notes to open an editable graph.');
+      return {...base,x:num(item.x),y:num(item.y),w:Math.max(16,Math.min(2200,num(item.w,540))),
+        h:Math.max(16,Math.min(2200,num(item.h,320))),color:color(item.color),graph:graphs.validate(item.graph)};
+    }
+    if(item.type==='vector'){
+      const vectors=global.WindsVector||(typeof module!=='undefined'&&module.exports?require('./vector-tools.js'):null);
+      check(vectors,'Reload WiNDS Notes to open an editable vector path.');
+      return {...base,x:num(item.x),y:num(item.y),w:Math.max(16,Math.min(2200,num(item.w,16))),
+        h:Math.max(16,Math.min(2200,num(item.h,16))),...vectors.validate(item),...rotationFields(item)};
     }
     check(typeof item.src==='string' && item.src.length<=50*1024*1024 && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(item.src),'Invalid embedded image');
     const image={...base,...(item.boundaryFill===true?{boundaryFill:true}:{}),x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src,...rotationFields(item)};

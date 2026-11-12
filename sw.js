@@ -1,10 +1,10 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline.
  * Every local script/style URL in index.html carries the release version
  * below. Change RELEASE and CACHE on every deploy. */
-const RELEASE='82';
-const CACHE='winds-notes-shell-v82-smooth-pen';
+const RELEASE='84';
+const CACHE='winds-notes-shell-v84-vector-paths';
 importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
-const VERSIONED=['theme.js','google-config.js','styles.css','dark.css','mandala-art.js','creative-tools.js','interaction-tools.js',
+const VERSIONED=['theme.js','google-config.js','styles.css','dark.css','mandala-art.js','creative-tools.js','graph-tools.js','vector-tools.js','interaction-tools.js',
   'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
   'native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','cloud-drive.js','boundary-fill.js',
   'mandala-tools.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);

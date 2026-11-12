@@ -159,7 +159,7 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const midpoint = (a,b) => [(a[0]+b[0])*0.5, (a[1]+b[1])*0.5];
 
-  const rotatable = item => ['image','sticker','shape'].includes(item?.type);
+  const rotatable = item => ['image','sticker','shape','vector'].includes(item?.type);
   function objectRotation(item) {
     return rotatable(item)&&Number.isFinite(item.rotation)?((item.rotation%360)+360)%360:0;
   }
@@ -290,7 +290,7 @@
     eraserSurface=null;const error=Error('Not enough drawing memory. Close other browser tabs and reopen this notebook.');error.code='CANVAS_MEMORY';throw error;
   }
   function drawErasedItem(ctx,item,bounds,visualBounds,drawSource){
-    const pad=item.type==='shape'?Math.max(2,(item.size||1)/2+2):2;
+    const pad=['shape','vector'].includes(item.type)?Math.max(2,(item.size||1)/2+2):2;
     const box={x:visualBounds.x-pad,y:visualBounds.y-pad,w:visualBounds.w+pad*2,h:visualBounds.h+pad*2};
     const t=typeof ctx.getTransform==='function'?ctx.getTransform():{a:2,b:0,c:0,d:2},resolution=Math.max(.2,Math.hypot(t.a,t.b),Math.hypot(t.c,t.d));
     const ratio=Math.min(resolution,4096/box.w,4096/box.h,Math.sqrt(4194304/(box.w*box.h)));

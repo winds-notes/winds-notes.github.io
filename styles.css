@@ -650,6 +650,49 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
   background:#f8f8fc;font:700 11px/1 inherit;color:#3c3d54}
 @media(max-width:520px){.shortcuts-list{grid-template-columns:1fr}}
 
+.graph-dialog{width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}
+.graph-dialog h2{margin:0 0 14px;font-size:22px;letter-spacing:-.4px}
+.graph-equation-label,.graph-dialog legend{font-size:12px;font-weight:800;color:#525570}
+.graph-dialog .graph-equation{margin-top:5px;font:600 16px ui-monospace,monospace}
+.graph-equation-help,.graph-error{margin:7px 0 12px;font-size:12px;line-height:1.5;color:#6b6d87}
+.graph-error{color:#ae3352}
+#graphPreview{display:block;width:100%;height:auto;aspect-ratio:900/520;background:#fff;border:1px solid #e4e5ef;border-radius:10px}
+.graph-ranges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.graph-dialog fieldset{display:flex;min-width:0;gap:7px;margin:0;padding:6px 8px 9px;border:1px solid #e6e6f0;border-radius:9px}
+.graph-dialog fieldset[hidden]{display:none}
+.graph-dialog fieldset label{display:flex;align-items:center;min-width:0;gap:4px;font-size:11px;color:#5f6278}
+.graph-dialog input[type="number"]{width:100%;min-width:0;padding:5px 3px;border:1px solid #e0e2ee;border-radius:6px;background:#f8f8fc;color:#30334d;font-size:13px}
+.graph-dialog .graph-parameter-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+.graph-dialog .graph-dialog-slider{grid-column:1/-1;gap:8px;font-size:12px}
+.graph-dialog-slider input,.graph-controls input{min-width:0;flex:1;accent-color:#6557ed}
+.graph-dialog-slider output,.graph-controls output{min-width:29px;text-align:right;font-variant-numeric:tabular-nums}
+.graph-controls,.graph-controls label{display:flex;align-items:center;gap:6px}
+.graph-controls[hidden],.graph-controls label[hidden]{display:none}
+.selection-actions .graph-controls button{width:auto;padding:0 8px;white-space:nowrap;font-size:12px;font-weight:800}
+.graph-controls label{padding:0 6px;font-size:12px;font-weight:750}
+.graph-controls input{width:clamp(56px,16vw,135px)}
+@media(max-width:420px){.graph-dialog{padding:18px 14px}.graph-dialog input[type="number"]{font-size:16px}.graph-controls label{padding:0 3px;gap:3px}}
+
+.vector-dialog{width:min(690px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto}
+.vector-dialog h2{margin:0;font-size:22px;letter-spacing:-.4px}
+.vector-help{margin:7px 0 12px;color:#656982;font-size:12px;line-height:1.5}
+#vectorSurface{width:100%;height:auto;aspect-ratio:5/3;touch-action:none;cursor:crosshair;stroke:none;background:#fff;border:1px solid #e0e2ee;border-radius:10px}
+.vector-anchor{fill:#fff;stroke:#6557ed;stroke-width:2;cursor:move}
+.vector-anchor.active{fill:#6557ed;stroke:#fff}
+.vector-tangent{fill:#fff;stroke:#347e71;stroke-width:2;cursor:move}
+.vector-tangent-line{stroke:#347e71;stroke-width:1;pointer-events:none}
+.vector-style,.vector-anchor-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:10px}
+.vector-style label,.vector-anchor-controls label{display:inline-flex;align-items:center;gap:5px;min-height:38px;font-size:12px;font-weight:750;color:#555875}
+.vector-style input[type="color"]{width:33px;height:31px;padding:2px;border:1px solid #dfe2f0;border-radius:7px;background:#fff}
+.vector-dialog input[type="number"]{width:64px;padding:7px 5px;border:1px solid #e0e2ee;border-radius:7px;background:#f8f8fc;color:#30334d;font-size:13px}
+.vector-style input[type="checkbox"]{accent-color:#6557ed}
+.vector-anchor-controls button{min-height:36px;padding:6px 9px;border:1px solid #e0e2ee;border-radius:7px;background:#f5f4fb;color:#514a78;font-size:12px;font-weight:750}
+.vector-anchor-controls button:hover:not(:disabled){background:#ede9ff}
+.selection-actions .vector-controls button{width:auto;padding:0 8px;white-space:nowrap;font-size:12px;font-weight:800}
+.pop-menu.shape-menu .vector-entry{margin-bottom:6px;background:#f3f0ff;color:#5144b6}
+.pop-menu.shape-menu .vector-entry:hover{background:#ebe5ff}
+@media(max-width:460px){.vector-dialog{padding:16px 13px}.vector-dialog input[type="number"]{font-size:16px}.vector-anchor-controls{gap:6px}}
+
 /* Notebook actions and anchored menus */
 .pop-menu,.notebook-card-actions{overscroll-behavior:contain}
 .notebook-card-actions{overflow:auto}

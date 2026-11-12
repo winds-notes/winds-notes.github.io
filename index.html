@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=82"></script>
-<script src="./google-config.js?v=82"></script>
+<script src="./theme.js?v=84"></script>
+<script src="./google-config.js?v=84"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=82" rel="stylesheet"/>
-<link href="./dark.css?v=82" rel="stylesheet"/>
+<link href="./styles.css?v=84" rel="stylesheet"/>
+<link href="./dark.css?v=84" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -107,6 +107,7 @@
 <span class="sr-only" id="pageBreadcrumb">Page 1 of 1</span>
 <div class="pop-menu paper-menu" hidden="" id="paperMenu"><div class="menu-heading">PAPER TEMPLATE</div><button data-paper="ruled"><span class="paper-preview mini-ruled"></span> Ruled</button><button data-paper="grid"><span class="paper-preview mini-grid"></span> Grid</button><button data-paper="dots"><span class="paper-preview mini-dots"></span> Dotted</button><button data-paper="blank"><span class="paper-preview mini-blank"></span> Blank</button></div>
 <div class="pop-menu shape-menu" hidden id="shapeMenu" role="menu" aria-label="Shapes">
+  <button type="button" id="openVectorFromShapes" class="vector-entry" role="menuitem">Draw vector path…</button>
   <div id="shapeChoices"></div>
   <p class="shape-menu-hint">For fill and border styles, open Fill settings.</p>
 </div>
@@ -152,6 +153,8 @@
     <section data-command-group>
       <h3>Insert</h3>
       <button type="button" data-action="image" data-command data-icon="image" data-keywords="picture photo">Insert an image…</button>
+      <button type="button" data-action="graph" data-command data-icon="graph" data-keywords="equation plot function axes math slider">Insert graph…</button>
+      <button type="button" data-action="vector" data-command data-icon="vector" data-keywords="svg bézier bezier anchor curve path">Draw vector path…</button>
       <button type="button" data-action="stickers" data-command data-icon="smile" data-keywords="emoji education">Stickers…</button>
       <button type="button" data-action="pdf" data-command data-icon="paper">Import PDF pages…</button>
     </section>
@@ -176,7 +179,7 @@
   </div>
   <p class="notebook-action-empty" id="notebookActionEmpty" role="status" hidden>No matching actions.</p>
 </div>
-<div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><a id="preparedExportLink" class="prepared-export-link" hidden download>Download prepared export</a><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
+<div class="pop-menu export-menu" hidden="" id="exportMenu"><div class="menu-heading">SAVE YOUR NOTES</div><a id="preparedExportLink" class="prepared-export-link" hidden download>Download prepared export</a><button id="exportVector" data-export="svg" hidden><span class="format-icon native">SVG</span><span>Selected vector path<small>Scalable SVG · editable in vector tools</small></span></button><button data-export="native"><span class="format-icon native">W</span><span>WiNDS Notes notebook<small>Editable .winds-notes · reopen anytime</small></span></button><button data-export="pdf"><span class="format-icon pdf">PDF</span><span>PDF document<small>All pages · best for sharing</small></span></button><button data-export="jpeg"><span class="format-icon jpg">JPG</span><span>JPEG image<small>Current page · high resolution</small></span></button><button data-export="png"><span class="format-icon png">PNG</span><span>PNG image<small>Current page · lossless</small></span></button><button data-export="json"><span class="format-icon backup">DATA</span><span>Editable backup<small>Restore your notebooks later</small></span></button></div>
 <div class="pop-menu fill-menu" hidden id="fillMenu" role="group" aria-label="Fill colors and closed boundaries">
   <div class="menu-heading">FILL &amp; BOUNDARIES</div>
   <p class="fill-help">Choose a color, then tap inside a closed boundary. Built-in shapes also have editable borders below.</p>
@@ -230,6 +233,61 @@
     <div class="modal-footer"><button type="button" class="btn btn-outline" id="cancelRename">Cancel</button><button type="submit" class="btn btn-primary">Save name</button></div>
   </form>
 </dialog>
+<dialog class="shortcuts-dialog graph-dialog" id="graphDialog" aria-labelledby="graphDialogTitle">
+  <form id="graphForm" novalidate>
+    <h2 id="graphDialogTitle">Insert graph</h2>
+    <label class="graph-equation-label" for="graphEquation">Equation</label>
+    <input class="modal-input graph-equation" id="graphEquation" type="text" maxlength="160" inputmode="text" autocomplete="off" spellcheck="false" aria-describedby="graphEquationHelp"/>
+    <p class="graph-equation-help" id="graphEquationHelp">Use <code>x</code> and one optional parameter. Try <code>y = ax²</code> or <code>y = sin(x)</code>.</p>
+    <canvas id="graphPreview" width="900" height="520" role="img" aria-label="Graph preview"></canvas>
+    <div class="graph-ranges">
+      <fieldset><legend>X axis</legend><label>Min <input id="graphXMin" type="number" step="any"/></label><label>Max <input id="graphXMax" type="number" step="any"/></label></fieldset>
+      <fieldset><legend>Y axis</legend><label>Min <input id="graphYMin" type="number" step="any"/></label><label>Max <input id="graphYMax" type="number" step="any"/></label></fieldset>
+    </div>
+    <fieldset id="graphParameterFields" class="graph-parameter-fields" hidden>
+      <legend>Parameter <span id="graphParameterName"></span></legend>
+      <label>Min <input id="graphParameterMin" type="number" step="any"/></label>
+      <label>Max <input id="graphParameterMax" type="number" step="any"/></label>
+      <label class="graph-dialog-slider"><span>Value</span><input id="graphParameterValue" type="range" step="any"/><output id="graphParameterOutput" for="graphParameterValue"></output></label>
+    </fieldset>
+    <p id="graphError" class="graph-error" role="status" hidden></p>
+    <div class="modal-footer"><button type="button" class="btn btn-outline" id="graphCancel">Cancel</button><button type="submit" class="btn btn-primary" id="graphSubmit">Insert graph</button></div>
+  </form>
+</dialog>
+<div id="graphControls" class="graph-controls" hidden>
+  <button type="button" id="editGraph">Edit graph</button>
+  <label id="graphQuickControl" hidden><span id="graphQuickName"></span><input id="graphQuickValue" type="range" step="any"/><output id="graphQuickOutput" for="graphQuickValue"></output></label>
+</div>
+<dialog class="shortcuts-dialog vector-dialog" id="vectorDialog" aria-labelledby="vectorDialogTitle">
+  <form id="vectorForm">
+    <h2 id="vectorDialogTitle">Draw vector path</h2>
+    <p class="vector-help" id="vectorHelp">Tap to add an anchor. Drag from a new anchor to curve the path. Drag existing anchors or their round handles to refine it.</p>
+    <svg id="vectorSurface" viewBox="0 0 600 360" role="img" aria-label="Vector drawing area" aria-describedby="vectorHelp">
+      <defs><pattern id="vectorGridPattern" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="#e8eaf4" stroke-width=".75"/></pattern></defs>
+      <rect width="600" height="360" fill="#fff"/>
+      <rect width="600" height="360" fill="url(#vectorGridPattern)"/>
+      <path id="vectorPathPreview" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <g id="vectorNodes"></g>
+    </svg>
+    <div class="vector-style">
+      <label>Stroke <input id="vectorColor" type="color" value="#2b2d4c"/></label>
+      <label>Width <input id="vectorWidth" type="number" min=".5" max="32" step=".5" value="3"/></label>
+      <label><input id="vectorClosed" type="checkbox"/> Close path</label>
+      <label><input id="vectorFill" type="checkbox" disabled/> Fill</label>
+      <input id="vectorFillColor" type="color" value="#b9adff" aria-label="Path fill color" disabled/>
+      <label><input id="vectorSnap" type="checkbox"/> Snap to grid</label>
+    </div>
+    <div class="vector-anchor-controls" role="group" aria-label="Selected anchor">
+      <label>X <input id="vectorX" type="number" step="any" aria-label="Anchor X" disabled/></label>
+      <label>Y <input id="vectorY" type="number" step="any" aria-label="Anchor Y" disabled/></label>
+      <button type="button" id="vectorSmooth" disabled>Smooth</button>
+      <button type="button" id="vectorCorner" disabled>Corner</button>
+      <button type="button" id="vectorRemove" disabled>Remove anchor</button>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline" id="vectorCancel">Cancel</button><button type="submit" class="btn btn-primary" id="vectorApply" disabled>Insert path</button></div>
+  </form>
+</dialog>
+<div id="vectorControls" class="vector-controls" hidden><button type="button" id="editVector">Edit path</button></div>
 <div class="modal-backdrop" id="shareBackdrop" hidden>
   <section class="modal notebook-share-dialog" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
     <button type="button" class="modal-close" id="shareClose" aria-label="Close notebook sharing">×</button>
@@ -310,25 +368,27 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./mandala-art.js?v=82"></script>
-<script src="./creative-tools.js?v=82"></script>
-<script src="./interaction-tools.js?v=82"></script>
-<script src="./selection-preview.js?v=82"></script>
-<script src="./eraser-preview.js?v=82"></script>
-<script src="./page-stack.js?v=82"></script>
-<script src="./workspace-model.js?v=82"></script>
-<script src="./text-tools.js?v=82"></script>
-<script src="./pdf-export.js?v=82"></script>
-<script src="./pdf-import.js?v=82"></script>
-<script src="./native-file.js?v=82"></script>
-<script src="./clipboard.js?v=82"></script>
-<script src="./shared-notebook-model.js?v=82"></script>
-<script src="./notebook-sharing.js?v=82"></script>
-<script src="./live-sync.js?v=82"></script>
+<script src="./mandala-art.js?v=84"></script>
+<script src="./creative-tools.js?v=84"></script>
+<script src="./graph-tools.js?v=84"></script>
+<script src="./vector-tools.js?v=84"></script>
+<script src="./interaction-tools.js?v=84"></script>
+<script src="./selection-preview.js?v=84"></script>
+<script src="./eraser-preview.js?v=84"></script>
+<script src="./page-stack.js?v=84"></script>
+<script src="./workspace-model.js?v=84"></script>
+<script src="./text-tools.js?v=84"></script>
+<script src="./pdf-export.js?v=84"></script>
+<script src="./pdf-import.js?v=84"></script>
+<script src="./native-file.js?v=84"></script>
+<script src="./clipboard.js?v=84"></script>
+<script src="./shared-notebook-model.js?v=84"></script>
+<script src="./notebook-sharing.js?v=84"></script>
+<script src="./live-sync.js?v=84"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=82"></script>
-<script defer src="./boundary-fill.js?v=82"></script>
-<script defer src="./mandala-tools.js?v=82"></script>
-<script defer="" src="./app.js?v=82"></script>
+<script defer src="./cloud-drive.js?v=84"></script>
+<script defer src="./boundary-fill.js?v=84"></script>
+<script defer src="./mandala-tools.js?v=84"></script>
+<script defer="" src="./app.js?v=84"></script>
 </body>
 </html>
