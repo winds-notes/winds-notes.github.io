@@ -364,12 +364,59 @@
     if(startCap)ctx.arc(a.x,a.y,a.r,startAngle-Math.PI,startAngle-2*Math.PI,true);else ctx.lineTo(...left[0]);
     ctx.closePath();ctx.fill();
   }
+  function tracePenDisc(ctx,{x,y,r}) {
+    ctx.moveTo(x+r,y);ctx.arc(x,y,r,0,Math.PI*2);ctx.closePath();
+  }
+  function tracePenSweep(ctx,a,b) {
+    const dx=b.x-a.x,dy=b.y-a.y,distance=Math.hypot(dx,dy),radiusDelta=a.r-b.r;
+    if(distance<=Math.abs(radiusDelta)+1e-8){
+      tracePenDisc(ctx,a.r>=b.r?a:b);
+      return;
+    }
+    // The sides touch both discs tangentially, even as pressure changes.
+    // A perpendicular side with a cap at each sample leaves a visible ridge.
+    const direction=Math.atan2(dy,dx),offset=Math.acos(radiusDelta/distance);
+    const lower=direction-offset,upper=direction+offset;
+    const lx=Math.cos(lower),ly=Math.sin(lower),ux=Math.cos(upper),uy=Math.sin(upper);
+    ctx.moveTo(a.x+a.r*lx,a.y+a.r*ly);
+    ctx.lineTo(b.x+b.r*lx,b.y+b.r*ly);
+    ctx.arc(b.x,b.y,b.r,lower,upper);
+    ctx.lineTo(a.x+a.r*ux,a.y+a.r*uy);
+    ctx.arc(a.x,a.y,a.r,upper,lower+Math.PI*2);
+    ctx.closePath();
+  }
+  function drawPenSweep(ctx,curve) {
+    if(!curve)return;
+    const {a,b,control}=curve;
+    ctx.beginPath();
+    if(!control){
+      tracePenSweep(ctx,a,b);
+    }else{
+      // Subdivide by how far the curve and pressure depart from a straight
+      // interpolation. Straight samples and long, straight tails stay cheap.
+      const bend=Math.hypot(a.x-2*control.x+b.x,a.y-2*control.y+b.y)+Math.abs(a.r-2*control.r+b.r);
+      const steps=clamp(Math.ceil(Math.sqrt(bend/.32)),1,24);
+      let previous=a;
+      for(let i=1;i<steps;i++){
+        const t=i/steps,u=1-t;
+        const next={
+          x:u*u*a.x+2*u*t*control.x+t*t*b.x,
+          y:u*u*a.y+2*u*t*control.y+t*t*b.y,
+          r:u*u*a.r+2*u*t*control.r+t*t*b.r
+        };
+        tracePenSweep(ctx,previous,next);previous=next;
+      }
+      tracePenSweep(ctx,previous,b);
+    }
+    // Same-winding sweeps fill together, including tight loops and reversals.
+    ctx.fill();
+  }
   function drawPenPart(ctx,item,points,index) {
-    if(index===0){const p=points[0];ctx.beginPath();ctx.arc(p[0],p[1],penWidth(item,p)*.5,0,Math.PI*2);ctx.fill();return;}
-    drawPenCurve(ctx,penCurve(item,points,index));
+    if(index===0){ctx.beginPath();tracePenDisc(ctx,penPoint(item,points[0]));ctx.fill();return;}
+    drawPenSweep(ctx,penCurve(item,points,index));
   }
   function drawPenEnd(ctx,item,points) {
-    const curve=penCurve(item,points,0,true);if(curve)drawPenCurve(ctx,curve);
+    drawPenSweep(ctx,penCurve(item,points,0,true));
   }
 
   function shapeBox({x,y,w,h}) {

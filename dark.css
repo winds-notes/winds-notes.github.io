@@ -175,14 +175,13 @@ html[data-theme="dark"] .share-access{color:#bbb8c3}
 html[data-theme="dark"] .share-status{color:#bfbdc5}
 html[data-theme="dark"] .share-status.error{color:#d0afb6}
 html[data-theme="dark"] #shareLinkControl{border-top:1px solid #363441}
-html[data-theme="dark"] .artist-studio-heading .menu-heading{color:#b9b6be}
 html[data-theme="dark"] .artist-studio-heading h2{color:#d3d1d9}
-html[data-theme="dark"] .artist-library-count{color:#bdb8c7;background:#231f28}
 html[data-theme="dark"] .artist-pressure-scale span{color:#aba4ad}
 html[data-theme="dark"] .artist-controls label{color:#cac8ce}
 html[data-theme="dark"] .artist-controls output{color:#b7b4bb}
+html[data-theme="dark"] .artist-search{border:1px solid #3b3843;background:#1f1d24;color:#cecbd2}
 html[data-theme="dark"] .artist-collections{border-bottom:1px solid #3c393f}
-html[data-theme="dark"] .editor-header .artist-collections button{color:#bab8bd}
+html[data-theme="dark"] .editor-header .artist-collections button{color:#c1bfc5}
 html[data-theme="dark"] .editor-header .artist-collections button[aria-pressed=true]{background:#25222a;color:#c5bfcd}
 html[data-theme="dark"] .editor-header .artist-grade-list button{border-color:#3c3940;background:#1c1c1f}
 html[data-theme="dark"] .editor-header .artist-grade-list button.selected{background:#1d152a}
@@ -254,6 +253,7 @@ html[data-theme="dark"] .mandala-status{color:#b8b9be}
 html[data-theme="dark"] .mandala-filters input,html[data-theme="dark"] .mandala-filters select{background:#1c1c24}
 html[data-theme="dark"] .mandala-empty{color:#b7b8be}
 html[data-theme="dark"] .shape-settings-trigger[aria-expanded="true"]{background:#1b182e}
+html[data-theme="dark"] .shape-category-title{color:#bbbbc1}
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button{color:#c5c6cd;background:#151529}
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button:hover{background:#1a172c}
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button[aria-checked="true"]{background:#1b182e;border-color:#302a52}
@@ -272,6 +272,19 @@ html[data-theme="dark"] .shortcuts-intro{color:#9ea0b3}
 html[data-theme="dark"] .shortcuts-list div{border-bottom:1px solid #33333d}
 html[data-theme="dark"] .shortcuts-list dd{color:#bfc0c7}
 html[data-theme="dark"] kbd{border:1px solid #3a3b43;background:#1c1c24;color:#cbccd2}
+html[data-theme="dark"] .editor-header .tool-button[aria-expanded="true"],html[data-theme="dark"] .editor-header .icon-button[aria-expanded="true"],html[data-theme="dark"] .editor-header .eraser-settings-button[aria-expanded="true"],html[data-theme="dark"] .theme-button[aria-expanded="true"]{background:#1b182e}
+html[data-theme="dark"] .editor-header .notebook-options{border-color:#373842}
+html[data-theme="dark"] .notebook-options-header{background:#1c1c1f;border-bottom:1px solid #353541}
+html[data-theme="dark"] .notebook-options-title button{background:#1f1e26}
+html[data-theme="dark"] .notebook-action-search{border:1px solid #373742;background:#1c1c25;color:#bebdc5}
+html[data-theme="dark"] .notebook-action-groups h3{color:#bbbbc1}
+html[data-theme="dark"] .notebook-action-groups button svg{color:#b2b0c3}
+html[data-theme="dark"] .notebook-action-groups .danger-text{color:#cfb1b9}
+html[data-theme="dark"] #selectionMenuGroup{border-bottom:1px solid #353541}
+html[data-theme="dark"] .notebook-action-empty{color:#bbbbc1}
+@media(max-width:460px){
+html[data-theme="dark"] .menu-page-navigation{background:#1c1c25;color:#c0bfc7}
+}
 
 /* ---- hand-tuned dark surfaces ---- */
 html[data-theme="dark"]{color-scheme:dark;--ink:#e6e7f2;--muted:#9a9cb6;--pale:#1d1e29;--border:#2c2d3b}
