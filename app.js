@@ -2547,12 +2547,12 @@
     const commands=menu.id==='moreMenu';
     if(!commands&&menu.getAttribute('role')!=='menu')return;
     const search=commands&&event.target===$('notebookActionSearch');
-    const current=event.target.closest(commands?'button[data-command]':'[role^="menuitem"]');
+    const current=event.target.closest(commands?'button[data-command], a[data-command]':'[role^="menuitem"]');
     if(!search&&!current)return;
     const key=event.key;
     if(!['ArrowDown','ArrowUp','Home','End'].includes(key)&&!(search&&key==='Enter'))return;
     if(search&&['Home','End'].includes(key))return;
-    const items=[...menu.querySelectorAll(commands?'button[data-command]':'[role^="menuitem"]')]
+    const items=[...menu.querySelectorAll(commands?'button[data-command], a[data-command]':'[role^="menuitem"]')]
       .filter(item=>!item.disabled&&item.getClientRects().length);
     if(!items.length)return;
     const index=items.indexOf(current);
@@ -2701,6 +2701,7 @@
     $('moreMenu').querySelector('[data-action="nextPage"]').innerHTML=icon('chevronRight',18);
     $('closeNotebookOptions').onclick=()=>closeMenus();
     $('notebookActionSearch').oninput=filterNotebookActions;
+    $('editorTutorial').onclick=()=>closeMenus();
     $('moreMenu').onclick=e=>{
       const button=e.target.closest('button[data-action]');
       if(button&&!button.disabled){e.stopPropagation();runNotebookAction(button.dataset.action);}

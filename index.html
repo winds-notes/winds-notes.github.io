@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=90"></script>
-<script src="./google-config.js?v=90"></script>
+<script src="./theme.js?v=91"></script>
+<script src="./google-config.js?v=91"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=90" rel="stylesheet"/>
-<link href="./dark.css?v=90" rel="stylesheet"/>
+<link href="./styles.css?v=91" rel="stylesheet"/>
+<link href="./dark.css?v=91" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -27,7 +27,7 @@
 <section class="library-view" id="libraryView">
 <header class="library-header">
 <div class="brand"><div class="brand-mark"><img src="./assets/icon.svg" width="44" height="44" alt=""/></div><div class="brand-name">WiNDS<span class="brand-dot"> Notes</span><small>IDEAS IN MOTION</small></div></div>
-<div class="library-header-actions"><button class="theme-button" id="themeBtn" aria-controls="themeMenu" aria-haspopup="menu" type="button" aria-label="Theme: light or dark" aria-expanded="false" title="Choose a theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg><span class="theme-button-label">Theme</span></button><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in with Google to use your personal Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Sign in with Google</span></button></div>
+<div class="library-header-actions"><a class="btn btn-outline library-tutorial" href="./tutorial.html" target="_blank" rel="noopener">Tutorial</a><button class="theme-button" id="themeBtn" aria-controls="themeMenu" aria-haspopup="menu" type="button" aria-label="Theme: light or dark" aria-expanded="false" title="Choose a theme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg><span class="theme-button-label">Theme</span></button><button class="cloud-entry" id="cloudConnectHome" type="button" title="Sign in with Google to use your personal Drive"><span class="cloud-glyph" aria-hidden="true">☁</span><span id="cloudEntryLabel">Sign in with Google</span></button></div>
 </header>
 <main class="library-main">
 <div class="hero">
@@ -185,6 +185,7 @@
     <section data-command-group>
       <h3>Preferences</h3>
       <button type="button" data-action="appearance" data-command data-icon="moon" data-keywords="light dark appearance">Theme…</button>
+      <a href="./tutorial.html" target="_blank" rel="noopener" data-command data-icon="paper" data-keywords="help guide instructions learn features" id="editorTutorial">Tutorial…</a>
       <button type="button" data-action="shortcuts" data-command data-icon="keyboard">Keyboard shortcuts…</button>
       <button type="button" data-action="pencilTest" data-command data-icon="pencil" data-keywords="stylus diagnostics">Apple Pencil input test…</button>
     </section>
@@ -425,29 +426,29 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=90"></script>
-<script src="./svg-stickers.js?v=90"></script>
-<script src="./creative-tools.js?v=90"></script>
-<script src="./graph-tools.js?v=90"></script>
-<script src="./vector-tools.js?v=90"></script>
-<script src="./interaction-tools.js?v=90"></script>
-<script src="./selection-preview.js?v=90"></script>
-<script src="./eraser-preview.js?v=90"></script>
-<script src="./page-stack.js?v=90"></script>
-<script src="./workspace-model.js?v=90"></script>
-<script src="./text-tools.js?v=90"></script>
-<script src="./pdf-export.js?v=90"></script>
-<script src="./pdf-import.js?v=90"></script>
-<script src="./native-file.js?v=90"></script>
-<script src="./clipboard.js?v=90"></script>
-<script src="./shared-notebook-model.js?v=90"></script>
-<script src="./notebook-sharing.js?v=90"></script>
-<script src="./live-sync.js?v=90"></script>
+<script src="./mandala-art.js?v=91"></script>
+<script src="./svg-stickers.js?v=91"></script>
+<script src="./creative-tools.js?v=91"></script>
+<script src="./graph-tools.js?v=91"></script>
+<script src="./vector-tools.js?v=91"></script>
+<script src="./interaction-tools.js?v=91"></script>
+<script src="./selection-preview.js?v=91"></script>
+<script src="./eraser-preview.js?v=91"></script>
+<script src="./page-stack.js?v=91"></script>
+<script src="./workspace-model.js?v=91"></script>
+<script src="./text-tools.js?v=91"></script>
+<script src="./pdf-export.js?v=91"></script>
+<script src="./pdf-import.js?v=91"></script>
+<script src="./native-file.js?v=91"></script>
+<script src="./clipboard.js?v=91"></script>
+<script src="./shared-notebook-model.js?v=91"></script>
+<script src="./notebook-sharing.js?v=91"></script>
+<script src="./live-sync.js?v=91"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=90"></script>
-<script defer src="./boundary-fill.js?v=90"></script>
-<script defer src="./mandala-tools.js?v=90"></script>
-<script defer src="./study-tools.js?v=90"></script>
-<script defer="" src="./app.js?v=90"></script>
+<script defer src="./cloud-drive.js?v=91"></script>
+<script defer src="./boundary-fill.js?v=91"></script>
+<script defer src="./mandala-tools.js?v=91"></script>
+<script defer src="./study-tools.js?v=91"></script>
+<script defer="" src="./app.js?v=91"></script>
 </body>
 </html>

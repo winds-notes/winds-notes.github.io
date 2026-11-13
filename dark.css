@@ -296,7 +296,8 @@ html[data-theme="dark"] .notebook-options-header{background:#1c1c1f;border-botto
 html[data-theme="dark"] .notebook-options-title button{background:#1f1e26}
 html[data-theme="dark"] .notebook-action-search{border:1px solid #373742;background:#1c1c25;color:#bebdc5}
 html[data-theme="dark"] .notebook-action-groups h3{color:#bbbbc1}
-html[data-theme="dark"] .notebook-action-groups button svg{color:#b2b0c3}
+html[data-theme="dark"] .notebook-action-groups a[data-command]:hover{background:#18162b}
+html[data-theme="dark"] .notebook-action-groups button svg,html[data-theme="dark"] .notebook-action-groups a svg{color:#b2b0c3}
 html[data-theme="dark"] .notebook-action-groups .danger-text{color:#cfb1b9}
 html[data-theme="dark"] #selectionMenuGroup{border-bottom:1px solid #353541}
 html[data-theme="dark"] .notebook-action-empty{color:#bbbbc1}
@@ -307,6 +308,20 @@ html[data-theme="dark"] .study-dialog input:not([type="range"]),html[data-theme=
 html[data-theme="dark"] .study-pane{background:#1c1e24}
 html[data-theme="dark"] #studyPdfScroll{background:#22232a}
 html[data-theme="dark"] #studyPdfSurface{background:#1c1c1f}
+html[data-theme="dark"] body.tutorial-page{background:#1c1e24}
+html[data-theme="dark"] .tutorial-skip{background:#1c1c1f}
+html[data-theme="dark"] .tutorial-header{background:#1c1c1f}
+html[data-theme="dark"] .tutorial-intro{border:1px solid #332d49;background:linear-gradient(115deg,#1b182e,#1a152a 68%,#17202d)}
+html[data-theme="dark"] .tutorial-intro>p{color:#c0c1c9}
+html[data-theme="dark"] .tutorial-search input{border:1px solid #3c3a49;background:#1c1c1f}
+html[data-theme="dark"] #tutorialSearchStatus{color:#bcbdc4}
+html[data-theme="dark"] .tutorial-topics{background:#1c1c1f}
+html[data-theme="dark"] .tutorial-topics a{color:#c2c2ca}
+html[data-theme="dark"] .tutorial-topics a:hover{background:#1b182e}
+html[data-theme="dark"] .tutorial-lessons details{background:#1c1c1f}
+html[data-theme="dark"] .tutorial-lessons summary:hover{background:#1a162b}
+html[data-theme="dark"] .tutorial-lessons details[open] summary{background:#18152a}
+html[data-theme="dark"] .tutorial-lessons ol,html[data-theme="dark"] .tutorial-lessons ul,html[data-theme="dark"] .tutorial-lessons dl,html[data-theme="dark"] .tutorial-lessons p{color:#c2c4cb}
 
 /* ---- hand-tuned dark surfaces ---- */
 html[data-theme="dark"]{color-scheme:dark;--ink:#e6e7f2;--muted:#9a9cb6;--pale:#1d1e29;--border:#2c2d3b}
@@ -327,3 +342,4 @@ html[data-theme="dark"] .color-button span{box-shadow:0 0 0 1.5px rgba(255,255,2
 html[data-theme="dark"] .pop-menu.theme-menu button[aria-checked="true"],html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button[aria-checked="true"],html[data-theme="dark"] .editor-header .shape-tool-trigger.active{color:#c4beff}
 html[data-theme="dark"] .hero-continue{background:#1b1a2c;border-color:#3a3566}
 html[data-theme="dark"] kbd{background:#24253a;border-color:#3a3c55;color:#e2e3f0}
+html[data-theme="dark"] .tutorial-page{--purple-dark:#bcb2ff}

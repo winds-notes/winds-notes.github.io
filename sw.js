@@ -1,14 +1,14 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline.
  * Every local script/style URL in index.html carries the release version
  * below. Change RELEASE and CACHE on every deploy. */
-const RELEASE='90';
-const CACHE='winds-notes-shell-v90-study-tools';
+const RELEASE='91';
+const CACHE='winds-notes-shell-v91-tutorial';
 importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
 const VERSIONED=['theme.js','google-config.js','styles.css','dark.css','mandala-art.js','creative-tools.js','svg-stickers.js','graph-tools.js','vector-tools.js','interaction-tools.js',
   'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
   'native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','cloud-drive.js','boundary-fill.js',
-  'mandala-tools.js','study-tools.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);
-const ASSETS=['./','./index.html',...VERSIONED,'./privacy.html','./terms.html','./legal.css','./LICENSE',
+  'mandala-tools.js','study-tools.js','tutorial.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);
+const ASSETS=['./','./index.html','./tutorial.html',...VERSIONED,'./privacy.html','./terms.html','./legal.css','./LICENSE',
   './manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(async cache=>{
   await cache.addAll([...ASSETS,...self.WINDS_PDF_ASSETS]);

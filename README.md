@@ -5,6 +5,8 @@ Designed by [Alakesh Kalita](https://alakesh-kalita.github.io/).
 
 This is the **complete, editable Codex development workspace**, built from the latest WiNDS Notes Google sign-in edition. It is a static application that runs on GitHub Pages. **No build step, backend, or npm install is required to use the website.** The PDF reader is bundled locally with the app.
 
+Open [Tutorial](tutorial.html) from the library or **Notebook options → Tutorial** for searchable, step-by-step lessons.
+
 ## What works
 
 - **Handwriting:** Apple Pencil / stylus / touch / mouse, pressure samples, low-latency ink layer, smooth pen ribbons with rounded ends and continuous pressure widths, undo/redo, eraser and selection.
@@ -90,7 +92,7 @@ Codex instructions are in **`AGENTS.md`**. Suggested first task: *"Review the Ap
 
 ## Deploy on GitHub Pages
 
-The repository root itself is the **deployable website**. Commit or upload `index.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `mandala-art.js`, `mandala-tools.js`, `boundary-fill.js`, `eraser-preview.js`, `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
+The repository root itself is the **deployable website**. Commit or upload `index.html`, `tutorial.html`, `privacy.html`, `terms.html`, `LICENSE`, all root `.js`/`.css` files (including `mandala-art.js`, `mandala-tools.js`, `boundary-fill.js`, `eraser-preview.js`, `text-tools.js`, `clipboard.js`, `pdf-import.js` and `legal.css`), `manifest.webmanifest`, `.nojekyll`, `assets/` and the **complete `vendor/pdfjs/` directory** to the root of the website repository. Preserve the vendor fonts, CMaps, WASM and licenses, including filenames beginning with underscores. In GitHub, choose **Settings → Pages → Deploy from a branch → main / (root)**.
 
 If you publish by replacing GitHub files, upload all updated files together, including **workspace-model.js**, **selection-preview.js** and the complete **assets/mandalas/** folder (all 50 artwork `.js` files). Service-worker cache **v72** includes the local PDF reader and the full illustration pack; every local script and stylesheet URL carries the same `?v=72` release (keep `RELEASE` in `sw.js` and `index.html` in step). Also upload **theme.js** and **dark.css**. After editing `styles.css`, run `npm run build:dark` to regenerate `dark.css` (a test checks it). Updates reuse the unchanged v65 artwork already cached on this device. The first offline installation downloads the artwork pack; afterward it is available without a connection. Existing coloring pages retain their saved artwork; add a new coloring page to use a revised design. All collaborators should update before using PDF notebooks. Back up important notebooks as `.winds-notes` before updating the deployed app. **Do not clear Safari website data** without a backup.
 

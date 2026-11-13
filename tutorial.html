@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f9fc">
+  <meta name="description" content="Learn how to write, draw, study, and share notebooks in WiNDS Notes.">
+  <title>WiNDS Notes Tutorial</title>
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <script src="./theme.js?v=91"></script>
+  <link rel="stylesheet" href="./styles.css?v=91">
+  <link rel="stylesheet" href="./dark.css?v=91">
+  <script defer src="./tutorial.js?v=91"></script>
+</head>
+<body class="tutorial-page" id="tutorialTop">
+  <a class="tutorial-skip" href="#tutorialMain">Skip to tutorial</a>
+  <header class="tutorial-header">
+    <div class="tutorial-header-inner">
+      <a class="tutorial-brand" href="./index.html">
+        <img src="./assets/icon.svg" width="34" height="34" alt="">
+        <span>WiNDS Notes</span>
+      </a>
+      <a class="btn btn-outline tutorial-back" href="./index.html">Open notebooks <span aria-hidden="true">→</span></a>
+    </div>
+  </header>
+
+  <main class="tutorial-main" id="tutorialMain">
+    <div class="tutorial-intro">
+      <h1>WiNDS Notes Tutorial</h1>
+      <p>Find a tool, follow the steps, and try it in your notebook.</p>
+      <div class="tutorial-search" id="tutorialSearchBox" hidden>
+        <label for="tutorialSearch">Find a feature</label>
+        <div class="tutorial-search-row">
+          <input id="tutorialSearch" type="search" placeholder="Try “eraser”, “PDF”, or “sharing”" autocomplete="off" spellcheck="false">
+          <button id="clearTutorialSearch" type="button" class="btn btn-outline" hidden>Clear</button>
+        </div>
+        <p id="tutorialSearchStatus" role="status"></p>
+      </div>
+    </div>
+
+    <div class="tutorial-layout">
+      <nav class="tutorial-topics" aria-label="Tutorial topics">
+        <h2>Topics</h2>
+        <a href="#notebooks">Notebooks &amp; pages</a>
+        <a href="#handwriting">Handwriting &amp; brushes</a>
+        <a href="#editing">Text, images &amp; editing</a>
+        <a href="#drawing">Shapes, stickers &amp; graphs</a>
+        <a href="#study">Study &amp; presentation</a>
+        <a href="#files">Files, export &amp; offline</a>
+        <a href="#drive">Google Drive &amp; sharing</a>
+        <a href="#shortcuts">Keyboard shortcuts</a>
+      </nav>
+
+      <div class="tutorial-lessons" id="tutorialLessons">
+        <p class="tutorial-empty" id="tutorialEmpty" hidden>Try a shorter term or clear the search to browse all topics.</p>
+
+        <section id="notebooks" aria-labelledby="notebooksTitle">
+          <h2 id="notebooksTitle">Notebooks &amp; pages</h2>
+          <details id="create-notebook" open>
+            <summary>Create your first notebook</summary>
+            <ol>
+              <li>On the library screen, choose <strong>New notebook</strong> or <strong>Create a notebook</strong>.</li>
+              <li>Name it, pick a cover, choose ruled, grid, dotted, or blank paper, and set portrait or landscape orientation.</li>
+              <li>Create the notebook, then choose <strong>Pen</strong> and start writing. The status near the notebook title shows when your work is saved on this device.</li>
+            </ol>
+          </details>
+          <details id="manage-notebooks">
+            <summary>Find, rename, or delete a notebook</summary>
+            <ul>
+              <li>Use <strong>Search notebooks</strong> and the sort menu in the library to find a title. <strong>Continue</strong> reopens your last notebook and page.</li>
+              <li>Rename a notebook by editing its title in the editor or using its three-dot menu in the library.</li>
+              <li>Use the library’s three-dot menu or <strong>Notebook options → Delete notebook</strong> to delete. For shared notebooks, <strong>Remove from my library</strong> removes your library entry.</li>
+            </ul>
+          </details>
+          <details id="navigate-pages" data-keywords="add remove page navigation thumbnails scroll pinch pan zoom fit width">
+            <summary>Add, scroll, duplicate, and delete pages</summary>
+            <ul>
+              <li>Tap <strong>+</strong> to add a page. Use the page arrows or open <strong>Page thumbnails</strong> to jump between pages.</li>
+              <li>Scroll with a finger in <strong>Stylus only</strong> mode, or choose the hand tool (<strong>Scroll pages</strong>) and drag.</li>
+              <li>Choose <strong>Notebook options → Duplicate current page</strong> for an editable copy. Use <strong>Delete</strong> beside a page heading or <strong>Delete current page</strong>. A notebook keeps at least one page.</li>
+              <li>Pinch with two fingers, use the zoom buttons, or tap the zoom percentage for presets. Choose <strong>Fit page to width</strong> in Notebook options to reset the view.</li>
+            </ul>
+          </details>
+          <details id="paper-and-theme">
+            <summary>Change paper, orientation, and theme</summary>
+            <ul>
+              <li>Use <strong>Paper template</strong> and <strong>Page orientation</strong> in the toolbar to change the current notebook page. Imported PDF pages keep their original background and dimensions.</li>
+              <li>Choose <strong>Theme</strong> in the library or Notebook options, then pick <strong>Match device</strong>, <strong>Light</strong>, or <strong>Dark</strong> for the app interface.</li>
+            </ul>
+          </details>
+          <details id="personal-templates">
+            <summary>Save a personal page template</summary>
+            <ol>
+              <li>Set up a page you want to reuse, such as a lab worksheet, planner, or diagram outline.</li>
+              <li>Open <strong>Notebook options → Page templates</strong>, enter a name, and choose <strong>Save template</strong>.</li>
+              <li>Open the same menu in any notebook in your workspace. Select a template and choose <strong>Add as new page</strong> to insert an editable copy.</li>
+            </ol>
+            <p>Your template library is stored for the current account on this device.</p>
+          </details>
+        </section>
+
+        <section id="handwriting" aria-labelledby="handwritingTitle">
+          <h2 id="handwritingTitle">Handwriting &amp; brushes</h2>
+          <details id="pen-and-highlighter" data-keywords="apple pencil stylus finger mouse ink pressure thickness color size">
+            <summary>Write with Pen and Highlighter</summary>
+            <ol>
+              <li>Choose <strong>Pen</strong> for handwriting or <strong>Highlighter</strong> for translucent marks.</li>
+              <li>Pick an ink swatch or open <strong>More ink colors</strong>. Drag the width slider to set thickness.</li>
+              <li>With <strong>Stylus only</strong> enabled, Apple Pencil draws and fingers scroll or pinch. Turn it off to draw with a finger. A mouse can also draw.</li>
+            </ol>
+            <p>Swipe the toolbar or use its edge arrows to reach more controls on a narrow screen.</p>
+          </details>
+          <details id="artist-studio">
+            <summary>Draw with Artist Studio brushes</summary>
+            <ol>
+              <li>Tap <strong>Artist</strong> to browse or search Graphite, Ink, Pigment, Paint, and Effects.</li>
+              <li>Choose a material such as HB, Charcoal, Calligraphy Nib, or Watercolor Wash. Adjust <strong>Size</strong> and <strong>Flow</strong> using the brush preview.</li>
+              <li>Draw on the page. Tap <strong>Pen</strong> to return to regular handwriting.</li>
+            </ol>
+          </details>
+          <details id="eraser" data-keywords="rubber delete pasted image eraser diameter adjust size">
+            <summary>Erase part of an object</summary>
+            <ol>
+              <li>Tap <strong>Eraser</strong> and brush across the part of the ink, text, sticker, shape, or image you want to remove.</li>
+              <li>Use the arrow next to Eraser to adjust the diameter or choose <strong>Ink only</strong> to protect other objects. The app remembers your eraser size.</li>
+              <li>Use <strong>Undo</strong> or <strong>Redo</strong> to step through edits. An imported PDF background stays fixed when you erase annotations.</li>
+            </ol>
+          </details>
+          <details id="pencil-diagnostics">
+            <summary>Check Apple Pencil input</summary>
+            <ol>
+              <li>Open <strong>Notebook options → Apple Pencil input test</strong>.</li>
+              <li>Try several short strokes in a row and a long continuous stroke while checking the input panel. Close the panel when you finish.</li>
+            </ol>
+          </details>
+        </section>
+
+        <section id="editing" aria-labelledby="editingTitle">
+          <h2 id="editingTitle">Text, images &amp; editing</h2>
+          <details id="select-and-move" data-keywords="lasso area select handwriting move group delete thickness">
+            <summary>Select, move, and edit handwriting or objects</summary>
+            <ul>
+              <li>Choose <strong>Select</strong> and tap an item, then drag it to move it.</li>
+              <li>Choose <strong>Area select handwriting</strong> and draw a box around several strokes to move, copy, or cut them together.</li>
+              <li>Use the toolbar width slider after selecting a stroke, shape, vector path, or graph to change its line thickness.</li>
+              <li>Use <strong>Delete selection</strong> in Notebook options to remove the selected item or group.</li>
+            </ul>
+          </details>
+          <details id="text-formatting" data-keywords="font style bold italic underline alignment size spacing type paste text">
+            <summary>Type and format text</summary>
+            <ol>
+              <li>Choose <strong>Text</strong> and tap the page, or paste text from another app.</li>
+              <li>Choose <strong>Select</strong>, tap the text box, and open <strong>Notebook options → Edit selected text</strong>.</li>
+              <li>Edit the text and adjust font, size, color, emphasis, alignment, line spacing, or box width. Choose <strong>Apply changes</strong>.</li>
+            </ol>
+          </details>
+          <details id="copy-and-paste" data-keywords="clipboard copy cut paste imported text images handwriting">
+            <summary>Copy, cut, and paste</summary>
+            <ul>
+              <li>Select an item or handwriting group and choose <strong>Copy</strong> or <strong>Cut</strong>. Use <strong>Notebook options → Paste copied object</strong> to place an editable copy.</li>
+              <li>Use your system’s paste command to bring in text or an image. On touch devices, <strong>Notebook options → Paste</strong> opens a box where you can paste text using the device’s menu.</li>
+            </ul>
+          </details>
+          <details id="images-and-cropping" data-keywords="insert image photo picture rotate crop resize angle">
+            <summary>Insert, resize, rotate, and crop images</summary>
+            <ol>
+              <li>Choose <strong>Insert an image</strong> and pick a file. Select the image and drag a corner to resize it, or enter a width under <strong>Notebook options → Size and angle</strong>.</li>
+              <li>Drag the round rotation handle, or enter an angle in <strong>Size and angle</strong>. Hold <kbd>Shift</kbd> while rotating to snap to 15° increments.</li>
+              <li>Tap the crop handle beside the selected image. Drag the crop edges, move the frame, or use <strong>Exact crop</strong>. Choose <strong>Apply crop</strong>. Reopen cropping and choose <strong>Reset</strong> to restore the full image.</li>
+            </ol>
+            <p>Corner resize and rotation also work on stickers and supported shapes.</p>
+          </details>
+        </section>
+
+        <section id="drawing" aria-labelledby="drawingTitle">
+          <h2 id="drawingTitle">Shapes, stickers &amp; graphs</h2>
+          <details id="shapes">
+            <summary>Draw and style shapes, lines, and arrows</summary>
+            <ol>
+              <li>Open the arrow beside <strong>Shapes</strong>, choose a figure, then drag on the page to draw it.</li>
+              <li>Use <strong>Fill settings</strong> for fill color and opacity, outline color and width, and solid, dashed, dotted, or hidden outlines.</li>
+              <li>To restyle an existing shape, select it and reopen <strong>Fill settings</strong>. Line and Arrow use outline settings.</li>
+            </ol>
+          </details>
+          <details id="math-symbols" data-keywords="math maths brackets braces parentheses roots integrals fraction">
+            <summary>Draw stretchable math symbols</summary>
+            <ol>
+              <li>Choose <strong>Shapes → Math symbols</strong>, pick a brace, bracket, root, fraction bar, or other symbol, and drag to place it.</li>
+              <li>Choose <strong>Select</strong> and drag the corner handles, or enter exact width and height under <strong>Size and angle</strong>.</li>
+              <li>Drag the toolbar width slider to adjust the line thickness of the selected symbol.</li>
+            </ol>
+          </details>
+          <details id="fill-closed-areas" data-keywords="bucket freehand free hand coloring colour closed area paint">
+            <summary>Fill a hand-drawn area or sticker region</summary>
+            <ol>
+              <li>Draw a closed outline or insert an illustrated sticker. Choose <strong>Fill</strong> and pick a color from the toolbar or the adjacent color chip.</li>
+              <li>Tap inside the outline or on a colored sticker region. Keep tapping to fill more regions or switch colors while Fill is active.</li>
+              <li>If a hand-drawn area won’t fill, close any gap in its outline. Choose another tool or press <kbd>Esc</kbd> when you’re finished.</li>
+            </ol>
+          </details>
+          <details id="stickers" data-keywords="emoji animal cat science art engineering illustrated svg">
+            <summary>Insert and edit stickers</summary>
+            <ol>
+              <li>Tap the smiley button or choose <strong>Notebook options → Stickers</strong>.</li>
+              <li>Browse <strong>Illustrated</strong>, <strong>Everyday</strong>, <strong>Education</strong>, <strong>Science</strong>, <strong>Art</strong>, or <strong>Engineering</strong>. Use search to find a design.</li>
+              <li>Set the sticker size and tap a design to insert it. Use <strong>Select</strong> to move, resize, rotate, or copy it. Illustrated stickers stay sharp when enlarged.</li>
+            </ol>
+          </details>
+          <details id="mandalas">
+            <summary>Add a mandala coloring page</summary>
+            <ol>
+              <li>Open the arrow beside <strong>Fill</strong> and choose <strong>Mandala coloring pages</strong>.</li>
+              <li>Browse or search the designs, select one, and choose <strong>Add coloring page</strong>.</li>
+              <li>Use <strong>Fill</strong> to color the enclosed sections. Use Undo to try another color.</li>
+            </ol>
+          </details>
+          <details id="vector-paths" data-keywords="svg bezier bézier anchor node curve path">
+            <summary>Draw a precise vector path</summary>
+            <ol>
+              <li>Choose <strong>Shapes → Draw vector path</strong>. Tap to add anchors. Drag from a new anchor to create a Bézier curve.</li>
+              <li>Adjust the handles, enter exact X/Y coordinates, or enable <strong>Snap to grid</strong>. Close the path to add a fill.</li>
+              <li>Insert the path, then select it to reopen <strong>Edit path</strong> or choose <strong>Export → Selected vector path</strong> to save an SVG.</li>
+            </ol>
+          </details>
+          <details id="interactive-graphs" data-keywords="equation plot math graph slider parameter parabola axis">
+            <summary>Insert an interactive graph</summary>
+            <ol>
+              <li>Choose <strong>Notebook options → Insert graph</strong>. Enter <code>y = ax²</code>, set the axis ranges and parameter range, then insert the graph.</li>
+              <li>Select the graph and move the <strong>a</strong> slider to change the curve, or reopen its equation editor.</li>
+              <li>Use Pen to annotate over the graph. An editable notebook keeps the equation and parameter. PDF and image exports capture the current curve.</li>
+            </ol>
+          </details>
+        </section>
+
+        <section id="study" aria-labelledby="studyTitle">
+          <h2 id="studyTitle">Study &amp; presentation</h2>
+          <details id="annotate-pdf" data-keywords="annotate import pdf pages password highlight file">
+            <summary>Import and annotate a PDF</summary>
+            <ol>
+              <li>Choose <strong>Import PDF</strong> in the library or <strong>Notebook options → Import PDF pages</strong>. Enter the password if prompted.</li>
+              <li>Select page numbers or ranges such as <code>1-5, 8</code>. Create a new notebook or append the selected pages to the open notebook.</li>
+              <li>Write, highlight, and draw on top of the PDF pages. Export an annotated PDF to share or an editable notebook to keep working.</li>
+            </ol>
+            <p>You can select up to 50 pages per import from a PDF under 25 MB. Imported pages are rendered as page images.</p>
+          </details>
+          <details id="study-beside-pdf" data-keywords="split view side by side reference pdf figure extract crop drop">
+            <summary>Study beside a PDF and insert a figure</summary>
+            <ol>
+              <li>Open a notebook and choose <strong>Notebook options → Study beside a PDF</strong>. Pick an imported PDF notebook or choose <strong>Import a PDF</strong>.</li>
+              <li>Use the reference pane’s page controls to find a figure. Tap <strong>Select figure</strong> and drag a box around it.</li>
+              <li>Drag the selected area onto your writing page or tap <strong>Insert figure</strong>. Select the inserted image and choose <strong>Open linked page</strong> to return to the source.</li>
+            </ol>
+          </details>
+          <details id="linked-pages" data-keywords="links hyperlink navigation anchor jump source">
+            <summary>Link handwriting, labels, and diagrams to pages</summary>
+            <ol>
+              <li>Select an object, then choose <strong>Notebook options → Link selection to a page</strong>.</li>
+              <li>Choose a notebook and page, then tap <strong>Save link</strong>. Reopen the same menu to edit or remove the link.</li>
+              <li>Use <strong>Open linked page</strong> on the selected object, or turn on <strong>Follow links on the page</strong> from Notebook options and tap linked objects directly. Choose Pen to resume writing.</li>
+            </ol>
+          </details>
+          <details id="presentation-mode" data-keywords="present projection projector fullscreen slides reveal laser">
+            <summary>Present a notebook with a laser pointer</summary>
+            <ol>
+              <li>Choose <strong>Notebook options → Present notebook</strong>, then choose <strong>Present here</strong> or <strong>Open projector window</strong>. Move the separate window to your second display when available.</li>
+              <li>Use <strong>Start with blank page</strong> to hide page objects, then <strong>Reveal next</strong> or the reveal slider to show them in layer order. Page backgrounds remain visible.</li>
+              <li>Point on the preview or presentation surface to show a temporary laser dot. Use the page controls to advance and <strong>End presentation</strong> when finished.</li>
+            </ol>
+          </details>
+        </section>
+
+        <section id="files" aria-labelledby="filesTitle">
+          <h2 id="filesTitle">Files, export &amp; offline</h2>
+          <details id="export-formats">
+            <summary>Choose an export format</summary>
+            <dl>
+              <dt>WiNDS Notes notebook</dt><dd>Save an editable <code>.winds-notes</code> copy.</dd>
+              <dt>PDF document</dt><dd>Share all notebook pages as a PDF.</dd>
+              <dt>PNG or JPEG</dt><dd>Save the current page as an image.</dd>
+              <dt>Selected vector path</dt><dd>Export a selected custom path as an editable SVG.</dd>
+              <dt>Editable backup</dt><dd>Download a JSON backup of your workspace.</dd>
+            </dl>
+            <p>Use <strong>Export</strong> in the editor. If the browser shows a prepared download link, tap it to save the file.</p>
+          </details>
+          <details id="reopen-and-restore" data-keywords="import restore backup file json winds-notes">
+            <summary>Reopen an editable file or restore a backup</summary>
+            <ol>
+              <li>Choose <strong>Open notebook</strong> in the library or <strong>Notebook options → Open notebook file</strong>.</li>
+              <li>Pick an editable <code>.winds-notes</code> or compatible <code>.json</code> file. Imports are added to the library as copies.</li>
+              <li>Use <strong>Notebook options → Back up all notebooks</strong> for a workspace backup, and <strong>Restore notebook backup</strong> to open one later.</li>
+            </ol>
+          </details>
+          <details id="offline-and-guest">
+            <summary>Work offline or without a Google account</summary>
+            <p>Open the app online once and let the offline files finish installing. After that, you can write, draw, and use this guide from the same browser while offline. Guest notebooks are saved separately on this device. Keep an editable backup if you plan to clear browser data or move devices.</p>
+          </details>
+        </section>
+
+        <section id="drive" aria-labelledby="driveTitle">
+          <h2 id="driveTitle">Google Drive &amp; sharing</h2>
+          <details id="drive-sync" data-keywords="login sign in sync automatically realtime real time backup reconnect google drive">
+            <summary>Connect Google Drive and sync across devices</summary>
+            <ol>
+              <li>Choose <strong>Sign in with Google</strong> in the library, or open <strong>Google Drive</strong> from Notebook options. Use the same account on each device for your personal notebooks.</li>
+              <li>Keep <strong>Sync automatically when idle</strong> checked. Use <strong>Sync notebooks now</strong> for a manual check.</li>
+              <li>Expand <strong>Sync details</strong> to see the last upload and received change. A site configured for live previews can show some edits sooner. Drive uploads save the changes remotely.</li>
+            </ol>
+            <p>Use <strong>Switch Google account</strong> to open a different workspace or <strong>Sign out / open guest notes</strong> to return to guest notes. Google may ask you to reconnect when its authorization expires.</p>
+          </details>
+          <details id="drive-compression">
+            <summary>Compress Drive uploads</summary>
+            <p>Open <strong>Google Drive</strong> and enable <strong>Compress Drive workspace uploads</strong> when available to reduce upload size. Use an up-to-date copy of WiNDS Notes on the devices that sync this workspace.</p>
+          </details>
+          <details id="dated-drive-backups">
+            <summary>Create or import a dated Drive backup</summary>
+            <ol>
+              <li>Open <strong>Google Drive</strong> and choose <strong>Create dated Drive backup</strong> for a snapshot.</li>
+              <li>Choose <strong>Import an earlier Drive backup</strong> and select the snapshot you want to reopen.</li>
+            </ol>
+          </details>
+          <details id="share-with-collaborators" data-keywords="share invite editor permission no file found picker authorization">
+            <summary>Share a notebook and open an invitation</summary>
+            <ol>
+              <li>Sign in with Google. In <strong>My notebooks</strong>, open a notebook’s three-dot menu and choose <strong>Share notebook</strong>.</li>
+              <li>Enter the collaborator’s Google email and choose <strong>Share and send invitation</strong>.</li>
+              <li>The recipient signs in with the invited account and uses the invitation link, <strong>Open shared link</strong>, or <strong>Open shared from Drive</strong>.</li>
+              <li>If prompted, use <strong>Check access in Google Drive</strong>, then <strong>Authorize this notebook</strong> and select its shared folder. If Drive cannot open the folder, ask the owner to check the invitation and edit permission.</li>
+            </ol>
+          </details>
+        </section>
+
+        <section id="shortcuts" aria-labelledby="shortcutsHeading">
+          <h2 id="shortcutsHeading">Keyboard shortcuts</h2>
+          <details id="writing-shortcuts">
+            <summary>Switch tools, edit, and find commands</summary>
+            <dl class="tutorial-shortcuts">
+              <dt><kbd>P</kbd> <kbd>H</kbd> <kbd>E</kbd></dt><dd>Pen, Highlighter, Eraser</dd>
+              <dt><kbd>R</kbd> <kbd>T</kbd></dt><dd>Last-used shape, Text</dd>
+              <dt><kbd>V</kbd> <kbd>L</kbd> <kbd>S</kbd></dt><dd>Select, Area select, Scroll pages</dd>
+              <dt><kbd>⌘/Ctrl</kbd> + <kbd>Z</kbd></dt><dd>Undo. Add <kbd>Shift</kbd> to redo.</dd>
+              <dt><kbd>⌘/Ctrl</kbd> + <kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>Copy, cut, paste</dd>
+              <dt><kbd>Delete</kbd> / <kbd>Backspace</kbd></dt><dd>Delete selection</dd>
+              <dt><kbd>Esc</kbd></dt><dd>Close a menu or clear the selection</dd>
+              <dt><kbd>?</kbd></dt><dd>Show keyboard shortcuts in the editor</dd>
+            </dl>
+            <p>In <strong>Notebook options</strong>, type in <strong>Find an action</strong>, then use the arrow keys and <kbd>Enter</kbd> to choose a command.</p>
+          </details>
+        </section>
+        <a class="tutorial-top" href="#tutorialTop">Back to top ↑</a>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
