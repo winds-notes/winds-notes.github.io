@@ -247,7 +247,7 @@
     ctx.font=`${size}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
   }
   function drawSticker(ctx,item){
-    if(item.artwork&&globalThis.WindsSvgStickers?.draw(ctx,item.artwork,item.x,item.y,item.size||78))return;
+    if(item.artwork&&globalThis.WindsSvgStickers?.draw(ctx,item.artwork,item.x,item.y,item.size||78,item.stickerColors))return;
     setStickerFont(ctx,item.size||78);
     ctx.fillText(item.emoji,item.x,item.y);
   }

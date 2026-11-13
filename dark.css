@@ -303,6 +303,10 @@ html[data-theme="dark"] .notebook-action-empty{color:#bbbbc1}
 @media(max-width:460px){
 html[data-theme="dark"] .menu-page-navigation{background:#1c1c25;color:#c0bfc7}
 }
+html[data-theme="dark"] .study-dialog input:not([type="range"]),html[data-theme="dark"] .study-dialog select,html[data-theme="dark"] .study-pane select{background:#1c1c24}
+html[data-theme="dark"] .study-pane{background:#1c1e24}
+html[data-theme="dark"] #studyPdfScroll{background:#22232a}
+html[data-theme="dark"] #studyPdfSurface{background:#1c1c1f}
 
 /* ---- hand-tuned dark surfaces ---- */
 html[data-theme="dark"]{color-scheme:dark;--ink:#e6e7f2;--muted:#9a9cb6;--pale:#1d1e29;--border:#2c2d3b}

@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=89"></script>
-<script src="./google-config.js?v=89"></script>
+<script src="./theme.js?v=90"></script>
+<script src="./google-config.js?v=90"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=89" rel="stylesheet"/>
-<link href="./dark.css?v=89" rel="stylesheet"/>
+<link href="./styles.css?v=90" rel="stylesheet"/>
+<link href="./dark.css?v=90" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -141,6 +141,8 @@
       <button type="button" data-action="editText" data-command data-icon="text">Edit selected text…</button>
       <button type="button" data-action="copy" data-command data-icon="copy">Copy selection</button>
       <button type="button" data-action="cut" data-command data-icon="cut">Cut selection</button>
+      <button type="button" data-action="pageLink" data-command data-icon="paper" data-keywords="hyperlink jump heading diagram">Link selection to a page…</button>
+      <button type="button" data-action="followLink" data-command data-icon="arrow">Follow page link</button>
     </section>
     <section data-command-group>
       <h3>Editing</h3>
@@ -152,8 +154,10 @@
     <section data-command-group>
       <h3>Page</h3>
       <button type="button" data-action="scroll" data-command data-icon="pan">Scroll pages</button>
+      <button type="button" data-action="browseLinks" data-command data-icon="arrow" data-keywords="tap links navigate jump">Follow links on the page</button>
       <button type="button" data-action="fit" data-command data-icon="orientation" data-keywords="zoom reset">Fit page to width</button>
       <button type="button" data-action="duplicate" data-command data-icon="copy">Duplicate current page</button>
+      <button type="button" data-action="templates" data-command data-icon="paper" data-keywords="reuse layout save custom template">Page templates…</button>
       <button type="button" class="danger-text" data-action="deletePage" data-command data-icon="trash">Delete current page…</button>
     </section>
     <section data-command-group>
@@ -163,6 +167,8 @@
       <button type="button" data-action="vector" data-command data-icon="vector" data-keywords="svg bézier bezier anchor curve path">Draw vector path…</button>
       <button type="button" data-action="stickers" data-command data-icon="smile" data-keywords="emoji education">Stickers…</button>
       <button type="button" data-action="pdf" data-command data-icon="paper">Import PDF pages…</button>
+      <button type="button" data-action="reference" data-command data-icon="pages" data-keywords="study side by side reference pdf figure">Study beside a PDF…</button>
+      <button type="button" data-action="present" data-command data-icon="pages" data-keywords="presentation projector laser reveal fullscreen">Present notebook…</button>
     </section>
     <section data-command-group>
       <h3>Notebook</h3>
@@ -374,28 +380,74 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
-<script src="./mandala-art.js?v=89"></script>
-<script src="./svg-stickers.js?v=89"></script>
-<script src="./creative-tools.js?v=89"></script>
-<script src="./graph-tools.js?v=89"></script>
-<script src="./vector-tools.js?v=89"></script>
-<script src="./interaction-tools.js?v=89"></script>
-<script src="./selection-preview.js?v=89"></script>
-<script src="./eraser-preview.js?v=89"></script>
-<script src="./page-stack.js?v=89"></script>
-<script src="./workspace-model.js?v=89"></script>
-<script src="./text-tools.js?v=89"></script>
-<script src="./pdf-export.js?v=89"></script>
-<script src="./pdf-import.js?v=89"></script>
-<script src="./native-file.js?v=89"></script>
-<script src="./clipboard.js?v=89"></script>
-<script src="./shared-notebook-model.js?v=89"></script>
-<script src="./notebook-sharing.js?v=89"></script>
-<script src="./live-sync.js?v=89"></script>
+<dialog id="pageLinkDialog" class="shortcuts-dialog study-dialog" aria-labelledby="pageLinkTitle">
+  <form id="pageLinkForm">
+    <h2 id="pageLinkTitle">Link selection to a page</h2>
+    <label>Notebook <select id="linkBook"></select></label>
+    <label>Page <select id="linkPage" required></select></label>
+    <div class="study-actions"><button id="removePageLink" class="btn btn-outline" type="button">Remove link</button><button class="btn btn-outline" type="button" data-close-study>Cancel</button><button class="btn btn-primary" type="submit">Save link</button></div>
+  </form>
+</dialog>
+<dialog id="pageTemplatesDialog" class="shortcuts-dialog study-dialog" aria-labelledby="pageTemplatesTitle">
+  <h2 id="pageTemplatesTitle">Page templates</h2>
+  <form id="pageTemplateForm">
+    <label>Save the current page as <input id="pageTemplateName" required maxlength="70" placeholder="e.g. Lab worksheet"></label>
+    <button class="btn btn-primary" type="submit">Save template</button>
+  </form>
+  <label>My templates <select id="pageTemplateList" size="4" aria-label="Saved templates"></select></label>
+  <p id="templateStatus" role="status"></p>
+  <div class="study-actions"><button id="deletePageTemplate" class="btn btn-outline" type="button">Delete template</button><button class="btn btn-outline" type="button" data-close-study>Done</button><button id="insertPageTemplate" class="btn btn-primary" type="button">Add as new page</button></div>
+</dialog>
+<input hidden id="studyPdfInput" accept=".pdf,application/pdf" type="file">
+<dialog id="studySourceDialog" class="shortcuts-dialog study-dialog" aria-labelledby="studySourceTitle">
+  <h2 id="studySourceTitle">Study beside a PDF</h2>
+  <label>PDF notebook <select id="studySource"></select></label>
+  <div class="study-actions"><button id="importStudyPdf" class="btn btn-outline" type="button">Import a PDF…</button><button class="btn btn-outline" type="button" data-close-study>Cancel</button><button id="openStudySource" class="btn btn-primary" type="button">Open beside notes</button></div>
+</dialog>
+<aside id="studyPane" class="study-pane" aria-label="PDF reference" hidden>
+  <header><strong id="studyPdfName"></strong><button class="btn btn-outline" type="button" id="closeStudyPane" aria-label="Close PDF reference">Close</button></header>
+  <div class="study-actions"><button class="btn btn-outline" type="button" id="studyPdfPrevious" aria-label="Previous PDF page">‹</button><label>Page <select id="studyPdfPage" aria-label="Reference page"></select></label><button class="btn btn-outline" type="button" id="studyPdfNext" aria-label="Next PDF page">›</button></div>
+  <div id="studyPdfScroll"><div id="studyPdfSurface"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div>
+  <p id="studyPdfStatus" role="status"></p>
+  <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-primary" type="button" id="insertStudyFigure" disabled>Insert figure</button></div>
+</aside>
+<dialog id="presentationDialog" class="shortcuts-dialog study-dialog" aria-labelledby="presentationTitle">
+  <h2 id="presentationTitle">Present notebook</h2>
+  <div class="present-preview"><canvas id="presentPreview" aria-label="Presentation preview"></canvas><span id="presentPreviewLaser" class="presentation-laser" hidden></span></div>
+  <div class="study-actions"><button id="presentHere" class="btn btn-outline" type="button">Present here</button><button id="presentWindow" class="btn btn-primary" type="button">Open projector window</button></div>
+  <div class="study-actions"><button id="presentPrevious" class="btn btn-outline" type="button">Previous page</button><output id="presentPage"></output><button id="presentNext" class="btn btn-outline" type="button">Next page</button></div>
+  <label>Reveal objects <input id="presentStep" type="range" min="0" value="0"><output id="presentStepCount"></output></label>
+  <div class="study-actions"><button id="presentReset" class="btn btn-outline" type="button">Start with blank page</button><button id="presentReveal" class="btn btn-outline" type="button">Reveal next</button></div>
+  <p id="presentStatus" role="status"></p>
+  <div class="study-actions"><button class="btn btn-outline" type="button" data-close-study>End presentation</button></div>
+</dialog>
+<div id="presentationStage" class="presentation-stage" hidden role="dialog" aria-modal="true" aria-label="Presentation">
+  <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
+  <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
+</div>
+<script src="./mandala-art.js?v=90"></script>
+<script src="./svg-stickers.js?v=90"></script>
+<script src="./creative-tools.js?v=90"></script>
+<script src="./graph-tools.js?v=90"></script>
+<script src="./vector-tools.js?v=90"></script>
+<script src="./interaction-tools.js?v=90"></script>
+<script src="./selection-preview.js?v=90"></script>
+<script src="./eraser-preview.js?v=90"></script>
+<script src="./page-stack.js?v=90"></script>
+<script src="./workspace-model.js?v=90"></script>
+<script src="./text-tools.js?v=90"></script>
+<script src="./pdf-export.js?v=90"></script>
+<script src="./pdf-import.js?v=90"></script>
+<script src="./native-file.js?v=90"></script>
+<script src="./clipboard.js?v=90"></script>
+<script src="./shared-notebook-model.js?v=90"></script>
+<script src="./notebook-sharing.js?v=90"></script>
+<script src="./live-sync.js?v=90"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=89"></script>
-<script defer src="./boundary-fill.js?v=89"></script>
-<script defer src="./mandala-tools.js?v=89"></script>
-<script defer="" src="./app.js?v=89"></script>
+<script defer src="./cloud-drive.js?v=90"></script>
+<script defer src="./boundary-fill.js?v=90"></script>
+<script defer src="./mandala-tools.js?v=90"></script>
+<script defer src="./study-tools.js?v=90"></script>
+<script defer="" src="./app.js?v=90"></script>
 </body>
 </html>

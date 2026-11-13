@@ -591,17 +591,34 @@
       `<path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="${width}"/>`).join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true"><g stroke-linecap="round" stroke-linejoin="round">${layers}</g></svg>`;
   }
-  function draw(ctx,id,x,y,size){
+  function compiled(id){
     const sticker=art.get(id);
-    if(!sticker||typeof Path2D!=='function')return false;
+    if(!sticker||typeof Path2D!=='function')return null;
     if(!paths.has(id))paths.set(id,sticker.layers.map(layer=>({...layer,shape:new Path2D(layer.d)})));
+    return paths.get(id);
+  }
+  function regionAt(ctx,id,x,y){
+    if(x<0||y<0||x>64||y>64)return null;
+    const layers=compiled(id);
+    if(!layers)return null;
+    for(let index=layers.length-1;index>=0;index--){
+      const {shape,fill}=layers[index];
+      if(fill!=='none'&&ctx.isPointInPath(shape,x,y))return {index,fill};
+    }
+    return null;
+  }
+  function draw(ctx,id,x,y,size,colors){
+    const layers=compiled(id);
+    if(!layers)return false;
     ctx.save();ctx.translate(x,y);ctx.scale(size/64,size/64);ctx.lineCap='round';ctx.lineJoin='round';
-    for(const {shape,fill,stroke,width} of paths.get(id)){
-      if(fill!=='none'){ctx.fillStyle=fill;ctx.fill(shape);}
+    for(let index=0;index<layers.length;index++){
+      const {shape,fill,stroke,width}=layers[index];
+      const replacement=colors?.[index];
+      if(fill!=='none'){ctx.fillStyle=/^#[a-f0-9]{6}$/i.test(replacement||'')?replacement:fill;ctx.fill(shape);}
       if(stroke!=='none'){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke(shape);}
     }
     ctx.restore();
     return true;
   }
-  return Object.freeze({catalog,has:id=>art.has(id),markup,draw});
+  return Object.freeze({catalog,has:id=>art.has(id),markup,draw,regionAt});
 });

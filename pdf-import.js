@@ -54,16 +54,16 @@
     try{await session.render.promise;check(session);}finally{session.render=null;page.cleanup();}
     canvas.hidden=false;
   }
-  async function open(file){
+  async function open(file,{reference=false}={}){
     if(!file)return;
     if(file.size>MAX_FILE_BYTES){api.toast('PDF is too large · choose a file under 25 MB');return;}
     if(current)close();
-    const session={context:api.context(),trigger:document.activeElement,cancelled:false,running:false,committing:false,file};current=session;
+    const session={context:api.context(),trigger:document.activeElement,cancelled:false,running:false,committing:false,file,reference};current=session;
     $('pdfImportBackdrop').hidden=false;$('pdfImportDialog').focus();$('pdfImportName').textContent=file.name;$('pdfImportPageCount').textContent='';$('pdfImportStart').textContent='Import pages';
     $('pdfImportPreview').hidden=true;$('pdfImportOptions').hidden=true;$('pdfImportOptions').disabled=false;$('pdfTitleControl').hidden=false;$('pdfPasswordForm').hidden=true;$('pdfImportStart').disabled=true;
     $('pdfImportCancel').disabled=false;$('pdfImportClose').disabled=false;$('pdfImportProgress').hidden=true;
     $('pdfImportTitle').value=file.name.replace(/\.pdf$/i,'').slice(0,70)||'PDF notebook';
-    const append=$('pdfAppendOption');append.disabled=!session.context.bookId;append.textContent=session.context.bookId?`Add to ${session.context.bookTitle}`:'Add to current notebook';$('pdfImportDestination').value='new';
+    const append=$('pdfAppendOption');append.disabled=reference||!session.context.bookId;append.textContent=session.context.bookId?`Add to ${session.context.bookTitle}`:'Add to current notebook';$('pdfImportDestination').value='new';
     status('Opening PDF on this device…');
     try{
       await api.prepare();check(session);
@@ -107,8 +107,11 @@
         $('pdfImportProgress').value=pages.length;await new Promise(resolve=>setTimeout(resolve,0));
       }
       check(session);session.committing=true;$('pdfImportCancel').disabled=true;$('pdfImportClose').disabled=true;status('Saving your annotation pages…');
-      const result=await api.commit({pages,title:$('pdfImportTitle').value.trim()||'PDF notebook',append:$('pdfImportDestination').value==='append'},session.context);
-      session.committing=false;close();api.toast(result?.saved===false?'PDF pages opened · device storage could not save them. Export a backup.':`Imported ${pages.length} PDF page${pages.length===1?'':'s'} · ready to annotate`);
+      const result=await api.commit({pages,title:$('pdfImportTitle').value.trim()||'PDF notebook',append:!session.reference&&$('pdfImportDestination').value==='append',reference:session.reference},session.context);
+      session.committing=false;close();
+      if(session.reference&&result?.id)api.showReference?.(result.id,session.context);
+      api.toast(result?.saved===false?'PDF pages opened · device storage could not save them. Export a backup.':
+        session.reference?'PDF reference opened beside your notes':`Imported ${pages.length} PDF page${pages.length===1?'':'s'} · ready to annotate`);
     }catch(error){
       session.committing=false;
       if(current===session&&!session.cancelled){session.running=false;$('pdfImportOptions').disabled=false;$('pdfImportCancel').disabled=false;$('pdfImportClose').disabled=false;status(error.message||'PDF import failed. Existing notes are unchanged.',true);ready();}

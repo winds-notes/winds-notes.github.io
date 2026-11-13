@@ -30,6 +30,20 @@
   const makeId = () => global.crypto?.randomUUID?.() || `winds-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const time = x => typeof x === 'string' && !Number.isNaN(Date.parse(x)) ? x : new Date().toISOString();
   function check(test, message){if(!test)throw new Error(message);}
+  const linkId=value=>Boolean(id(value)&&!/[\u0000-\u001f]/.test(value));
+  function linkFields(item){
+    if(item.pageLink==null)return {};
+    const link=item.pageLink;
+    check(isObject(link)&&linkId(link.page)&&(link.book==null||linkId(link.book)),'Invalid page link');
+    return {pageLink:{page:link.page,...(link.book?{book:link.book}:{})}};
+  }
+  function stickerColors(value){
+    if(value==null)return {};
+    check(isObject(value)&&Object.keys(value).length<=96,'Invalid sticker colors');
+    const colors=Object.entries(value);
+    check(colors.every(([key,value])=>/^(0|[1-9]\d?)$/.test(key)&&Number(key)<96&&typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)),'Invalid sticker color');
+    return colors.length?{stickerColors:Object.fromEntries(colors)}:{};
+  }
   function rotationFields(item){
     if(item.rotation==null)return {};
     check(typeof item.rotation==='number' && Number.isFinite(item.rotation) && Math.abs(item.rotation)<1e7,'Invalid object rotation');
@@ -47,7 +61,7 @@
   }
   function normalizeItem(item){
     check(isObject(item) && ['stroke','shape','text','image','sticker','graph','vector'].includes(item.type),'Unsupported or damaged page object');
-    const base={id:makeId(),type:item.type,...erasureFields(item)};
+    const base={id:makeId(),type:item.type,...erasureFields(item),...linkFields(item)};
     if(item.type==='stroke'){
       check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
       check(Array.isArray(item.points) && item.points.length>=1 && item.points.length<=200000,'Invalid pen points');
@@ -67,7 +81,7 @@
     if(item.type==='sticker'){
       check(typeof item.emoji==='string' && item.emoji.length>0 && item.emoji.length<=24,'Invalid sticker');
       if(item.artwork!=null)check(typeof item.artwork==='string'&&/^[a-z0-9-]{1,48}$/.test(item.artwork),'Invalid sticker artwork');
-      return {...base,emoji:item.emoji,...(item.artwork?{artwork:item.artwork}:{}),
+      return {...base,emoji:item.emoji,...(item.artwork?{artwork:item.artwork,...stickerColors(item.stickerColors)}:{}),
         x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78))),...rotationFields(item)};
     }
     if(item.type==='shape'){
@@ -137,17 +151,34 @@
     clean.pages.forEach((p,i)=>{p.id=retain(notebook.pages[i].id);p.items.forEach((item,j)=>{item.id=retain(notebook.pages[i].items[j].id);});});
     return clean;
   }
+  function importNotebooks(notebooks){
+    const cleaned=notebooks.map(normalizeNotebook),books=new Map();
+    notebooks.forEach((book,index)=>{
+      const pages=new Map(book.pages.map((page,p)=>[page.id,cleaned[index].pages[p].id]));
+      books.set(book.id,{id:cleaned[index].id,pages});
+    });
+    cleaned.forEach((book,index)=>{
+      const original=notebooks[index],local=new Map(original.pages.map((page,p)=>[page.id,book.pages[p].id]));
+      for(const page of book.pages)for(const item of page.items){
+        const link=item.pageLink;if(!link)continue;
+        const sameBook=!link.book||link.book===original.id;
+        const target=sameBook?local.get(link.page):books.get(link.book)?.pages.get(link.page);
+        if(target)item.pageLink={page:target,...(sameBook?{}:{book:books.get(link.book).id})};
+      }
+    });
+    return cleaned;
+  }
   function parse(text){
     check(typeof text==='string' && text.length>0 && text.length<=MAX_FILE_BYTES,'File is empty or too large');
     let data;try{data=JSON.parse(text);}catch{throw new Error('File is not valid WiNDS Notes data');}
     check(isObject(data),'Unrecognized file');
     if(data.format===FORMAT){
       check(data.version===VERSION,'Unsupported WiNDS Notes file version');
-      return {notebooks:[normalizeNotebook(data.notebook)],single:true};
+      return {notebooks:importNotebooks([data.notebook]),single:true};
     }
     if(data.format==='winds-notes-backup' || data.format==='folio-notes-backup'){
       check(Array.isArray(data.notebooks) && data.notebooks.length>=1 && data.notebooks.length<=500,'Invalid backup file');
-      return {notebooks:data.notebooks.map(normalizeNotebook),single:false};
+      return {notebooks:importNotebooks(data.notebooks),single:false};
     }
     throw new Error('Choose a .winds-notes notebook or a compatible JSON backup');
   }
