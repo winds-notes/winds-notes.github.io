@@ -66,7 +66,9 @@
     }
     if(item.type==='sticker'){
       check(typeof item.emoji==='string' && item.emoji.length>0 && item.emoji.length<=24,'Invalid sticker');
-      return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78))),...rotationFields(item)};
+      if(item.artwork!=null)check(typeof item.artwork==='string'&&/^[a-z0-9-]{1,48}$/.test(item.artwork),'Invalid sticker artwork');
+      return {...base,emoji:item.emoji,...(item.artwork?{artwork:item.artwork}:{}),
+        x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78))),...rotationFields(item)};
     }
     if(item.type==='shape'){
       check(creative?.isShapeKind(item.kind)||SHAPES.has(item.kind),'Invalid shape type');

@@ -247,6 +247,7 @@
     ctx.font=`${size}px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif`;
   }
   function drawSticker(ctx,item){
+    if(item.artwork&&globalThis.WindsSvgStickers?.draw(ctx,item.artwork,item.x,item.y,item.size||78))return;
     setStickerFont(ctx,item.size||78);
     ctx.fillText(item.emoji,item.x,item.y);
   }
@@ -254,6 +255,7 @@
   let stickerMeasureContext;
   function stickerSelectionBounds(item){
     const bounds=objectRect(item);
+    if(item.artwork&&globalThis.WindsSvgStickers?.has(item.artwork))return bounds;
     if(!stickerFrames.has(item.emoji)){
       if(stickerMeasureContext===undefined){
         stickerMeasureContext=typeof document==='undefined'?null:document.createElement('canvas').getContext('2d');

@@ -237,8 +237,6 @@ html[data-theme="dark"] .startup-recovery{background:#1c1c1f}
 html[data-theme="dark"] .startup-recovery p{color:#bdbdc3}
 html[data-theme="dark"] .sticker-collections button{background:#1c1c24;color:#bdbec4}
 html[data-theme="dark"] .sticker-collections button[aria-pressed="true"]{border-color:#2f2a58;background:#1b182e}
-html[data-theme="dark"] .sticker-collections button span{background:#24242a}
-html[data-theme="dark"] .sticker-collections button[aria-pressed="true"] span{background:#1f1b35}
 html[data-theme="dark"] .sticker-count{color:#b7b8be}
 html[data-theme="dark"] .editor-header .emoji-menu .emoji-cell:hover,html[data-theme="dark"] .editor-header .emoji-menu .emoji-cell:focus-visible{background:#19172d}
 html[data-theme="dark"] .boundary-fill-action p{color:#b8b9be}

@@ -512,15 +512,15 @@
 
 /* Education add-on stays inside the existing sticker picker. */
 .editor-header .emoji-menu{width:360px;max-height:calc(100dvh - 95px);overflow-y:auto;overscroll-behavior:contain}
-.sticker-collections{display:flex;gap:5px;padding:2px 0 11px}
-.sticker-collections button{flex:1;display:flex;justify-content:center;align-items:center;gap:5px;min-height:36px;padding:7px 6px;border:1px solid var(--border);border-radius:9px;background:#f8f8fc;color:#62667e;font-size:11px;font-weight:700;white-space:nowrap}
+.sticker-collections{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px;padding:2px 0 11px}
+.sticker-collections button{grid-column:span 3;min-width:0;display:flex;justify-content:center;align-items:center;min-height:36px;padding:7px 3px;border:1px solid var(--border);border-radius:9px;background:#f8f8fc;color:#62667e;font-size:11px;font-weight:700}
+.sticker-collections button.sticker-subject{grid-column:span 4}
 .sticker-collections button[aria-pressed="true"]{border-color:#c8c1ff;background:#eeebff;color:var(--purple-dark)}
-.sticker-collections button span{padding:2px 4px;border-radius:5px;background:#e9eaf2;font-size:10px;font-variant-numeric:tabular-nums}
-.sticker-collections button[aria-pressed="true"] span{background:#ded8ff}
 .sticker-count{margin:9px 2px 0;color:#74788f;font-size:11px;line-height:1.4}
 /* Keep generic menu-button typography from shrinking the sticker artwork. */
 .editor-header .emoji-menu .emoji-cell{display:grid;place-items:center;min-width:0;height:44px;padding:0;background:transparent;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;font-size:28px;font-weight:400;line-height:1}
 .editor-header .emoji-menu .emoji-cell:hover,.editor-header .emoji-menu .emoji-cell:focus-visible{background:#eeedff}
+.editor-header .emoji-menu .illustrated-sticker svg{width:37px;height:37px;display:block}
 
 .boundary-fill-action{padding:12px 0 2px;margin-bottom:0}
 .editor-header .fill-menu .boundary-fill-action button{justify-content:center;background:var(--purple);color:white;min-height:40px;text-align:center}

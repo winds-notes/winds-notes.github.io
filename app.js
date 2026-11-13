@@ -64,6 +64,16 @@
     ['🗣️','Speaking practice','language speech presentation debate'],['🏅','Achievement medal','award success exam reward']
   ];
   const ALL_STICKERS=[...EMOJI_STICKERS,...EDUCATION_STICKERS];
+  const SVG_STICKERS=window.WindsSvgStickers;
+  const ILLUSTRATED_STICKERS=(SVG_STICKERS?.catalog||[]).map(({id,name,keywords,emoji,subject})=>[emoji,name,keywords,id,subject]);
+  const STICKER_SUBJECTS=[['science','Science'],['art','Art'],['engineering','Engineering']];
+  const STICKER_COLLECTIONS=[
+    ['all','All',[...ILLUSTRATED_STICKERS,...ALL_STICKERS]],
+    ['svg','Illustrated',ILLUSTRATED_STICKERS],
+    ['everyday','Everyday',EMOJI_STICKERS],
+    ['education','Education',EDUCATION_STICKERS],
+    ...STICKER_SUBJECTS.map(([id,label])=>[id,label,ILLUSTRATED_STICKERS.filter(sticker=>sticker[4]===id)])
+  ].filter(([, , stickers])=>stickers.length>0);
   let stickerCollection='all';
   const ICONS = {
     plus:'<path d="M12 5v14M5 12h14"/>',
@@ -226,7 +236,7 @@
     $('shapeFillSwatches').innerHTML=['#b9adff','#f6b4c4','#f8db8e','#a2e8d1','#a7d6fa','#f7f7f7','#2b2d4c','#f3a75f'].map(c=>`<button class="fill-swatch" type="button" data-fill-color="${c}" title="${c}" aria-label="Use fill color ${c}" style="--fill-color:${c}"></button>`).join('');
     $('colorPalette').innerHTML = COLORS.map((c,i)=>`<button class="color-button ${i===0?'selected':''}" data-color="${c}" title="Ink ${i+1}" aria-label="Choose ink color ${i+1}"><span style="background:${c}"></span></button>`).join('');
     $('extendedColors').innerHTML = MORE_COLORS.map(c=>`<button class="extended-swatch" data-more-color="${c}" aria-label="Choose color ${c}" title="${c}" style="--swatch:${c}"></button>`).join('');
-    renderEmojiGrid('');
+    ensureStickerCollections();
     $('coverChoices').innerHTML = COVER_COLORS.map((c,i)=>`<button class="cover-choice cover-${c} ${i===0?'active':''}" data-cover="${c}" aria-label="${c} cover" title="${c} cover"></button>`).join('');
   }
   // v2 stores notebook metadata and individual pages separately. A stroke saves only
@@ -1098,10 +1108,10 @@
     if(!collections.children.length){
       collections.className='sticker-collections';collections.setAttribute('role','group');
       collections.setAttribute('aria-label','Sticker collections');
-      for(const [id,label,count] of [['all','All',ALL_STICKERS.length],['everyday','Everyday',EMOJI_STICKERS.length],['education','Education',EDUCATION_STICKERS.length]]){
+      for(const [id,label] of STICKER_COLLECTIONS){
         const button=document.createElement('button');button.type='button';button.dataset.stickerCollection=id;
-        button.append(document.createTextNode(label+' '));
-        const badge=document.createElement('span');badge.textContent=count;button.append(badge);collections.append(button);
+        button.classList.toggle('sticker-subject',STICKER_SUBJECTS.some(([subject])=>subject===id));
+        button.textContent=label;collections.append(button);
       }
     }
     if(!$('stickerCount')){
@@ -1111,22 +1121,32 @@
   }
   function renderEmojiGrid(query){
     ensureStickerCollections();
-    const q=String(query||'').trim().toLowerCase();
-    const source=stickerCollection==='education'?EDUCATION_STICKERS:stickerCollection==='everyday'?EMOJI_STICKERS:ALL_STICKERS;
-    const chosen=source.filter(([emoji,name,keywords=''])=>`${name} ${keywords}`.toLowerCase().includes(q)||emoji.includes(q));
+    const words=String(query||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const source=STICKER_COLLECTIONS.find(([id])=>id===stickerCollection)[2];
+    const chosen=source.filter(([emoji,name,keywords=''])=>{
+      const text=`${name} ${keywords} ${emoji}`.toLowerCase();
+      return words.every(word=>text.includes(word));
+    });
     $('stickerCollections').querySelectorAll('button').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.stickerCollection===stickerCollection)));
-    $('stickerCount').textContent=`${chosen.length} sticker${chosen.length===1?'':'s'}${stickerCollection==='education'?' · Education collection':''}`;
-    $('emojiGrid').innerHTML=chosen.map(([emoji,name])=>`<button type="button" class="emoji-cell" data-emoji="${safe(emoji)}" title="${safe(name)}" aria-label="Insert ${safe(name)}">${emoji}</button>`).join('')||'<p class="emoji-empty">No stickers found. Try another search or collection.</p>';
+    $('stickerCount').textContent=`${chosen.length} sticker${chosen.length===1?'':'s'}`;
+    $('emojiGrid').innerHTML=chosen.map(([emoji,name,,artwork])=>{
+      const label=safe(name);
+      return `<button type="button" class="emoji-cell${artwork?' illustrated-sticker':''}" data-sticker="${safe(artwork||emoji)}" title="${label}" aria-label="Insert ${label}">${artwork?SVG_STICKERS.markup(artwork):safe(emoji)}</button>`;
+    }).join('')||'<p class="emoji-empty">No stickers found. Try another search or collection.</p>';
     $('emojiGrid').scrollTop=0;
   }
-  function addEmoji(emoji){
-    if(!page() || !ALL_STICKERS.some(e=>e[0]===emoji))return;
+  function addSticker(key){
+    if(!page()||state.pendingInteractions)return;
+    const illustrated=SVG_STICKERS?.catalog.find(sticker=>sticker.id===key);
+    const emoji=illustrated?.emoji||ALL_STICKERS.find(([emoji])=>emoji===key)?.[0];
+    if(!emoji)return;
     finishActiveStroke();commitText();composeInkNow();
     const scroller=$('pageScroller'),rect=$('pageCanvas').getBoundingClientRect();
     const viewport=scroller.getBoundingClientRect();
     const x=Math.max(56,Math.min(W-120,(viewport.left+viewport.width*.5-rect.left)/rect.width*W-44));
     const y=Math.max(58,Math.min(H-110,(viewport.top+viewport.height*.35-rect.top)/rect.height*H-44));
-    const item={id:uid(),type:'sticker',emoji,x,y,size:Number($('stickerSize').value)||78};
+    const item={id:uid(),type:'sticker',emoji,x,y,size:Number($('stickerSize').value)||78,
+      ...(illustrated?{artwork:illustrated.id}:{})};
     rememberAppend(item);page().items.push(item);
     setTool('select');state.selected=page().items.length-1;
     closeMenus();renderCanvas();renderThumbs();scheduleSave();toast('Sticker added · drag to move');
@@ -2732,11 +2752,11 @@
     $('emojiSearch').oninput=e=>renderEmojiGrid(e.target.value);
     $('stickerCollections').onclick=e=>{
       const button=e.target.closest('[data-sticker-collection]');
-      if(!button||!['all','everyday','education'].includes(button.dataset.stickerCollection))return;
+      if(!button||!STICKER_COLLECTIONS.some(([id])=>id===button.dataset.stickerCollection))return;
       stickerCollection=button.dataset.stickerCollection;renderEmojiGrid($('emojiSearch').value);
     };
     $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};
-    $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-emoji]');if(btn)addEmoji(btn.dataset.emoji);};
+    $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-sticker]');if(btn)addSticker(btn.dataset.sticker);};
     $('extendedColors').onclick=e=>{const btn=e.target.closest('[data-more-color]');if(btn){setColor(btn.dataset.moreColor);closeMenus();}};
     $('customColorInput').oninput=e=>setColor(e.target.value);
     $('customColorInput').onchange=()=>closeMenus();
