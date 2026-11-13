@@ -774,7 +774,7 @@
    * current shape and its ⌄ opens the shape picker. The last choice is kept. */
   const SHAPE_PREFERENCE_KEY='winds-notes-shape-v1';
   function buildShapePicker(){
-    $('shapeChoices').innerHTML=CREATIVE.SHAPE_GROUPS.map(({label,shapes})=>`
+    const choices=groups=>groups.map(({label,shapes})=>`
       <div class="shape-category" role="group" aria-label="${safe(label)}">
         <div class="shape-category-title" aria-hidden="true">${safe(label)}</div>
         <div class="shape-grid">${Object.entries(shapes).map(([kind,name])=>`
@@ -782,6 +782,8 @@
             <span class="shape-option-icon" aria-hidden="true">${icon(kind)}</span><span>${name}</span>
           </button>`).join('')}</div>
       </div>`).join('');
+    $('shapeChoices').innerHTML=choices(CREATIVE.SHAPE_GROUPS);
+    $('mathShapeChoices').innerHTML=choices(CREATIVE.MATH_SHAPE_GROUPS);
   }
   function syncShapeTrigger(kind){
     const trigger=$('shapeToolBtn');if(!trigger)return;
@@ -791,7 +793,7 @@
     }
     const name=CREATIVE.SHAPE_NAMES[kind];
     trigger.setAttribute('aria-label',`Shapes · ${name}`);trigger.title=`Shapes · ${name} (R)`;
-    document.querySelectorAll('#shapeMenu [data-shape]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.shape===kind)));
+    document.querySelectorAll('.shape-menu [data-shape]').forEach(button=>button.setAttribute('aria-checked',String(button.dataset.shape===kind)));
   }
   function chooseShape(kind){
     if(!CREATIVE.isShapeKind(kind))return;
@@ -963,7 +965,7 @@
     const fillable=CREATIVE.isFillableShape(item.kind);
     const fill=fillable&&state.shapeFillEnabled?state.shapeFillColor:null;
     const options={fillColor:fill,fillOpacity:state.shapeFillOpacity,
-      color:state.shapeOutlineColor,size:state.shapeOutlineSize,strokeStyle:state.shapeOutlineStyle};
+      color:state.shapeOutlineColor,size:state.shapeOutlineSize,strokeStyle:CREATIVE.shapeStrokeStyle(item.kind,state.shapeOutlineStyle)};
     if(Object.entries(options).every(([key,value])=>(item[key]??(key==='strokeStyle'?'solid':null))===value))return true;
     remember();Object.assign(item,options);
     renderCanvas();scheduleSave();renderThumbs();return true;
@@ -976,7 +978,8 @@
     $('shapeOutlineColor').value=state.shapeOutlineColor;
     $('shapeOutlineSize').value=String(state.shapeOutlineSize);
     $('shapeOutlineSizeLabel').textContent=String(state.shapeOutlineSize);
-    $('shapeOutlineStyle').value=state.shapeOutlineStyle;
+    const shape=page()?.items[state.selected];
+    $('shapeOutlineStyle').value=CREATIVE.shapeStrokeStyle(shape?.type==='shape'?shape.kind:state.tool,state.shapeOutlineStyle);
     $('shapeFillBtn').classList.toggle('has-fill',state.shapeFillEnabled||Boolean(boundaryFillSession));
     $('shapeFillBtn').style.setProperty('--active-fill',state.shapeFillEnabled||boundaryFillSession?state.shapeFillColor:'transparent');
     if($('activeFillColor'))$('activeFillColor').value=state.shapeFillColor;
@@ -997,12 +1000,14 @@
   function showFillMenu(e){
     e.stopPropagation();
     const item=page()?.items[state.selected];
+    const kind=item?.type==='shape'?item.kind:state.tool;
     if(item?.type==='shape'){
       setFillOptions({enabled:!!item.fillColor,color:item.fillColor||state.shapeFillColor,
         opacity:item.fillOpacity??1,outlineColor:item.color||state.shapeOutlineColor,
         outlineSize:item.size||state.shapeOutlineSize,
         outlineStyle:item.strokeStyle||'solid'});
     }
+    $('shapeOutlineStyle').querySelector('option[value="none"]').disabled=CREATIVE.isMathShape(kind);
     toggleMenu('fillSettingsBtn','fillMenu');
   }
   function setArtistGrade(grade){
@@ -1440,11 +1445,12 @@
     if(!resizable(item))return null;
     p=CREATIVE.objectPoint(item,p,true);
     const positions=cornerPositions(selectionBounds(item));
-    const tolerance=handleSize()*2.6;
+    let distance=handleSize()*2.6,nearest=null;
     for(const [corner,[x,y]] of Object.entries(positions)){
-      if(Math.hypot(p.x-x,p.y-y)<tolerance)return corner;
+      const current=Math.hypot(p.x-x,p.y-y);
+      if(current<distance){distance=current;nearest=corner;}
     }
-    return null;
+    return nearest;
   }
   function selectedDisplayItem(){
     const item=page()?.items[state.selected],gesture=state.selectionTransform;
@@ -1454,17 +1460,21 @@
     const item=selectedDisplayItem(),group=activeGroup();
     const show=Boolean(!imageCropSession&&item&&['select','area'].includes(state.tool));
     const precision=show&&!group&&resizable(item);
+    const math=precision&&item.type==='shape'&&CREATIVE.isMathShape(item.kind);
     $('selectionActions').hidden=!show;
     $('clearAreaSelection').hidden=!show||!group;
     $('removeSelected').hidden=!show;
     $('selectionPrecision').hidden=!precision;
+    $('selectionHeightRow').hidden=!math;
     $('rotationControls').hidden=!precision||!CREATIVE.rotatable(item);
     const selected=show&&!group&&state.tool==='select'?item:null;
     globalThis.WindsGraph?.syncSelection(selected);
     globalThis.WindsVector?.syncSelection(selected);
     positionRotationHandle(selected);
     if(!precision)return;
-    $('selectedWidth').value=String(Math.round(itemBounds(item).w));
+    const bounds=itemBounds(item);
+    $('selectedWidth').value=String(Math.round(bounds.w));
+    if(math)$('selectedHeight').value=String(Math.round(bounds.h));
     $('selectedRotation').value=String(Math.round(CREATIVE.objectRotation(item)*10)/10);
   }
   function positionObjectOverlay(element,bounds,angle){
@@ -1770,8 +1780,15 @@
   }
   function resizeSelectedToWidth(width){
     const item=page()?.items[state.selected];if(!resizable(item))return;
-    const bounds=itemBounds(item);if(Math.abs(width-bounds.w)<.5)return;
-    remember();resizeObject(item,width,bounds.h*width/Math.max(1,bounds.w));
+    const bounds=itemBounds(item);
+    const height=item.type==='shape'&&CREATIVE.isMathShape(item.kind)?bounds.h:bounds.h*width/Math.max(1,bounds.w);
+    resizeSelectedDimensions(item,width,height,bounds);
+  }
+  function resizeSelectedDimensions(item,width,height,bounds){
+    if(!Number.isFinite(width)||!Number.isFinite(height)||state.drag||state.pendingInteractions){updateSelectionActions();return;}
+    const next={...item};resizeObject(next,width,height,'se',bounds);
+    if(['x','y','w','h','size'].every(key=>item[key]===next[key])){updateSelectionActions();return;}
+    remember();Object.assign(item,next);
     renderCanvas();renderThumbs();scheduleSave();
   }
   function resizeDragPreview(drag,p){
@@ -2010,6 +2027,8 @@
     if(item.kind==='square' || item.kind==='circle'){
       const side=Math.max(Math.abs(dx),Math.abs(dy));
       item.w=side*(dx<0?-1:1);item.h=side*(dy<0?-1:1);
+    }else if(CREATIVE.isMathShape(item.kind)&&Math.abs(dx)+Math.abs(dy)>3){
+      item.w=CREATIVE.mathDragSize(dx);item.h=CREATIVE.mathDragSize(dy);
     }else{item.w=dx;item.h=dy;}
   }
   function pointerMove(ev){
@@ -2364,7 +2383,7 @@
     menu.scrollTop=0;
     positionMenu(trigger,menu);
     const first=menu.querySelector('[aria-checked="true"]')||menu.querySelector('button:not(:disabled):not([hidden]), a[href]:not([hidden])');
-    first?.focus({preventScroll:menu.id!=='shapeMenu'});
+    first?.focus({preventScroll:!menu.classList.contains('shape-menu')});
     return true;
   }
   function positionMenu(trigger,menu){
@@ -2514,7 +2533,12 @@
     const widthRow=document.createElement('div');
     widthRow.className='selection-width-row';
     widthRow.append($('selectedShrink'),$('selectedWidth').closest('label'),$('selectedGrow'));
-    precision.append(summary,widthRow,$('rotationControls'));
+    const heightRow=document.createElement('div');
+    heightRow.id='selectionHeightRow';
+    heightRow.className='selection-width-row';
+    heightRow.hidden=true;
+    heightRow.innerHTML='<label>Height <input id="selectedHeight" type="number" min="16" max="2200" step="1" aria-label="Selected object height"> <span>px</span></label>';
+    precision.append(summary,widthRow,heightRow,$('rotationControls'));
 
     const clear=$('clearAreaSelection'),remove=$('removeSelected');
     clear.textContent='Clear selection';
@@ -2584,7 +2608,10 @@
     $('shapeFillBtn').onclick=event=>{event.stopPropagation();armBoundaryFill();};
     $('fillSettingsBtn').onclick=showFillMenu;
     $('shapeMenuBtn').onclick=()=>toggleMenu('shapeMenuBtn','shapeMenu');
-    $('shapeChoices').onclick=e=>{const option=e.target.closest('[data-shape]');if(option)chooseShape(option.dataset.shape);};
+    const pickShape=e=>{const option=e.target.closest('[data-shape]');if(option)chooseShape(option.dataset.shape);};
+    $('shapeChoices').onclick=$('mathShapeChoices').onclick=pickShape;
+    $('openMathShapes').onclick=e=>{e.stopPropagation();toggleMenu('shapeMenuBtn','mathShapeMenu');};
+    $('backToShapes').onclick=e=>{e.stopPropagation();toggleMenu('shapeMenuBtn','shapeMenu');};
     $('openVectorFromShapes').onclick=()=>window.WindsVector.open();
     $('activeFillColor').oninput=event=>setFillOptions({color:event.target.value});
     $('shapeFillEnabled').onchange=e=>{setFillOptions({enabled:e.target.checked});applyFillToSelected();};
@@ -2670,7 +2697,13 @@
     $('zoomMenu').onclick=e=>{const option=e.target.closest('[data-zoom]');if(!option)return;setZoom(Number(option.dataset.zoom));closeMenus();};
     $('selectedShrink').onclick=()=>{const item=page()?.items[state.selected];if(item)resizeSelectedToWidth(itemBounds(item).w*.85);};
     $('selectedGrow').onclick=()=>{const item=page()?.items[state.selected];if(item)resizeSelectedToWidth(itemBounds(item).w*1.15);};
-    $('selectedWidth').onchange=e=>resizeSelectedToWidth(Number(e.target.value));
+    $('selectedWidth').onchange=e=>resizeSelectedToWidth(e.target.valueAsNumber);
+    $('selectedHeight').onchange=e=>{
+      const item=editableSelection();
+      if(item?.type!=='shape'||!CREATIVE.isMathShape(item.kind))return;
+      const bounds=itemBounds(item);
+      resizeSelectedDimensions(item,bounds.w,e.target.valueAsNumber,bounds);
+    };
     $('selectedRotation').onchange=e=>rotateSelectedTo(e.target.valueAsNumber);
     $('rotateSelectedLeft').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])-90);
     $('rotateSelectedRight').onclick=()=>rotateSelectedTo(CREATIVE.objectRotation(page()?.items[state.selected])+90);

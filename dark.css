@@ -258,6 +258,9 @@ html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button{color:#c5c6cd;ba
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button:hover{background:#1a172c}
 html[data-theme="dark"] .pop-menu.shape-menu .shape-grid button[aria-checked="true"]{background:#1b182e;border-color:#302a52}
 html[data-theme="dark"] .shape-menu-hint{color:#9d9fb4}
+html[data-theme="dark"] .pop-menu.shape-menu .math-shapes-entry{background:#1b172c;color:#b2afca}
+html[data-theme="dark"] .pop-menu.shape-menu .math-shapes-entry:hover{background:#1e1930}
+html[data-theme="dark"] .math-shapes-hint{color:#bbbbc1}
 html[data-theme="dark"] .editor-header .shape-tool-trigger{color:#bfc1c7}
 html[data-theme="dark"] .theme-button{border:1px solid #353641;background:#1c1c1f;color:#c0c0c9}
 html[data-theme="dark"] .theme-button[aria-expanded="true"]{background:#1a172d}

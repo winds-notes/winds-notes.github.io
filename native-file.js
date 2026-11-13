@@ -5,6 +5,7 @@
 (function(global){
   'use strict';
   const FORMAT = 'winds-notes', VERSION = 1;
+  const creative=global.WindsCreative||(typeof module!=='undefined'&&module.exports?require('./creative-tools.js'):null);
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const COVERS = new Set(['purple','blue','peach','green','lilac','yellow']);
   const PAPERS = new Set(['ruled','grid','dots','blank']);
@@ -68,8 +69,11 @@
       return {...base,emoji:item.emoji,x:num(item.x),y:num(item.y),size:Math.max(16,Math.min(1600,num(item.size,78))),...rotationFields(item)};
     }
     if(item.type==='shape'){
-      check(SHAPES.has(item.kind),'Invalid shape type');
-      return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:!['line','arrow'].includes(item.kind) && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1))),strokeStyle:['solid','dashed','dotted','none'].includes(item.strokeStyle)?item.strokeStyle:'solid',...rotationFields(item)};
+      check(creative?.isShapeKind(item.kind)||SHAPES.has(item.kind),'Invalid shape type');
+      const fillable=creative?.isFillableShape(item.kind)??!['line','arrow'].includes(item.kind);
+      const strokeStyle=creative?.shapeStrokeStyle(item.kind,item.strokeStyle)??
+        (['solid','dashed','dotted','none'].includes(item.strokeStyle)?item.strokeStyle:'solid');
+      return {...base,kind:item.kind,x:num(item.x),y:num(item.y),w:num(item.w),h:num(item.h),color:color(item.color),size:Math.max(.5,Math.min(64,num(item.size,3))),fillColor:fillable && /^#[0-9a-fA-F]{6}$/.test(item.fillColor||'')?item.fillColor:null,fillOpacity:Math.max(0,Math.min(1,num(item.fillOpacity,1))),strokeStyle,...rotationFields(item)};
     }
     if(item.type==='graph'){
       const graphs=global.WindsGraph||(typeof module!=='undefined'&&module.exports?require('./graph-tools.js'):null);

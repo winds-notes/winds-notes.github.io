@@ -4,7 +4,7 @@
   const MAX_PIXELS=4194304;
   function create(adapter){
     const surfaces=[];let cache=null;
-    function release(){cache=null;for(const surface of surfaces)surface.width=surface.height=1;}
+    function release(){cache=null;surfaces.forEach(surface=>{surface.width=surface.height=1;});}
     function surface(index,width,height,scale){
       const canvas=surfaces[index]||(surfaces[index]=adapter.makeCanvas());
       const ratio=Math.min(scale,4096/width,4096/height,Math.sqrt(MAX_PIXELS/(width*height)));

@@ -598,6 +598,10 @@
 .pop-menu.shape-menu .shape-grid button[aria-checked="true"]{background:#eeebff;border-color:#d6cffd;color:var(--purple)}
 .shape-option-icon svg{width:24px;height:24px}
 .shape-menu-hint{margin:9px 4px 2px;font-size:10px;line-height:1.4;color:#9a9cb2}
+.pop-menu.shape-menu .math-shapes-entry{margin-bottom:6px;background:#f3f0ff;color:#5144b6}
+.pop-menu.shape-menu .math-shapes-entry:hover{background:#ebe5ff}
+.math-shapes-entry span{min-width:32px;text-align:center;font-size:15px}
+.math-shapes-hint{margin:10px 4px 12px;color:#6e6b86;font-size:11px}
 
 /* ===== v71 · Shapes label, appearance, library sort, continue, shortcuts ===== */
 /* "▢ Shapes ⌄" mirrors "◩ Fill ⌄". */

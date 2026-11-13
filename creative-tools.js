@@ -113,15 +113,84 @@
     ...Object.fromEntries(Object.entries(extraArtistMaterials).map(([name,{group,description,detail}])=>[name,Object.freeze({group,description,detail})]))
   });
   const STROKE_STYLES = new Set(['solid','dashed','dotted','none']);
+  // Open paths in unit coordinates. Six numbers describe a cubic segment.
+  const brace=[[1,0],[.12,0,.43,.21,.43,.33],[.43,.43,.3,.5,0,.5],[.3,.5,.43,.57,.43,.67],[.43,.79,.12,1,1,1]];
+  const bracket=[[1,0],[0,0],[0,1],[1,1]];
+  const paren=[[1,0],[-1/3,.25,-1/3,.75,1,1]];
+  const angle=[[1,0],[0,.5],[1,1]];
+  const floor=[[0,0],[0,1],[1,1]];
+  const ceiling=[[1,0],[0,0],[0,1]];
+  const horizontal=y=>[[0,y],[1,y]];
+  const vertical=x=>[[x,0],[x,1]];
+  const equals=[horizontal(.25),horizontal(.75)];
+  const integral=[[1,0],[.15,-.03,.82,.55,.35,.82],[.24,.96,.15,1,0,1]];
+  const wave=y=>[[0,y],[.35,y-.45,.65,y+.45,1,y]];
+  const union=[[0,0],[0,.55],[0,1.15,1,1.15,1,.55],[1,0]];
+  const elementOf=[[1,0],[.46,0],[0,0,0,.32,0,.5],[0,.68,0,1,.46,1],[1,1]];
+  const mirror=(path,axis=0)=>path.map(entry=>entry.map((value,index)=>index%2===axis?1-value:value));
+  const dot=(x,y)=>[[x,y],[x,y]];
+  const oval=[[.5,0],[.78,0,1,.22,1,.5],[1,.78,.78,1,.5,1],[.22,1,0,.78,0,.5],[0,.22,.22,0,.5,0]];
+  // The same paths drive the picker previews, notebook ink and hit tests.
+  const MATH_GROUPS=[
+    {label:'Brackets & grouping',symbols:{
+      mathLeftBrace:['Left brace',.52,brace],mathRightBrace:['Right brace',.52,mirror(brace)],
+      mathLeftBracket:['Left bracket',.52,bracket],mathRightBracket:['Right bracket',.52,mirror(bracket)],
+      mathLeftParen:['Left parenthesis',.5,paren],mathRightParen:['Right parenthesis',.5,mirror(paren)],
+      mathLeftAngle:['Left angle bracket',.54,angle],mathRightAngle:['Right angle bracket',.54,mirror(angle)],
+      mathLeftFloor:['Left floor',.52,floor],mathRightFloor:['Right floor',.52,mirror(floor)],
+      mathLeftCeiling:['Left ceiling',.52,ceiling],mathRightCeiling:['Right ceiling',.52,mirror(ceiling)],
+      mathAbsolute:['Absolute value bar',1,vertical(.5)],mathNorm:['Norm bars',.44,vertical(0),vertical(1)]
+    }},
+    {label:'Operations & comparisons',symbols:{
+      mathPlus:['Plus',1,horizontal(.5),vertical(.5)],mathMinus:['Minus',1,horizontal(.5)],
+      mathTimes:['Multiply',1,[[0,0],[1,1]],[[1,0],[0,1]]],
+      mathDivide:['Divide',1,horizontal(.5),dot(.5,.12),dot(.5,.88)],
+      mathPlusMinus:['Plus or minus',1,horizontal(.3),[[.5,0],[.5,.6]],horizontal(1)],
+      mathFraction:['Fraction bar',1,horizontal(.5)],mathEquals:['Equals',1,...equals],
+      mathNotEqual:['Not equal',1,...equals,[[.76,0],[.24,1]]],
+      mathApprox:['Approximately equal',1,wave(.25),wave(.75)],
+      mathIdentical:['Identical to',1,horizontal(.14),horizontal(.5),horizontal(.86)],
+      mathLess:['Less than',1,angle],mathGreater:['Greater than',1,mirror(angle)],
+      mathLessEqual:['Less than or equal',1,[[1,0],[0,.34],[1,.68]],horizontal(1)],
+      mathGreaterEqual:['Greater than or equal',1,[[0,0],[1,.34],[0,.68]],horizontal(1)],
+      mathRoot:['Square root',1,[[0,.62],[.14,.55],[.28,1],[.48,0],[1,0]]]
+    }},
+    {label:'Calculus & sets',symbols:{
+      mathSum:['Summation',.9,[[1,0],[0,0],[.55,.5],[0,1],[1,1]]],
+      mathProduct:['Product',.9,horizontal(0),vertical(.18),vertical(.82)],
+      mathIntegral:['Integral',.52,integral],
+      mathDoubleIntegral:['Double integral',.7,integral.map(entry=>entry.map((value,index)=>index%2?value:value*.6)),
+        integral.map(entry=>entry.map((value,index)=>index%2?value:.4+value*.6))],
+      mathInfinity:['Infinity',1,[[.5,.5],[.32,.05,.24,.08,.17,.08],[0,.08,0,.35,0,.5],[0,.65,0,.92,.17,.92],
+        [.32,.92,.4,.72,.5,.5],[.68,.05,.76,.08,.83,.08],[1,.08,1,.35,1,.5],[1,.65,1,.92,.83,.92],[.68,.92,.6,.72,.5,.5]]],
+      mathPi:['Pi',1,[[0,.23],[.04,.12,.12,.12,.23,.12],[1,.12]],[[.36,.12],[.36,.48,.31,.74,.19,.98]],
+        [[.74,.12],[.68,.34,.62,.65,.65,.86],[.67,1,.84,1,.95,.86]]],
+      mathDelta:['Delta',.94,[[0,1],[.5,0],[1,1],[0,1]]],
+      mathUnion:['Union',.94,union],mathIntersection:['Intersection',.94,mirror(union,1)],
+      mathElement:['Element of',1,elementOf,horizontal(.5)],
+      mathNotElement:['Not an element of',1,elementOf,horizontal(.5),[[.77,0],[.23,1]]],
+      mathSubset:['Subset of',1,elementOf],mathSuperset:['Superset of',1,mirror(elementOf)],
+      mathEmptySet:['Empty set',.88,oval,[[0,1],[1,0]]]
+    }}
+  ];
+  const MATH_SYMBOLS=new Map(MATH_GROUPS.flatMap(({symbols})=>Object.entries(symbols)));
+  const isMathShape=kind=>MATH_SYMBOLS.has(kind);
+  function mathDragSize(delta){
+    return Math.max(16,Math.abs(delta))*(delta<0?-1:1);
+  }
+  const MATH_SHAPE_GROUPS=Object.freeze(MATH_GROUPS.map(({label,symbols})=>Object.freeze({
+    label,shapes:Object.freeze(Object.fromEntries(Object.entries(symbols).map(([kind,[name]])=>[kind,name])))
+  })));
   const SHAPE_GROUPS = Object.freeze([
     {label:'Basic',shapes:{rectangle:'Rectangle',roundedRectangle:'Rounded rectangle',square:'Square',ellipse:'Ellipse',circle:'Circle',semicircle:'Semicircle'}},
     {label:'Polygons',shapes:{triangle:'Triangle',rightTriangle:'Right triangle',diamond:'Diamond',trapezoid:'Trapezoid',parallelogram:'Parallelogram',pentagon:'Pentagon',hexagon:'Hexagon',octagon:'Octagon'}},
     {label:'Symbols',shapes:{star:'Star',heart:'Heart',cross:'Cross',speechBubble:'Speech bubble',chevron:'Chevron',shield:'Shield'}},
     {label:'Lines & arrows',shapes:{line:'Line',arrow:'Arrow'}}
   ].map(group=>Object.freeze({...group,shapes:Object.freeze(group.shapes)})));
-  const SHAPE_NAMES = Object.freeze(Object.assign({},...SHAPE_GROUPS.map(group=>group.shapes)));
+  const SHAPE_NAMES = Object.freeze(Object.assign({},...[...SHAPE_GROUPS,...MATH_SHAPE_GROUPS].map(group=>group.shapes)));
   const isShapeKind = kind => Object.prototype.hasOwnProperty.call(SHAPE_NAMES,kind);
-  const isFillableShape = kind => isShapeKind(kind)&&kind!=='line'&&kind!=='arrow';
+  const isFillableShape = kind => isShapeKind(kind)&&kind!=='line'&&kind!=='arrow'&&!isMathShape(kind);
+  const shapeStrokeStyle=(kind,style)=>STROKE_STYLES.has(style)&&!(isMathShape(kind)&&style==='none')?style:'solid';
   // Each outline uses unit coordinates. A six-value entry is a cubic curve.
   const SHAPE_OUTLINES = new Map(Object.entries({
     roundedRectangle:[[.16,0],[.84,0],[.93,0,1,.07,1,.16],[1,.84],[1,.93,.93,1,.84,1],[.16,1],[.07,1,0,.93,0,.84],[0,.16],[0,.07,.07,0,.16,0]],
@@ -138,12 +207,16 @@
     chevron:[[0,0],[.57,0],[1,.5],[.57,1],[0,1],[.43,.5]],
     shield:[[0,.13],[.5,0],[1,.13],[1,.49],[1,.75,.75,.9,.5,1],[.25,.9,0,.75,0,.49]]
   }));
-  const SHAPE_ICONS = new Map([...SHAPE_OUTLINES].map(([kind,outline])=>{
-    const path=outline.map((entry,i)=>`${i===0?'M':entry.length===6?'C':'L'}${entry.map(n=>+(3+n*18).toFixed(2)).join(' ')}`).join(' ');
-    return [kind,`<path d="${path}Z"/>`];
-  }));
+  function outlineIcon(outline,width=18){
+    return outline.map((entry,i)=>`${i===0?'M':entry.length===6?'C':'L'}${entry.map((n,j)=>
+      +(j%2?3+n*18:12+(n-.5)*width).toFixed(2)).join(' ')}`).join(' ');
+  }
+  const SHAPE_ICONS = new Map([
+    ...[...SHAPE_OUTLINES].map(([kind,outline])=>[kind,`<path d="${outlineIcon(outline)}Z"/>`]),
+    ...[...MATH_SYMBOLS].map(([kind,[,aspect,...paths]])=>[kind,`<path d="${paths.map(path=>outlineIcon(path,18*aspect)).join(' ')}"/>`])
+  ]);
   const shapeIcon = kind => SHAPE_ICONS.get(kind);
-  const SHAPE_VERTICES = new Map([...SHAPE_OUTLINES].map(([kind,outline])=>{
+  function outlineVertices(outline){
     // Sample curves once so hit testing follows the same outline as painting.
     const vertices=[outline[0]];
     for(const entry of outline.slice(1)){
@@ -154,8 +227,10 @@
         vertices.push([u*u*u*x+3*u*u*t*a+3*u*t*t*c+t*t*t*ex,u*u*u*y+3*u*u*t*b+3*u*t*t*d+t*t*t*ey]);
       }
     }
-    return [kind,vertices];
-  }));
+    return vertices;
+  }
+  const SHAPE_VERTICES = new Map([...SHAPE_OUTLINES].map(([kind,outline])=>[kind,outlineVertices(outline)]));
+  const MATH_VERTICES = new Map([...MATH_SYMBOLS].map(([kind,[,,...paths]])=>[kind,paths.map(outlineVertices)]));
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const midpoint = (a,b) => [(a[0]+b[0])*0.5, (a[1]+b[1])*0.5];
 
@@ -422,18 +497,24 @@
   function shapeBox({x,y,w,h}) {
     return {left:x+Math.min(0,w),top:y+Math.min(0,h),width:Math.abs(w),height:Math.abs(h)};
   }
+  function traceOutline(ctx,outline,{left,top,width,height}){
+    ctx.moveTo(left+outline[0][0]*width,top+outline[0][1]*height);
+    for(const [a,b,c,d,ex,ey] of outline.slice(1)){
+      if(c!==undefined)ctx.bezierCurveTo(left+a*width,top+b*height,left+c*width,top+d*height,left+ex*width,top+ey*height);
+      else ctx.lineTo(left+a*width,top+b*height);
+    }
+  }
   function shapePath(ctx, item) {
     const {x,y,w,h} = item;
+    const math=MATH_SYMBOLS.get(item.kind);
     const outline=SHAPE_OUTLINES.get(item.kind);
     ctx.beginPath();
-    if(outline){
-      const {left,top,width,height}=shapeBox(item);
-      ctx.moveTo(left+outline[0][0]*width,top+outline[0][1]*height);
-      for(let i=1;i<outline.length;i++){
-        const command=outline[i], [a,b,c,d,ex,ey]=command;
-        if(command.length===6)ctx.bezierCurveTo(left+a*width,top+b*height,left+c*width,top+d*height,left+ex*width,top+ey*height);
-        else ctx.lineTo(left+a*width,top+b*height);
-      }
+    if(math){
+      const box=shapeBox(item);
+      for(let i=2;i<math.length;i++)traceOutline(ctx,math[i],box);
+    }
+    else if(outline){
+      traceOutline(ctx,outline,shapeBox(item));
       ctx.closePath();
     }
     else if(item.kind==='rectangle' || item.kind==='square') ctx.rect(x,y,w,h);
@@ -463,9 +544,17 @@
   }
 
   function shapeHit(item,point,tolerance=8){
-    if(item.strokeStyle==='none'&&(!item.fillColor||item.fillOpacity===0))return false;
+    if(shapeStrokeStyle(item.kind,item.strokeStyle)==='none'&&(!item.fillColor||item.fillOpacity===0))return false;
     const {x,y,w,h}=item,px=point.x,py=point.y,reach=tolerance+(item.size||3)/2;
     const segment=(a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((px-a[0])*dx+(py-a[1])*dy)/(dx*dx+dy*dy||1)));return Math.hypot(px-a[0]-t*dx,py-a[1]-t*dy)<=reach;};
+    const math=MATH_VERTICES.get(item.kind);
+    if(math){
+      const {left,top,width,height}=shapeBox(item);
+      return math.some(path=>{
+        const vertices=path.map(([u,v])=>[left+u*width,top+v*height]);
+        return vertices.some((point,index)=>index>0&&segment(vertices[index-1],point));
+      });
+    }
     if(item.kind==='line'||item.kind==='arrow'){
       if(segment([x,y],[x+w,y+h]))return true;
       if(item.kind==='line')return false;
@@ -503,7 +592,7 @@
       ctx.globalAlpha=clamp(Number.isFinite(item.fillOpacity)?item.fillOpacity:1,0,1);
       ctx.fill();ctx.restore();
     }
-    const style=STROKE_STYLES.has(item.strokeStyle)?item.strokeStyle:'solid';
+    const style=shapeStrokeStyle(item.kind,item.strokeStyle);
     if(style!=='none'){
       if(style==='dashed')ctx.setLineDash([Math.max(5,ctx.lineWidth*3),Math.max(4,ctx.lineWidth*2)]);
       else if(style==='dotted')ctx.setLineDash([Math.max(1,ctx.lineWidth*.2),Math.max(4,ctx.lineWidth*1.8)]);
@@ -873,7 +962,7 @@
   }
   // Allocate the small reusable material masks before the first Pencil contact.
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
-  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, ARTIST_COLLECTIONS, STROKE_STYLES, SHAPE_GROUPS, SHAPE_NAMES, isShapeKind, isFillableShape, shapeIcon, drawShape, shapePath,shapeHit,
+  return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, ARTIST_COLLECTIONS, STROKE_STYLES, SHAPE_GROUPS, MATH_SHAPE_GROUPS, SHAPE_NAMES, isShapeKind, isMathShape, isFillableShape, shapeStrokeStyle, mathDragSize, shapeIcon, drawShape, shapePath,shapeHit,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
     erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,
