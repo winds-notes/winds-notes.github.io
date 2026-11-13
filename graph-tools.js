@@ -111,6 +111,9 @@
       .filter(tick=>tick<=max+step*1e-9);
   }
   function label(value){return String(+value.toPrecision(4));}
+  function curveWidth(item){
+    return item.size??Math.min(2.4,Math.min(12,Math.min(item.w,item.h)*.075)*.24);
+  }
   function draw(ctx,item){
     const {x,y,w,h,graph}=item;
     if(!graph||![x,y,w,h].every(Number.isFinite)||w<1||h<1)return;
@@ -142,7 +145,7 @@
     if(yMin<0&&yMax>0){ctx.moveTo(left,py(0));ctx.lineTo(right,py(0));}
     ctx.stroke();
     ctx.beginPath();ctx.rect(left,top,right-left,bottom-top);ctx.clip();ctx.beginPath();
-    ctx.strokeStyle=item.color||'#5f55dc';ctx.lineWidth=Math.min(2.4,font*.24);ctx.lineCap='round';ctx.lineJoin='round';
+    ctx.strokeStyle=item.color||'#5f55dc';ctx.lineWidth=curveWidth(item);ctx.lineCap='round';ctx.lineJoin='round';
     let previous=null;
     const current=parameter?.value??1;
     for(let i=0;i<=320;i++){
@@ -190,7 +193,7 @@
         $('graphParameterOutput').value=label(parameter.value);
       }
       ctx.scale(canvas.width/540,canvas.height/312);
-      draw(ctx,{graph,x:0,y:0,w:540,h:312,color:editor.color});
+      draw(ctx,{graph,x:0,y:0,w:540,h:312,color:editor.color,size:editor.item?.size});
       showError();
     }catch(error){showError(error.message);}
   }
@@ -292,7 +295,7 @@
     });
   }
   const isEditing=()=>Boolean(editor||adjustment);
-  const api=Object.freeze({DEFAULT,compile,validate,draw,init,open,cancel,syncSelection,isEditing});
+  const api=Object.freeze({DEFAULT,compile,validate,draw,curveWidth,init,open,cancel,syncSelection,isEditing});
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.WindsGraph=api;
 })(typeof window!=='undefined'?window:globalThis);

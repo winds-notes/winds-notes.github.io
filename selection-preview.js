@@ -38,7 +38,7 @@
       ctx.save();
       try{
         ctx.beginPath();ctx.rect(x,y,right-x,bottom-y);ctx.clip();patch(c.below);
-        if(resizing&&['shape','graph','vector'].includes(preview.type))adapter.draw(ctx,preview);
+        if(resizing&&['shape','graph','vector','stroke'].includes(preview.type))adapter.draw(ctx,preview);
         else{
           ctx.save();adapter.rotate(ctx,preview);
           if(resizing){const a=adapter.rect(c.original),b=adapter.rect(preview);ctx.translate(b.x,b.y);ctx.scale(b.w/Math.max(.001,a.w),b.h/Math.max(.001,a.h));ctx.translate(-a.x,-a.y);}

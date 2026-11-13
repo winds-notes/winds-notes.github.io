@@ -79,7 +79,8 @@
       const graphs=global.WindsGraph||(typeof module!=='undefined'&&module.exports?require('./graph-tools.js'):null);
       check(graphs,'Reload WiNDS Notes to open an editable graph.');
       return {...base,x:num(item.x),y:num(item.y),w:Math.max(16,Math.min(2200,num(item.w,540))),
-        h:Math.max(16,Math.min(2200,num(item.h,320))),color:color(item.color),graph:graphs.validate(item.graph)};
+        h:Math.max(16,Math.min(2200,num(item.h,320))),color:color(item.color),
+        ...(Number.isFinite(item.size)?{size:Math.max(.5,Math.min(32,item.size))}:{}),graph:graphs.validate(item.graph)};
     }
     if(item.type==='vector'){
       const vectors=global.WindsVector||(typeof module!=='undefined'&&module.exports?require('./vector-tools.js'):null);

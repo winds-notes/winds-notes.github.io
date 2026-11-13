@@ -59,8 +59,9 @@
 .editor-header .color-button{width:24px;height:26px;border-width:1.5px;padding:0}
 .editor-header .color-button span{width:16px;height:16px}
 .editor-header .size-control{min-width:89px;gap:6px;flex-shrink:0}
-.editor-header .size-control input{width:60px}
-.editor-header .size-control #sizeLabel{min-width:14px;text-align:center;color:#626b7b;font-weight:700}
+.editor-header .size-control input{width:60px;height:28px;touch-action:none}
+.editor-header .size-control .size-preview{width:19px;height:19px;transform:scale(.37)}
+.editor-header .size-control #sizeLabel{width:28px;flex-shrink:0;text-align:center;color:#626b7b;font-weight:700;font-variant-numeric:tabular-nums}
 .editor-header .pencil-toggle{font-size:10px;gap:5px;white-space:nowrap;flex-shrink:0;color:#70798b;padding:0 4px}
 .editor-header .pencil-toggle input{width:15px;height:15px}
 .editor-header .pencil-toggle>span:last-child{display:inline}

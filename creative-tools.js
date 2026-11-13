@@ -342,6 +342,11 @@
     return positionObjectRect(item,result);
   }
   // Object-relative masks retain editable source data and follow move/resize/rotation.
+  function reframeErasureMasks(masks,from,to){
+    const w=Math.max(1,from.w),h=Math.max(1,from.h),nw=Math.max(1,to.w),nh=Math.max(1,to.h);
+    return masks.map(mask=>({rx:mask.rx*w/nw,ry:mask.ry*h/nh,
+      points:mask.points.map(([u,v])=>[(from.x+u*w-to.x)/nw,(from.y+v*h-to.y)/nh])}));
+  }
   function erasurePath(points,radius,bounds,localPoint=p=>p){
     const w=Math.max(1,bounds.w),h=Math.max(1,bounds.h);
     return {rx:radius/w,ry:radius/h,points:points.map(point=>{const p=localPoint(point);return [(p.x-bounds.x)/w,(p.y-bounds.y)/h];})};
@@ -964,7 +969,7 @@
   for(const [grade,settings] of Object.entries(PENCIL_GRADES))if(settings.kind!=='ink')artistStamp(grade,settings.shade);
   return Object.freeze({MANDALA_DESIGNS,prepareMandala,drawMandala,PENCIL_GRADES, ARTIST_MATERIALS, ARTIST_COLLECTIONS, STROKE_STYLES, SHAPE_GROUPS, MATH_SHAPE_GROUPS, SHAPE_NAMES, isShapeKind, isMathShape, isFillableShape, shapeStrokeStyle, mathDragSize, shapeIcon, drawShape, shapePath,shapeHit,
     drawArtistPart, drawArtistEnd, drawArtistStroke, pencilGrade, pencilWidth, artistCurve, artistBoundsPadding, artistStampPixels, artistPaperPixels, prepareArtistColor,
-    erasurePath,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
+    erasurePath,reframeErasureMasks,erasedAt,drawErasedItem,pageBackgroundRect,imageCrop,dragImageCrop,cropImage,drawImage,penCurve,drawPenPart,drawPenEnd,
     rotatable,objectRotation,objectRect,objectPoint,rotateContext,positionObjectRect,rotationFromDrag,
     drawSticker,stickerSelectionBounds,resizeSticker});
 });
