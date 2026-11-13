@@ -5,7 +5,7 @@
   const $=id=>document.getElementById(id),cards=new Map();
   function busy(){return api.busy();}
   function resize(zoom){
-    const available=Math.max(250,$('pageScroller').clientWidth-32);let maximum=0;
+    const available=api.availableWidth();let maximum=0;
     for(const page of pages){const width=Math.min(api.dimensions(page).width,available);maximum=Math.max(maximum,width);if(available!==layoutWidth)cards.get(page.id)?.style.setProperty('--page-base',width+'px');}
     layoutWidth=available;$('notebookStack').style.setProperty('--stack-zoom',zoom);$('notebookStack').style.width=`${maximum*zoom}px`;
   }

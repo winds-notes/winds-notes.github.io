@@ -733,8 +733,12 @@
     }).join('');
     document.querySelectorAll('[data-preview]').forEach(el=>{const i=Number(el.dataset.preview),d=pageDimensions(n.pages[i]);const ctx=el.getContext('2d');ctx.setTransform(el.width/d.width,0,0,el.height/d.height,0,0);drawPage(ctx,n.pages[i]);});
   }
-  function pageBaseWidth(){const scroller=$('pageScroller');return Math.min(W,Math.max(250,scroller.clientWidth-32));}
-  function resizePage(skipRender=false){if($('editorView').hidden)return;if(!skipRender)syncPageGeometry();const width=Math.round(pageBaseWidth()*state.zoom);$('pageShell').style.width=`${width}px`;window.WindsPageStack.resize(state.zoom);$('zoomValue').textContent=`${Math.round(state.zoom*100)}%`;if(!skipRender)renderCanvas();}
+  function availablePageWidth(){
+    const scroller=$('pageScroller'),minimum=$('editorView').classList.contains('has-study-pane')?96:250;
+    return Math.max(minimum,scroller.clientWidth-32);
+  }
+  function pageBaseWidth(){return Math.min(W,availablePageWidth());}
+  function resizePage(skipRender=false){if($('editorView').hidden)return;if(!skipRender)syncPageGeometry();const width=Math.round(pageBaseWidth()*state.zoom);$('pageShell').style.width=`${width}px`;window.WindsPageStack.resize(state.zoom);$('zoomValue').textContent=`${Math.round(state.zoom*100)}%`;globalThis.WindsStudy?.syncNotesZoom(state.zoom);if(!skipRender)renderCanvas();}
   function setZoom(value){
     if(!Number.isFinite(value))return;
     if(!imageCropSession)finishActiveStroke();
@@ -3077,7 +3081,7 @@
     }).catch(error=>{const previewPainted=eraserPreview?.complete(gesture);if(previewPainted&&clipboardMatches(gesture.scope)){eraserPreview?.invalidate();try{renderCanvas();}catch{}}console.error('Deferred page edit:',error);toast(error.code==='CANVAS_MEMORY'?error.message:`Page edit failed: ${String(error.message||'Unknown drawing error').slice(0,150)}`);}).finally(()=>{eraserPreview?.complete(gesture);if(['select','resize'].includes(gesture.kind))endSelectionTransform(gesture);state.pendingInteractions--;queueInteractionOverlay();queueEraserPreparation();});
   }
   function initPageStack(){
-    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:pageDimensions,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,
+    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:pageDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,
       activate:(id,preserve)=>{const index=notebook()?.pages.findIndex(p=>p.id===id);if(index>=0){if(index!==state.pageIndex)switchPage(index,preserve);else if(!preserve)window.WindsPageStack.focus(id);}},
       paint:async(canvas,p,scope)=>{
         if(p.background)await pdfImage(p.background.src).promise;
@@ -3210,12 +3214,19 @@
       capturePage:capturePageTemplate,
       insertPage:insertPageTemplate,
       importReference:()=>$('studyPdfInput').click(),
-      layout(){
+      notesZoom:()=>state.zoom,
+      layoutBusy:()=>Boolean(state.drag||state.pinch||state.pendingInteractions||state.editingText||imageCropSession),
+      zoomNotes(zoom){
+        if(!clipboardEnabled())return;
+        preserveStudyPosition(()=>setZoom(zoom));
+      },
+      layout(change){
         const scope=clipboardContext();
         const resize=()=>{
           if($('editorView').hidden||!page()||!clipboardMatches(scope))return;
           if(state.drag||state.pinch||state.pendingInteractions){setTimeout(resize,80);return;}
-          resizePage();window.WindsPageStack.focus(page().id);updateToolbarArrows();
+          preserveStudyPosition(()=>{change?.();resizePage(true);});
+          updateToolbarArrows();
         };
         resize();
       },
@@ -3250,6 +3261,19 @@
         for(let index=0;index<count;index++)drawItem(ctx,target.items[index]);
       }
     });
+  }
+  function preserveStudyPosition(change){
+    const scroller=$('pageScroller'),shell=$('pageShell');
+    const viewport=()=>scroller.getBoundingClientRect(),rect=()=>shell.getBoundingClientRect();
+    const before=rect(),view=viewport();
+    const x=Math.max(0,Math.min(1,(view.left+view.width*.5-before.left)/Math.max(1,before.width)));
+    const y=Math.max(0,Math.min(1,(view.top+view.height*.42-before.top)/Math.max(1,before.height)));
+    const offsetX=before.left+before.width*x-view.left-view.width*.5;
+    const offsetY=before.top+before.height*y-view.top-view.height*.42;
+    change();
+    const next=rect(),nextView=viewport();
+    scroller.scrollLeft+=next.left+next.width*x-nextView.left-nextView.width*.5-offsetX;
+    scroller.scrollTop+=next.top+next.height*y-nextView.top-nextView.height*.42-offsetY;
   }
   function initVectors(){
     window.WindsVector.init({

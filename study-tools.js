@@ -4,7 +4,10 @@
   const $=id=>document.getElementById(id);
   let api,linkEdit,templateEdit,reference,presentation;
   const templatesKey='personal-page-templates-v1';
+  const pdfZoomMin=50,pdfZoomMax=400;
+  const splitMin=30,splitMax=70;
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+  const layoutBusy=()=>api.layoutBusy()||Boolean(reference?.drag)||reference?.transfer!=null;
   function optionList(select,entries){
     select.replaceChildren(...entries.map(([value,label])=>new Option(label,value)));
   }
@@ -116,8 +119,14 @@
   }
   function closeReference(){
     if(!reference)return;
+    const divider=$('studyDivider'),pane=$('studyPane');
+    const {splitFrame,splitDrag}=reference;
+    if(splitFrame)cancelAnimationFrame(splitFrame);
+    if(splitDrag&&divider.hasPointerCapture(splitDrag.id))divider.releasePointerCapture(splitDrag.id);
     reference=null;
-    $('studyPane').hidden=true;$('studyPdfImage').removeAttribute('src');
+    divider.hidden=pane.hidden=true;
+    pane.style.removeProperty('--study-split');
+    $('studyPdfImage').removeAttribute('src');
     $('editorView').classList.remove('has-study-pane');
     api.layout();
   }
@@ -126,14 +135,19 @@
     const pages=book?.pages.filter(page=>page.background).map(({id,background})=>({id,background}));
     if(!pages?.length)return;
     closeDialog('studySourceDialog');
-    const pane=$('studyPane');
-    $('editorView').querySelector('.editor-body').append(pane);
-    reference={account:api.scope().account,book:bookId,pages,index:0};
-    pane.hidden=false;
+    const pane=$('studyPane'),divider=$('studyDivider'),body=$('editorView').querySelector('.editor-body');
+    closeReference();
+    body.append(divider,pane);
+    reference={account:api.scope().account,book:bookId,pages,index:0,zoom:100};
+    divider.hidden=pane.hidden=false;
     $('editorView').classList.add('has-study-pane');
     $('studyPdfName').textContent=book.title;
     optionList($('studyPdfPage'),pages.map((page,index)=>[String(index),`PDF page ${page.background.sourcePage}`]));
-    setReferencePage(0);api.layout();
+    setPdfZoom(100);
+    syncNotesZoom(api.notesZoom());
+    setReferencePage(0);
+    syncDivider();
+    api.layout();
   }
   function setReferencePage(index){
     if(!reference)return;
@@ -144,9 +158,93 @@
     $('studyPdfPrevious').disabled=reference.index===0;
     $('studyPdfNext').disabled=reference.index===reference.pages.length-1;
     $('studyPdfStatus').textContent='';
-    $('studyPdfScroll').scrollTop=0;
+    const scroller=$('studyPdfScroll');
+    scroller.scrollTop=0;scroller.scrollLeft=0;
     image.alt=`${background.sourceName}, page ${background.sourcePage}`;
     image.src=background.src;showFigure();
+  }
+  function setPdfZoom(value){
+    if(!reference||reference.drag||reference.transfer!=null)return;
+    const scroller=$('studyPdfScroll'),surface=$('studyPdfSurface');
+    const center=()=>({x:scroller.scrollLeft+scroller.clientWidth/2,y:scroller.scrollTop+scroller.clientHeight/2});
+    const before=center();
+    const ratioX=clamp((before.x-surface.offsetLeft)/(surface.offsetWidth||1),0,1);
+    const ratioY=clamp((before.y-surface.offsetTop)/(surface.offsetHeight||1),0,1);
+    const zoom=reference.zoom=clamp(value,pdfZoomMin,pdfZoomMax);
+    surface.style.setProperty('--pdf-zoom',`${zoom}%`);
+    $('studyPdfZoomValue').value=`${zoom}%`;
+    $('studyPdfZoomOut').disabled=zoom===pdfZoomMin;
+    $('studyPdfZoomIn').disabled=zoom===pdfZoomMax;
+    scroller.scrollLeft=surface.offsetLeft+surface.offsetWidth*ratioX-scroller.clientWidth/2;
+    scroller.scrollTop=surface.offsetTop+surface.offsetHeight*ratioY-scroller.clientHeight/2;
+  }
+  function syncNotesZoom(zoom){
+    if(!reference)return;
+    $('studyNotesZoomValue').value=`${Math.round(zoom*100)}%`;
+    $('studyNotesZoomOut').disabled=zoom<=.35;
+    $('studyNotesZoomIn').disabled=zoom>=8;
+  }
+  const stacked=()=>global.matchMedia('(max-width: 670px)').matches;
+  function syncDivider(){
+    if(!reference)return;
+    const divider=$('studyDivider');
+    divider.setAttribute('aria-orientation',stacked()?'horizontal':'vertical');
+    divider.setAttribute('aria-valuenow',String(reference.split??(stacked()?42:36)));
+    divider.setAttribute('aria-valuetext',`${divider.getAttribute('aria-valuenow')} percent PDF`);
+  }
+  function setSplit(value){
+    const ref=reference;if(!ref)return;
+    ref.nextSplit=clamp(Math.round(value),splitMin,splitMax);
+    if(ref.splitFrame)return;
+    const apply=()=>{
+      ref.splitFrame=0;
+      if(reference!==ref)return;
+      if(layoutBusy()){ref.splitFrame=requestAnimationFrame(apply);return;}
+      if(ref.split===ref.nextSplit)return;
+      ref.split=ref.nextSplit;
+      api.layout(()=>$('studyPane').style.setProperty('--study-split',`${ref.split}%`));
+      syncDivider();
+    };
+    ref.splitFrame=requestAnimationFrame(apply);
+  }
+  function bindStudyView(){
+    $('studyPdfZoomOut').onclick=()=>{if(reference)setPdfZoom(reference.zoom-25);};
+    $('studyPdfZoomIn').onclick=()=>{if(reference)setPdfZoom(reference.zoom+25);};
+    $('studyPdfZoomFit').onclick=()=>setPdfZoom(100);
+    $('studyNotesZoomOut').onclick=()=>api.zoomNotes(api.notesZoom()-.25);
+    $('studyNotesZoomIn').onclick=()=>api.zoomNotes(api.notesZoom()+.25);
+    $('studyNotesZoomFit').onclick=()=>api.zoomNotes(1);
+    const divider=$('studyDivider');
+    divider.onpointerdown=event=>{
+      if(!reference||reference.splitDrag||event.button!==0||layoutBusy())return;
+      divider.setPointerCapture(event.pointerId);
+      const vertical=stacked(),body=divider.parentElement,rect=body.getBoundingClientRect();
+      const pane=$('studyPane').getBoundingClientRect();
+      reference.splitDrag={id:event.pointerId,vertical,extent:vertical?rect.height:rect.width,
+        size:vertical?pane.height:pane.width,start:vertical?event.clientY:event.clientX};
+      divider.focus({preventScroll:true});event.preventDefault();
+    };
+    divider.onpointermove=event=>{
+      const drag=reference?.splitDrag;
+      if(drag?.id!==event.pointerId)return;
+      const position=drag.vertical?event.clientY:event.clientX;
+      setSplit((drag.size+drag.start-position)*100/drag.extent);
+    };
+    const end=event=>{if(reference?.splitDrag?.id===event.pointerId)reference.splitDrag=null;};
+    divider.onpointerup=event=>{divider.onpointermove(event);end(event);};
+    divider.onpointercancel=divider.onlostpointercapture=end;
+    divider.onkeydown=event=>{
+      if(!reference||event.altKey||event.metaKey||event.ctrlKey)return;
+      const grow=stacked()?'ArrowUp':'ArrowLeft',shrink=stacked()?'ArrowDown':'ArrowRight';
+      const current=reference.nextSplit??Number(divider.getAttribute('aria-valuenow'));
+      if(event.key===grow)setSplit(current+5);
+      else if(event.key===shrink)setSplit(current-5);
+      else if(event.key==='Home')setSplit(splitMin);
+      else if(event.key==='End')setSplit(splitMax);
+      else return;
+      event.preventDefault();
+    };
+    global.addEventListener('resize',syncDivider,{passive:true});
   }
   function showFigure(){
     const box=reference?.box,marker=$('studyFigureBox');
@@ -181,6 +279,7 @@
     finally{ref.inserting=false;canvas.width=canvas.height=1;}
   }
   function bindReference(){
+    bindStudyView();
     $('openStudySource').onclick=()=>showReference($('studySource').value);
     $('importStudyPdf').onclick=()=>{closeDialog('studySourceDialog');api.importReference();};
     $('closeStudyPane').onclick=closeReference;
@@ -430,5 +529,5 @@
     closeDialog('pageLinkDialog');closeDialog('pageTemplatesDialog');closeDialog('studySourceDialog');
     closeReference();closePresentation();
   }
-  global.WindsStudy=Object.freeze({init,openLink,follow,syncSelection,openTemplates,openSource,showReference,startPresentation,close,updatePresentation});
+  global.WindsStudy=Object.freeze({init,openLink,follow,syncSelection,openTemplates,openSource,showReference,startPresentation,close,updatePresentation,syncNotesZoom});
 })(window);

@@ -751,15 +751,22 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .study-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:12px}
 .study-actions .btn,.study-pane header .btn,.presentation-nav .btn{padding:7px 10px;font-size:11px}
 .study-dialog p,.study-pane p{font-size:12px;margin:8px 0}
-.study-pane{width:clamp(260px,36vw,640px);flex:none;display:flex;flex-direction:column;min-height:0;padding:10px;background:#f8f9fc;border-left:1px solid var(--border);overflow:hidden}
-.study-pane[hidden],.presentation-stage[hidden],.presentation-laser[hidden]{display:none}
+.study-pane{width:var(--study-split,36%);flex:none;display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px;background:#f8f9fc;overflow:auto}
+.study-pane[hidden],.study-divider[hidden],.presentation-stage[hidden],.presentation-laser[hidden]{display:none}
+.study-divider{position:relative;display:grid;place-items:center;flex:0 0 18px;background:#eeebf9;color:#6656b9;cursor:col-resize;touch-action:none;user-select:none}
+.study-divider::before{content:'';width:4px;height:38px;border-radius:5px;background:currentColor}
+.study-divider:hover,.study-divider:focus-visible{background:#ded7ff}
 .study-pane header{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .study-pane header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .study-pane .study-actions{margin:4px 0}
 .study-pane label{flex:1;margin:2px 0}
+.study-view-controls{display:flex;flex-wrap:wrap;gap:4px 10px;margin:3px 0 7px}
+.study-zoom{display:flex;flex:none;align-items:center;gap:3px;font-size:11px;font-weight:750}
+.study-zoom .btn{min-width:28px;min-height:32px;padding:4px 5px;font-size:12px}
+.study-zoom output{min-width:38px;text-align:center;font-variant-numeric:tabular-nums}
 .has-study-pane .page-scroller{padding-inline:16px}
-#studyPdfScroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;background:#e9eaf4;border-radius:8px}
-#studyPdfSurface{position:relative;line-height:0;background:#fff}
+#studyPdfScroll{position:relative;flex:1;min-height:36px;overflow:auto;overscroll-behavior:contain;background:#e9eaf4;border-radius:8px}
+#studyPdfSurface{width:var(--pdf-zoom,100%);position:relative;margin-inline:auto;line-height:0;background:#fff}
 #studyPdfSurface.select-figure{touch-action:none;cursor:crosshair}
 #studyPdfImage{width:100%;height:auto;display:block;user-select:none}
 #studyFigureBox{position:absolute;background:#6557ed26;border:2px dashed #6557ed;cursor:grab;touch-action:none}
@@ -775,9 +782,12 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 @media(max-width:670px){
   .has-study-pane .editor-body{flex-direction:column}
   .has-study-pane .page-scroller{padding-inline:7px}
-  .study-pane{width:100%;height:42%;border-left:0;border-top:1px solid var(--border)}
+  .study-pane{width:100%;height:var(--study-split,42%);padding:6px 9px}
+  .study-divider{cursor:row-resize}
+  .study-divider::before{width:38px;height:4px}
   .has-study-pane .pages-sidebar{position:absolute}
 }
+@media(pointer:coarse){.study-zoom .btn{min-width:32px;min-height:36px}}
 
 /* Tutorial */
 body.tutorial-page{height:auto;min-height:100vh;overflow:auto;background:#f8f9fc}

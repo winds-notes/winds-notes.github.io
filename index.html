@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=91"></script>
-<script src="./google-config.js?v=91"></script>
+<script src="./theme.js?v=92"></script>
+<script src="./google-config.js?v=92"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=91" rel="stylesheet"/>
-<link href="./dark.css?v=91" rel="stylesheet"/>
+<link href="./styles.css?v=92" rel="stylesheet"/>
+<link href="./dark.css?v=92" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -405,9 +405,14 @@
   <label>PDF notebook <select id="studySource"></select></label>
   <div class="study-actions"><button id="importStudyPdf" class="btn btn-outline" type="button">Import a PDF…</button><button class="btn btn-outline" type="button" data-close-study>Cancel</button><button id="openStudySource" class="btn btn-primary" type="button">Open beside notes</button></div>
 </dialog>
+<div id="studyDivider" class="study-divider" role="separator" tabindex="0" aria-label="PDF reference size" aria-controls="studyPane" aria-orientation="vertical" aria-valuemin="30" aria-valuemax="70" aria-valuenow="36" title="Drag to resize the PDF and writing areas. Use arrow keys to resize." hidden></div>
 <aside id="studyPane" class="study-pane" aria-label="PDF reference" hidden>
   <header><strong id="studyPdfName"></strong><button class="btn btn-outline" type="button" id="closeStudyPane" aria-label="Close PDF reference">Close</button></header>
   <div class="study-actions"><button class="btn btn-outline" type="button" id="studyPdfPrevious" aria-label="Previous PDF page">‹</button><label>Page <select id="studyPdfPage" aria-label="Reference page"></select></label><button class="btn btn-outline" type="button" id="studyPdfNext" aria-label="Next PDF page">›</button></div>
+  <div class="study-view-controls">
+    <div class="study-zoom" role="group" aria-label="PDF zoom"><span>PDF</span><button class="btn btn-outline" type="button" id="studyPdfZoomOut" aria-label="Zoom out PDF">−</button><output id="studyPdfZoomValue" aria-label="PDF zoom level">100%</output><button class="btn btn-outline" type="button" id="studyPdfZoomIn" aria-label="Zoom in PDF">+</button><button class="btn btn-outline" type="button" id="studyPdfZoomFit" aria-label="Fit PDF to width">Fit</button></div>
+    <div class="study-zoom" role="group" aria-label="Writing zoom"><span>Notes</span><button class="btn btn-outline" type="button" id="studyNotesZoomOut" aria-label="Zoom out writing page">−</button><output id="studyNotesZoomValue" aria-label="Writing zoom level">100%</output><button class="btn btn-outline" type="button" id="studyNotesZoomIn" aria-label="Zoom in writing page">+</button><button class="btn btn-outline" type="button" id="studyNotesZoomFit" aria-label="Fit writing page to width">Fit</button></div>
+  </div>
   <div id="studyPdfScroll"><div id="studyPdfSurface"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div>
   <p id="studyPdfStatus" role="status"></p>
   <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-primary" type="button" id="insertStudyFigure" disabled>Insert figure</button></div>
@@ -426,29 +431,29 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=91"></script>
-<script src="./svg-stickers.js?v=91"></script>
-<script src="./creative-tools.js?v=91"></script>
-<script src="./graph-tools.js?v=91"></script>
-<script src="./vector-tools.js?v=91"></script>
-<script src="./interaction-tools.js?v=91"></script>
-<script src="./selection-preview.js?v=91"></script>
-<script src="./eraser-preview.js?v=91"></script>
-<script src="./page-stack.js?v=91"></script>
-<script src="./workspace-model.js?v=91"></script>
-<script src="./text-tools.js?v=91"></script>
-<script src="./pdf-export.js?v=91"></script>
-<script src="./pdf-import.js?v=91"></script>
-<script src="./native-file.js?v=91"></script>
-<script src="./clipboard.js?v=91"></script>
-<script src="./shared-notebook-model.js?v=91"></script>
-<script src="./notebook-sharing.js?v=91"></script>
-<script src="./live-sync.js?v=91"></script>
+<script src="./mandala-art.js?v=92"></script>
+<script src="./svg-stickers.js?v=92"></script>
+<script src="./creative-tools.js?v=92"></script>
+<script src="./graph-tools.js?v=92"></script>
+<script src="./vector-tools.js?v=92"></script>
+<script src="./interaction-tools.js?v=92"></script>
+<script src="./selection-preview.js?v=92"></script>
+<script src="./eraser-preview.js?v=92"></script>
+<script src="./page-stack.js?v=92"></script>
+<script src="./workspace-model.js?v=92"></script>
+<script src="./text-tools.js?v=92"></script>
+<script src="./pdf-export.js?v=92"></script>
+<script src="./pdf-import.js?v=92"></script>
+<script src="./native-file.js?v=92"></script>
+<script src="./clipboard.js?v=92"></script>
+<script src="./shared-notebook-model.js?v=92"></script>
+<script src="./notebook-sharing.js?v=92"></script>
+<script src="./live-sync.js?v=92"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=91"></script>
-<script defer src="./boundary-fill.js?v=91"></script>
-<script defer src="./mandala-tools.js?v=91"></script>
-<script defer src="./study-tools.js?v=91"></script>
-<script defer="" src="./app.js?v=91"></script>
+<script defer src="./cloud-drive.js?v=92"></script>
+<script defer src="./boundary-fill.js?v=92"></script>
+<script defer src="./mandala-tools.js?v=92"></script>
+<script defer src="./study-tools.js?v=92"></script>
+<script defer="" src="./app.js?v=92"></script>
 </body>
 </html>
