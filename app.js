@@ -348,6 +348,7 @@
         for(const n of payload.notebooks){books.put(metadata(n));for(const p of n.pages)pages.put({...p,notebookId:n.id});}
         tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
         tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
+        tx.commit?.();
       }catch(err){reject(err);}
     });
   }
@@ -364,6 +365,7 @@
         }
         tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
         tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
+        tx.commit?.();
       }catch(err){reject(err);}
     });
   }
@@ -371,18 +373,22 @@
   function statusText(message,pending=false){
     const el=$('saveStatus');el.textContent=message;el.classList.toggle('saving',pending);
   }
-  function scheduleSave(structural=false,eraserOnly=false){
-    if(!eraserOnly)state.erasePreviewRevision=(state.erasePreviewRevision||0)+1;
-    const n=notebook();if(n){n.updatedAt=now();dirtyBooks.add(n.id);if(page())dirtyPages.add(page().id);}
+  function scheduleSave(structural=false,eraserOnly=false,metadataBook=null){
+    const n=metadataBook||notebook(),changedPage=metadataBook?null:page();
+    if(n){n.updatedAt=now();dirtyBooks.add(n.id);}
+    if(changedPage){
+      if(!eraserOnly)state.erasePreviewRevision=(state.erasePreviewRevision||0)+1;
+      dirtyPages.add(changedPage.id);
+      window.WindsPageStack?.dirty(changedPage.id);
+      window.WindsLive?.changed(n.id,changedPage.id);
+    }
     if(structural)dirtyAll=true;
-    window.WindsPageStack?.dirty(page()?.id);
     saveVersion++;lastInkAt=Date.now();
-    window.WindsLive?.changed(n?.id,page()?.id);
     // A writing burst has a single pending state; there are NO writes between letters.
     if($('saveStatus').textContent!=='Unsaved changes')statusText('Unsaved changes',true);
     clearTimeout(state.saveTimer);
     state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);
-    if(state.tool==='eraser')queueEraserPreparation();
+    if(changedPage&&state.tool==='eraser')queueEraserPreparation();
   }
   let saveTask=null,lastTimedEditAt=0;
   async function saveNow(force=false,fromDrive=false){
@@ -480,7 +486,8 @@
       tombstones=incoming?.deleted&&typeof incoming.deleted==='object'?incoming.deleted:{};
       initializeSyncHistory();
       statusText('Saved');
-      $('searchNotebooks').value='';view('library');renderLibrary();
+      $('searchNotebooks').value='';
+      if(!resumeLastNotebook()){view('library',Boolean(pendingResume));renderLibrary();}
     }finally{unlock();}
   }
 
@@ -586,9 +593,13 @@
     state.notebooks=[makeNotebook('Untitled notebook','purple','ruled')];
   }
 
-  function view(which){
+  function view(which,preserveResume=false){
     if($(which==='library'?'libraryView':'editorView').hidden)closeMenus(false);
-    if(which==='library'){if(state.widthAdjustment)finishWidthAdjustment(false);globalThis.WindsStudy?.close();globalThis.WindsGraph?.cancel();globalThis.WindsVector?.cancel();}
+    if(which==='library'){
+      if(!preserveResume)clearEditorResume();
+      if(state.widthAdjustment)finishWidthAdjustment(false);
+      globalThis.WindsStudy?.close();globalThis.WindsGraph?.cancel();globalThis.WindsVector?.cancel();
+    }
     $('libraryView').hidden=which!=='library';$('editorView').hidden=which!=='editor';
   }
   function displayDate(iso){const d=new Date(iso);return Number.isNaN(+d)?'Recently edited':`Edited ${d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}`;}
@@ -614,9 +625,35 @@
     $('heroContinueTitle').textContent=index?`${latest.title} · Page ${index+1}`:latest.title;
     button.setAttribute('aria-label',`Continue writing ${latest.title}, page ${index+1}`);
   }
+  const EDITOR_POSITION_KEY='winds-notes-editor-position-v1';
+  let pendingResume=null;
+  function readEditorPosition(){
+    try{
+      const saved=JSON.parse(sessionStorage.getItem(EDITOR_POSITION_KEY));
+      if([saved?.workspace,saved?.bookId,saved?.pageId].every(value=>typeof value==='string'&&value.length))return saved;
+    }catch{}
+    return null;
+  }
+  function clearEditorResume(){
+    pendingResume=null;
+    try{sessionStorage.removeItem(EDITOR_POSITION_KEY);}catch{}
+  }
+  function resumeLastNotebook(){
+    const saved=pendingResume;
+    if(!saved||saved.workspace!==workspaceId)return false;
+    if(!state.notebooks.some(book=>book.id===saved.bookId&&book.pages.length)){
+      clearEditorResume();return false;
+    }
+    pendingResume=null;
+    openNotebook(saved.bookId,saved.pageId);
+    return true;
+  }
   function rememberReadingPosition(){
     const n=notebook(),p=page();if(!n||!p)return;
-    try{localStorage.setItem(`winds-notes-reading-position-${workspaceId}`,JSON.stringify({bookId:n.id,pageId:p.id}));}catch{}
+    const position={bookId:n.id,pageId:p.id};
+    pendingResume=null;
+    try{sessionStorage.setItem(EDITOR_POSITION_KEY,JSON.stringify({workspace:workspaceId,...position}));}catch{}
+    try{localStorage.setItem(`winds-notes-reading-position-${workspaceId}`,JSON.stringify(position));}catch{}
   }
   function renderLibrary(){
     if(openPopup?.menu.id==='notebookCardMenu')closeMenus(false);
@@ -2710,7 +2747,7 @@
   function setNotebookTitle(n,value){
     const title=value.trim().slice(0,70)||'Untitled notebook';
     if(n.title!==title){
-      n.title=title;n.updatedAt=now();scheduleSave(true);
+      n.title=title;scheduleSave(false,false,n);
       if(!$('libraryView').hidden)renderLibrary();
     }
     if(n===notebook())$('notebookTitle').value=n.title;
@@ -3044,7 +3081,7 @@
       else if(e.key.toLowerCase()==='r'&&!e.metaKey&&!e.ctrlKey&&!e.altKey)setTool($('shapeToolBtn')?.dataset.tool||'rectangle');
       if((e.key==='Delete'||e.key==='Backspace')&&state.selected>=0){e.preventDefault();deleteSelection();}
     });
-    function saveBeforeLeaving(){finishWidthAdjustment(true);finishActiveStroke();saveNow(true);}
+    function saveBeforeLeaving(){finishWidthAdjustment(true);finishActiveStroke();commitText();saveNow(true);}
     document.addEventListener('visibilitychange',()=>{if(document.hidden)saveBeforeLeaving();});
     window.addEventListener('pagehide',saveBeforeLeaving);
   }
@@ -3505,7 +3542,7 @@
     if(stored && Array.isArray(stored.notebooks)){state.notebooks=stored.notebooks;tombstones=stored.deleted||{};}
     else{const legacy=await oldDatabase();if(legacy&&Array.isArray(legacy.notebooks)){state.notebooks=legacy.notebooks;toast('Your existing notebooks have been imported');}else seed();dirtyAll=true;saveVersion++;await saveNow(true);}
     initializeSyncHistory();
-    renderLibrary();view('library');window.WindsText.init({apply:applyEditedText});initClipboard();
+    window.WindsText.init({apply:applyEditedText});initClipboard();
     globalThis.WindsMandala?.init({
       context:()=>({workspace:workspaceId,bookId:state.activeId,pageId:page()?.id,version:saveVersion}),
       prepare:async()=>{cancelBoundaryFill(true);closeMenus();finishActiveStroke();composeInkNow();commitText();while(state.pendingInteractions)await delay(80);},
@@ -3514,7 +3551,9 @@
     window.WindsPDFImport.init({context:()=>({workspace:workspaceId,bookId:state.activeId,bookTitle:notebook()?.title||''}),
       prepare:async()=>{cancelBoundaryFill();finishActiveStroke();composeInkNow();commitText();await saveNow(true);},commit:commitPdfPages,toast,
       showReference:(id,scope)=>{if(scope.workspace===workspaceId&&scope.bookId===state.activeId)window.WindsStudy.showReference(id);}});
-    window.WindsDrive?.init({
+    pendingResume=readEditorPosition();
+    if(!resumeLastNotebook()){view('library',Boolean(pendingResume));renderLibrary();}
+    const driveStartup=window.WindsDrive?.init({
       getData:workspaceSnapshot,
       switchWorkspace,
       mergeWorkspace,
@@ -3541,6 +3580,9 @@
         return parsed.notebooks.length;
       },toast
     });
+    const discardUnmatchedResume=()=>{if(pendingResume)clearEditorResume();};
+    if(driveStartup)void driveStartup.then(discardUnmatchedResume);
+    else discardUnmatchedResume();
     registerOfflineShell();
   }
   const unlockStartup=lockInterface();
