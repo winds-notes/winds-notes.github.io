@@ -31,11 +31,20 @@
   const time = x => typeof x === 'string' && !Number.isNaN(Date.parse(x)) ? x : new Date().toISOString();
   function check(test, message){if(!test)throw new Error(message);}
   const linkId=value=>Boolean(id(value)&&!/[\u0000-\u001f]/.test(value));
+  function pdfBox(box){
+    return Array.isArray(box)&&box.length===4&&box.every(n=>Number.isFinite(n)&&n>=0&&n<=1)&&
+      box[2]>0&&box[3]>0&&box[0]+box[2]<=1.000001&&box[1]+box[3]<=1.000001;
+  }
   function linkFields(item){
     if(item.pageLink==null)return {};
     const link=item.pageLink;
     check(isObject(link)&&linkId(link.page)&&(link.book==null||linkId(link.book)),'Invalid page link');
-    return {pageLink:{page:link.page,...(link.book?{book:link.book}:{})}};
+    const pageLink={page:link.page,...(link.book?{book:link.book}:{})};
+    if(link.pdfRegion!=null){
+      check(Array.isArray(link.pdfRegion)&&link.pdfRegion.length>0&&link.pdfRegion.length<=300&&link.pdfRegion.every(pdfBox),'Invalid PDF passage location');
+      pageLink.pdfRegion=link.pdfRegion.map(box=>box.slice());
+    }
+    return {pageLink};
   }
   function stickerColors(value){
     if(value==null)return {};
@@ -114,7 +123,7 @@
     }
     return image;
   }
-  const backgroundCache=new WeakMap(),backgroundFields=['type','src','thumbnail','width','height','sourceName','sourcePage'];
+  const backgroundCache=new WeakMap(),backgroundFields=['type','src','thumbnail','width','height','sourceName','sourcePage','pdfWords','chapters','turn'];
   function pageBackground(value){
     if(value==null)return {};
     check(isObject(value)&&value.type==='pdf','Invalid page background');
@@ -124,7 +133,21 @@
     check(image(value.src)&&image(value.thumbnail)&&value.thumbnail.length<=256*1024,'Invalid PDF page image');
     check(Number.isInteger(value.width)&&Number.isInteger(value.height)&&value.width>=1&&value.height>=1&&value.width<=2376&&value.height<=2376&&value.width*value.height<=2376*1680,'Invalid PDF page dimensions');
     check(Number.isInteger(value.sourcePage)&&value.sourcePage>=1&&value.sourcePage<=100000,'Invalid PDF page number');
-    const clean=Object.freeze({type:'pdf',src:value.src,thumbnail:value.thumbnail,width:value.width,height:value.height,sourceName:str(value.sourceName,200,'Imported PDF'),sourcePage:value.sourcePage});
+    const clean={type:'pdf',src:value.src,thumbnail:value.thumbnail,width:value.width,height:value.height,sourceName:str(value.sourceName,200,'Imported PDF'),sourcePage:value.sourcePage};
+    if(value.pdfWords!=null){
+      check(Array.isArray(value.pdfWords)&&value.pdfWords.length<=12000&&value.pdfWords.every(word=>
+        Array.isArray(word)&&word.length===5&&typeof word[0]==='string'&&word[0].length>0&&word[0].length<=256&&pdfBox(word.slice(1))),'Invalid PDF text layer');
+      if(value.pdfWords.length)clean.pdfWords=Object.freeze(value.pdfWords.map(word=>Object.freeze(word.slice())));
+    }
+    if(value.chapters!=null){
+      check(Array.isArray(value.chapters)&&value.chapters.length<=24&&value.chapters.every(title=>typeof title==='string'&&title.length<=200),'Invalid PDF chapter titles');
+      if(value.chapters.length)clean.chapters=Object.freeze(value.chapters.slice());
+    }
+    if(value.turn!=null){
+      check([0,90,180,270].includes(value.turn),'Invalid PDF page rotation');
+      if(value.turn)clean.turn=value.turn;
+    }
+    Object.freeze(clean);
     backgroundCache.set(value,{input:Object.fromEntries(backgroundFields.map(key=>[key,value[key]])),clean});
     backgroundCache.set(clean,{input:clean,clean});return {background:clean};
   }
@@ -163,7 +186,11 @@
         const link=item.pageLink;if(!link)continue;
         const sameBook=!link.book||link.book===original.id;
         const target=sameBook?local.get(link.page):books.get(link.book)?.pages.get(link.page);
-        if(target)item.pageLink={page:target,...(sameBook?{}:{book:books.get(link.book).id})};
+        if(target){
+          item.pageLink={...link,page:target};
+          if(sameBook)delete item.pageLink.book;
+          else item.pageLink.book=books.get(link.book).id;
+        }
       }
     });
     return cleaned;

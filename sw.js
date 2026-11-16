@@ -1,17 +1,18 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline.
  * Every local script/style URL in index.html carries the release version
  * below. Change RELEASE and CACHE on every deploy. */
-const RELEASE='92';
-const CACHE='winds-notes-shell-v92-study-zoom';
+const RELEASE='94';
+const CACHE='winds-notes-shell-v94-pdf-study';
 importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
 const VERSIONED=['theme.js','google-config.js','styles.css','dark.css','mandala-art.js','creative-tools.js','svg-stickers.js','graph-tools.js','vector-tools.js','interaction-tools.js',
   'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
   'native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','cloud-drive.js','boundary-fill.js',
-  'mandala-tools.js','study-tools.js','tutorial.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);
+  'mandala-tools.js','pdf-text.js','pdf-study.js','study-tools.js','tutorial.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);
 const ASSETS=['./','./index.html','./tutorial.html',...VERSIONED,'./privacy.html','./terms.html','./legal.css','./LICENSE',
   './manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];
+const OCR_ASSETS=['tesseract.min.js','worker.min.js','tesseract-core-lstm.wasm.js','eng.traineddata.gz'].map(file=>'./vendor/ocr/'+file);
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(async cache=>{
-  await cache.addAll([...ASSETS,...self.WINDS_PDF_ASSETS]);
+  await cache.addAll([...ASSETS,...self.WINDS_PDF_ASSETS,...OCR_ASSETS]);
   // Keep network capacity available for opening pages and Drive traffic.
   const artwork=self.WindsMandalaArt.ASSETS;
   for(let i=0;i<artwork.length;i+=2)await Promise.all(artwork.slice(i,i+2).map(async url=>{

@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=92"></script>
-<script src="./google-config.js?v=92"></script>
+<script src="./theme.js?v=94"></script>
+<script src="./google-config.js?v=94"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=92" rel="stylesheet"/>
-<link href="./dark.css?v=92" rel="stylesheet"/>
+<link href="./styles.css?v=94" rel="stylesheet"/>
+<link href="./dark.css?v=94" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -159,6 +159,7 @@
       <button type="button" data-action="duplicate" data-command data-icon="copy">Duplicate current page</button>
       <button type="button" data-action="templates" data-command data-icon="paper" data-keywords="reuse layout save custom template">Page templates…</button>
       <button type="button" class="danger-text" data-action="deletePage" data-command data-icon="trash">Delete current page…</button>
+      <button type="button" data-action="organize" data-command>Organize pages…</button>
     </section>
     <section data-command-group>
       <h3>Insert</h3>
@@ -367,7 +368,7 @@
     </fieldset>
     <p id="pdfImportStatus" class="pdf-import-status" role="status"></p><progress id="pdfImportProgress" value="0" max="1" aria-label="PDF import progress" hidden></progress>
     <div class="pdf-import-actions"><button id="pdfImportCancel" type="button" class="btn btn-outline">Cancel</button><button id="pdfImportStart" type="button" class="btn btn-primary" disabled>Import pages</button></div>
-    <p class="pdf-import-footnote">Up to 25 MB per PDF and 50 pages per import. PDF pages become high-resolution images; handwriting stays editable in WiNDS Notes. Export PDF to share the combined result.</p>
+    <p class="pdf-import-footnote">Up to 100 MB per PDF and 50 pages per import. PDF pages become high-resolution images; handwriting stays editable in WiNDS Notes. Export PDF to share the combined result.</p>
   </section>
 </div>
 <div aria-live="polite" class="toast" id="toast" role="status"></div>
@@ -407,16 +408,65 @@
 </dialog>
 <div id="studyDivider" class="study-divider" role="separator" tabindex="0" aria-label="PDF reference size" aria-controls="studyPane" aria-orientation="vertical" aria-valuemin="30" aria-valuemax="70" aria-valuenow="36" title="Drag to resize the PDF and writing areas. Use arrow keys to resize." hidden></div>
 <aside id="studyPane" class="study-pane" aria-label="PDF reference" hidden>
-  <header><strong id="studyPdfName"></strong><button class="btn btn-outline" type="button" id="closeStudyPane" aria-label="Close PDF reference">Close</button></header>
+  <span class="sr-only" id="studyPdfName"></span>
+  <div class="study-actions pdf-tabs-row">
+    <div id="pdfTabs" aria-label="Open PDFs"></div>
+    <button class="btn btn-outline" type="button" id="addPdfTab" aria-label="Open another PDF" title="Open another PDF">+</button>
+    <button class="btn btn-outline" type="button" id="closePdfTab" aria-label="Close current PDF tab" title="Close current PDF tab">×</button>
+    <button class="btn btn-outline" type="button" id="closeStudyPane" aria-label="Close PDF study pane">Done</button>
+  </div>
   <div class="study-actions"><button class="btn btn-outline" type="button" id="studyPdfPrevious" aria-label="Previous PDF page">‹</button><label>Page <select id="studyPdfPage" aria-label="Reference page"></select></label><button class="btn btn-outline" type="button" id="studyPdfNext" aria-label="Next PDF page">›</button></div>
+  <div class="study-actions pdf-reading-actions" role="group" aria-label="PDF study tools">
+    <button class="btn btn-outline" type="button" id="pdfSearchToggle" aria-expanded="false" aria-controls="pdfSearchPanel">Search</button>
+    <button class="btn btn-outline" type="button" id="pdfPlacesToggle" aria-expanded="false" aria-controls="pdfPlacesPanel">Chapters &amp; bookmarks</button>
+    <button class="btn btn-outline" type="button" id="pdfLinksToggle" aria-expanded="false" aria-controls="pdfLinksPanel">Backlinks</button>
+  </div>
+  <form id="pdfSearchPanel" class="pdf-study-panel" role="search" aria-label="Search PDF" hidden>
+    <div class="study-actions">
+      <input id="pdfSearchQuery" type="search" maxlength="160" placeholder="Find words in PDF" aria-label="Words to find in PDF">
+      <button class="btn btn-outline" type="submit">Find</button>
+      <button class="btn btn-outline" id="pdfSearchStop" type="button" hidden>Stop</button>
+    </div>
+    <div class="study-actions">
+      <button class="btn btn-outline" id="pdfHitPrev" type="button" aria-label="Previous search result" disabled>‹</button>
+      <output id="pdfSearchStatus" role="status"></output>
+      <button class="btn btn-outline" id="pdfHitNext" type="button" aria-label="Next search result" disabled>›</button>
+    </div>
+  </form>
+  <div id="pdfPlacesPanel" class="pdf-study-panel" hidden>
+    <label>Chapters <select id="pdfChapters" aria-label="PDF chapters"></select></label>
+    <label>Bookmarks <select id="pdfBookmarks" aria-label="PDF bookmarks"></select></label>
+    <button class="btn btn-outline" id="pdfBookmarkToggle" type="button">Bookmark this page</button>
+    <p id="pdfBookmarkStatus" role="status"></p>
+  </div>
+  <div id="pdfLinksPanel" class="pdf-study-panel" hidden>
+    <ul id="pdfBacklinks"></ul>
+    <p id="pdfLinksStatus" role="status"></p>
+  </div>
   <div class="study-view-controls">
     <div class="study-zoom" role="group" aria-label="PDF zoom"><span>PDF</span><button class="btn btn-outline" type="button" id="studyPdfZoomOut" aria-label="Zoom out PDF">−</button><output id="studyPdfZoomValue" aria-label="PDF zoom level">100%</output><button class="btn btn-outline" type="button" id="studyPdfZoomIn" aria-label="Zoom in PDF">+</button><button class="btn btn-outline" type="button" id="studyPdfZoomFit" aria-label="Fit PDF to width">Fit</button></div>
     <div class="study-zoom" role="group" aria-label="Writing zoom"><span>Notes</span><button class="btn btn-outline" type="button" id="studyNotesZoomOut" aria-label="Zoom out writing page">−</button><output id="studyNotesZoomValue" aria-label="Writing zoom level">100%</output><button class="btn btn-outline" type="button" id="studyNotesZoomIn" aria-label="Zoom in writing page">+</button><button class="btn btn-outline" type="button" id="studyNotesZoomFit" aria-label="Fit writing page to width">Fit</button></div>
   </div>
-  <div id="studyPdfScroll"><div id="studyPdfSurface"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div>
+  <div id="studyPdfScroll"><div id="studyPdfSurface"><div id="studyPdfContent"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="pdfHighlights" aria-hidden="true"></div><div id="pdfTextSelection" hidden></div><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div></div>
   <p id="studyPdfStatus" role="status"></p>
-  <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-primary" type="button" id="insertStudyFigure" disabled>Insert figure</button></div>
+  <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-outline" type="button" id="insertStudyFigure" disabled>Insert figure</button><button class="btn btn-outline" type="button" id="pdfSelectText" aria-pressed="false">Select text</button><button class="btn btn-outline" type="button" id="pdfCopyQuote" hidden disabled>Copy quote</button><button class="btn btn-primary" type="button" id="pdfInsertQuote" hidden disabled>Insert quote</button></div>
 </aside>
+<dialog id="pageOrganizer" class="shortcuts-dialog study-dialog" aria-labelledby="pageOrganizerTitle">
+  <h2 id="pageOrganizerTitle">Organize pages</h2>
+  <p>Select pages to extract or export. Use the arrow buttons to change their order.</p>
+  <div class="study-actions"><button class="btn btn-outline" type="button" id="organizerAll">Select all</button><button class="btn btn-outline" type="button" id="organizerAnnotated">Select annotated</button><button class="btn btn-outline" type="button" id="organizerNone">Clear selection</button></div>
+  <ol id="organizerPages" aria-label="Notebook pages"></ol>
+  <p id="organizerStatus" role="status"></p>
+  <div class="study-actions" id="organizerActions">
+    <button class="btn btn-outline" type="button" id="organizerExtract">Extract to notebook</button>
+    <button class="btn btn-outline" type="button" id="organizerExport">Export selected PDF</button>
+    <button class="btn btn-outline" type="button" id="organizerExportAnnotated">Export annotated PDF</button>
+  </div>
+  <div class="study-actions">
+    <button class="btn btn-outline" type="button" data-close-study>Cancel</button>
+    <button class="btn btn-primary" type="button" id="organizerApply">Apply changes</button>
+  </div>
+</dialog>
 <dialog id="presentationDialog" class="shortcuts-dialog study-dialog" aria-labelledby="presentationTitle">
   <h2 id="presentationTitle">Present notebook</h2>
   <div class="present-preview"><canvas id="presentPreview" aria-label="Presentation preview"></canvas><span id="presentPreviewLaser" class="presentation-laser" hidden></span></div>
@@ -431,29 +481,31 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=92"></script>
-<script src="./svg-stickers.js?v=92"></script>
-<script src="./creative-tools.js?v=92"></script>
-<script src="./graph-tools.js?v=92"></script>
-<script src="./vector-tools.js?v=92"></script>
-<script src="./interaction-tools.js?v=92"></script>
-<script src="./selection-preview.js?v=92"></script>
-<script src="./eraser-preview.js?v=92"></script>
-<script src="./page-stack.js?v=92"></script>
-<script src="./workspace-model.js?v=92"></script>
-<script src="./text-tools.js?v=92"></script>
-<script src="./pdf-export.js?v=92"></script>
-<script src="./pdf-import.js?v=92"></script>
-<script src="./native-file.js?v=92"></script>
-<script src="./clipboard.js?v=92"></script>
-<script src="./shared-notebook-model.js?v=92"></script>
-<script src="./notebook-sharing.js?v=92"></script>
-<script src="./live-sync.js?v=92"></script>
+<script src="./mandala-art.js?v=94"></script>
+<script src="./svg-stickers.js?v=94"></script>
+<script src="./creative-tools.js?v=94"></script>
+<script src="./graph-tools.js?v=94"></script>
+<script src="./vector-tools.js?v=94"></script>
+<script src="./interaction-tools.js?v=94"></script>
+<script src="./selection-preview.js?v=94"></script>
+<script src="./eraser-preview.js?v=94"></script>
+<script src="./page-stack.js?v=94"></script>
+<script src="./workspace-model.js?v=94"></script>
+<script src="./text-tools.js?v=94"></script>
+<script src="./pdf-export.js?v=94"></script>
+<script src="./pdf-import.js?v=94"></script>
+<script src="./pdf-text.js?v=94"></script>
+<script src="./native-file.js?v=94"></script>
+<script src="./clipboard.js?v=94"></script>
+<script src="./shared-notebook-model.js?v=94"></script>
+<script src="./notebook-sharing.js?v=94"></script>
+<script src="./live-sync.js?v=94"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=92"></script>
-<script defer src="./boundary-fill.js?v=92"></script>
-<script defer src="./mandala-tools.js?v=92"></script>
-<script defer src="./study-tools.js?v=92"></script>
-<script defer="" src="./app.js?v=92"></script>
+<script defer src="./cloud-drive.js?v=94"></script>
+<script defer src="./boundary-fill.js?v=94"></script>
+<script defer src="./mandala-tools.js?v=94"></script>
+<script defer src="./pdf-study.js?v=94"></script>
+<script defer src="./study-tools.js?v=94"></script>
+<script defer="" src="./app.js?v=94"></script>
 </body>
 </html>

@@ -756,8 +756,6 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .study-divider{position:relative;display:grid;place-items:center;flex:0 0 18px;background:#eeebf9;color:#6656b9;cursor:col-resize;touch-action:none;user-select:none}
 .study-divider::before{content:'';width:4px;height:38px;border-radius:5px;background:currentColor}
 .study-divider:hover,.study-divider:focus-visible{background:#ded7ff}
-.study-pane header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.study-pane header strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .study-pane .study-actions{margin:4px 0}
 .study-pane label{flex:1;margin:2px 0}
 .study-view-controls{display:flex;flex-wrap:wrap;gap:4px 10px;margin:3px 0 7px}
@@ -768,9 +766,38 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 #studyPdfScroll{position:relative;flex:1;min-height:36px;overflow:auto;overscroll-behavior:contain;background:#e9eaf4;border-radius:8px}
 #studyPdfSurface{width:var(--pdf-zoom,100%);position:relative;margin-inline:auto;line-height:0;background:#fff}
 #studyPdfSurface.select-figure{touch-action:none;cursor:crosshair}
+#studyPdfContent{position:relative}
+#studyPdfSurface[data-turned]{overflow:hidden}
+#studyPdfSurface[data-turned] #studyPdfContent{position:absolute;width:var(--pdf-content-width);left:50%;top:50%;transform:translate(-50%,-50%) rotate(var(--pdf-turn))}
 #studyPdfImage{width:100%;height:auto;display:block;user-select:none}
 #studyFigureBox{position:absolute;background:#6557ed26;border:2px dashed #6557ed;cursor:grab;touch-action:none}
 .select-figure #studyFigureBox{pointer-events:none}
+.pdf-tabs-row{flex-wrap:nowrap}
+#pdfTabs{min-width:0;flex:1;display:flex;gap:4px;overflow:auto;scrollbar-width:thin}
+#pdfTabs button{flex:none;max-width:145px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+#pdfTabs button[aria-pressed=true],.pdf-reading-actions button[aria-expanded=true],#pdfSelectText[aria-pressed=true]{border-color:var(--purple);color:var(--purple)}
+.pdf-study-panel{max-height:150px;overflow:auto;padding:6px 8px;margin-bottom:5px;border:1px solid var(--border);border-radius:8px}
+.pdf-study-panel .btn{font-size:11px;padding:7px 8px}
+.pdf-study-panel input{flex:1;min-width:70px;padding:6px;border:1px solid var(--border);border-radius:7px;background:var(--pale);color:var(--ink)}
+.pdf-study-panel output{flex:1;min-width:60px;font-size:11px}
+#pdfBacklinks{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+#pdfBacklinks button{width:100%;justify-content:flex-start;text-align:left;white-space:normal;overflow-wrap:anywhere}
+#pdfHighlights,#pdfTextSelection{position:absolute;inset:0}
+#pdfHighlights{pointer-events:none}
+.pdf-highlight,.pdf-word{position:absolute}
+.pdf-highlight{background:#ffdc4677;border-radius:2px}
+.pdf-highlight.current{background:#ffac4b8c;outline:1px solid #b45a11}
+.pdf-highlight.linked{background:#9665ff50;outline:1px solid #6936bf}
+.pdf-word{display:block;color:transparent;white-space:pre;line-height:1;cursor:text;user-select:text;-webkit-user-select:text}
+.pdf-word::selection{color:transparent;background:#518eff66}
+.pdf-word>span{display:block;transform-origin:left center}
+#organizerPages{list-style:none;margin:10px 0;padding:0;max-height:38dvh;overflow:auto}
+.organizer-page{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid var(--border)}
+.organizer-page label{flex:1;flex-direction:row;align-items:center;overflow-wrap:anywhere}
+.organizer-page .btn{min-width:34px;min-height:38px;padding:5px}
+#organizerStatus:not(:empty){min-height:1.3em}
+#organizerStatus:empty,#studyPdfStatus:empty,#pdfBookmarkStatus:empty{display:none}
+.stack-page-body>.page-shell[data-turned]{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(var(--page-turn))}
 .present-preview,.presentation-surface{position:relative;line-height:0;margin:auto;width:max-content;max-width:100%}
 #presentationDialog{position:fixed;z-index:65;inset:auto 12px 12px auto;margin:0;width:min(360px,calc(100vw - 24px))}
 .present-preview canvas{display:block;max-width:100%;max-height:33dvh;width:auto;height:auto;touch-action:none}

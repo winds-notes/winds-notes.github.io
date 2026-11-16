@@ -16,8 +16,23 @@
   const typing=target=>Boolean(target?.closest?.('input,textarea,select,[contenteditable="true"],[contenteditable=""]'));
   function close(){const open=!$('clipboardBackdrop').hidden;epoch++;pasteScope=null;$('clipboardBackdrop').hidden=true;$('clipboardText').value='';if(open){const target=pasteTrigger?.isConnected&&pasteTrigger.offsetParent!==null?pasteTrigger:$('moreOptionsBtn');if(target?.offsetParent!==null)target?.focus();}pasteTrigger=null;}
   function clear(){memory=null;close();}
-  function capture(){if(!api.enabled())throw Error('Open a notebook and finish the current interaction first.');const snapshot=api.capture();if(!snapshot)throw Error('Use Select to choose an object first.');const text=encode(snapshot.items||[snapshot.item]);memory={text,account:snapshot.scope.account};return {...snapshot,text};}
+  function store(items,scope){
+    const text=encode(items);memory={text,account:scope.account};return text;
+  }
+  function capture(){if(!api.enabled())throw Error('Open a notebook and finish the current interaction first.');const snapshot=api.capture();if(!snapshot)throw Error('Use Select to choose an object first.');return {...snapshot,text:store(snapshot.items||[snapshot.item],snapshot.scope)};}
   function same(scope){return api.matches(scope);}
+  async function copyQuote(item,scope){
+    if(!same(scope)||!api.enabled())return;
+    const text=store([item],scope);
+    try{
+      if(navigator.clipboard?.write&&global.ClipboardItem){
+        const formats={'text/plain':new Blob([item.text],{type:'text/plain'})};
+        if(global.ClipboardItem.supports?.(WEB_MIME))formats[WEB_MIME]=new Blob([text],{type:MIME});
+        await navigator.clipboard.write([new global.ClipboardItem(formats)]);
+      }else await navigator.clipboard?.writeText?.(item.text);
+    }catch{/* The linked quote is already available in the app clipboard. */}
+    if(same(scope))api.toast('Quote copied · use Paste copied object to keep its link');
+  }
   async function copy(cut=false){
     let snapshot;try{snapshot=capture();}catch(error){api.toast(error.message);return;}
     let external=false;
@@ -34,7 +49,15 @@
     api.toast(external?(cut?'Cut selection':'Copied selection'):(cut?'Cut within WiNDS · use Paste copied object':'Copied within WiNDS · use Paste copied object'));
   }
   function nativeCopy(event,cut){
-    if(typing(event.target)||!api.enabled()||!event.clipboardData)return;
+    if(event.defaultPrevented||typing(event.target)||!api.enabled()||!event.clipboardData)return;
+    const quote=api.pdfQuote?.();
+    if(quote){
+      if(cut)return;
+      const text=store([quote.item],quote.scope);
+      event.clipboardData.setData('text/plain',quote.item.text);
+      try{event.clipboardData.setData(MIME,text);}catch{}
+      event.preventDefault();return;
+    }
     let snapshot;try{snapshot=capture();}catch{return;}
     try{event.clipboardData.setData('text/plain',plain(snapshot.items||[snapshot.item]));try{event.clipboardData.setData(MIME,snapshot.text);}catch{}event.preventDefault();
       if(cut&&!api.remove(snapshot)){api.toast('Selection changed; nothing was cut.');return;}api.toast(cut?'Cut selection':'Copied selection');
@@ -92,7 +115,7 @@
     }catch(error){if(same(scope)){showFallback(scope);api.toast(error.name==='NotAllowedError'?'Use the text box’s Paste command, or Paste copied object':error.message||'Use your browser’s Paste command in the text box');}}
   }
   function init(adapter){
-    api=adapter;document.addEventListener('keydown',event=>{if(!typing(event.target)&&api.enabled()&&(event.metaKey||event.ctrlKey)&&!event.altKey&&['c','x'].includes(event.key.toLowerCase())){event.preventDefault();if(!event.repeat)void copy(event.key.toLowerCase()==='x');}});document.addEventListener('copy',event=>nativeCopy(event,false));document.addEventListener('cut',event=>nativeCopy(event,true));document.addEventListener('paste',nativePaste);
+    api=adapter;document.addEventListener('keydown',event=>{if(!typing(event.target)&&api.enabled()&&(event.metaKey||event.ctrlKey)&&!event.altKey&&['c','x'].includes(event.key.toLowerCase())&&!api.pdfQuote?.()){event.preventDefault();if(!event.repeat)void copy(event.key.toLowerCase()==='x');}});document.addEventListener('copy',event=>nativeCopy(event,false));document.addEventListener('cut',event=>nativeCopy(event,true));document.addEventListener('paste',nativePaste);
     $('copySelected').onclick=()=>copy();$('cutSelected').onclick=()=>copy(true);
     $('clipboardClose').onclick=close;$('clipboardCancel').onclick=close;
     $('clipboardInsert').onclick=()=>{if(pasteScope)void apply({kind:'text',text:$('clipboardText').value},pasteScope);};
@@ -102,6 +125,6 @@
       if(event.key==='Tab'){const controls=[...$('clipboardDialog').querySelectorAll('button,textarea')].filter(el=>!el.disabled),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
     };
   }
-  const exported=Object.freeze({init,copy,paste,clear,decode,encode,moveItems,MAX_BYTES,MAX_TEXT});
+  const exported=Object.freeze({init,copy,copyQuote,paste,clear,decode,encode,moveItems,MAX_BYTES,MAX_TEXT});
   if(typeof module!=='undefined'&&module.exports)module.exports=exported;global.WindsClipboard=exported;
 })(typeof window!=='undefined'?window:globalThis);

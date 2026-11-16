@@ -3,11 +3,12 @@ WORKDIR /app
 RUN mkdir -p /data && chown node:node /data
 COPY package.json LICENSE manifest.webmanifest .nojekyll ./
 COPY tutorial.html index.html privacy.html terms.html styles.css dark.css legal.css ./
-COPY tutorial.js study-tools.js app.js theme.js workspace-model.js selection-preview.js boundary-fill.js mandala-tools.js mandala-art.js creative-tools.js svg-stickers.js graph-tools.js vector-tools.js native-file.js cloud-drive.js notebook-sharing.js shared-notebook-model.js live-sync.js google-config.js pdf-export.js pdf-import.js clipboard.js text-tools.js interaction-tools.js eraser-preview.js page-stack.js sw.js ./
+COPY tutorial.js study-tools.js pdf-text.js pdf-study.js app.js theme.js workspace-model.js selection-preview.js boundary-fill.js mandala-tools.js mandala-art.js creative-tools.js svg-stickers.js graph-tools.js vector-tools.js native-file.js cloud-drive.js notebook-sharing.js shared-notebook-model.js live-sync.js google-config.js pdf-export.js pdf-import.js clipboard.js text-tools.js interaction-tools.js eraser-preview.js page-stack.js sw.js ./
 COPY server/start.mjs server/google-auth.mjs server/live-relay.mjs ./server/
 COPY assets/ ./assets/
 COPY examples/ ./examples/
 COPY vendor/pdfjs/ ./vendor/pdfjs/
+COPY vendor/ocr/ ./vendor/ocr/
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 WINDS_SESSION_FILE=/data/sessions.enc WINDS_LIVE_SYNC=true
 USER node
 EXPOSE 8080

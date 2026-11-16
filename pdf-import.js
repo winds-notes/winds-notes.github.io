@@ -1,7 +1,8 @@
 /* Local PDF import. Parsing/rasterization is confined to the modal import task. */
 (function(global){
   'use strict';
-  const MAX_FILE_BYTES=25*1024*1024,MAX_PAGES=50,MAX_RENDERED_BYTES=60*1024*1024;
+  const MAX_FILE_MB=100,MAX_FILE_BYTES=MAX_FILE_MB*1024*1024;
+  const MAX_PAGES=50,MAX_RENDERED_BYTES=60*1024*1024;
   let api=null,current=null,library=null;
   const $=id=>document.getElementById(id);
   const cancelled=()=>Object.assign(Error('PDF import cancelled.'),{cancelled:true});
@@ -56,7 +57,7 @@
   }
   async function open(file,{reference=false}={}){
     if(!file)return;
-    if(file.size>MAX_FILE_BYTES){api.toast('PDF is too large · choose a file under 25 MB');return;}
+    if(file.size>MAX_FILE_BYTES){api.toast(`PDF is too large · choose a file up to ${MAX_FILE_MB} MB`);return;}
     if(current)close();
     const session={context:api.context(),trigger:document.activeElement,cancelled:false,running:false,committing:false,file,reference};current=session;
     $('pdfImportBackdrop').hidden=false;$('pdfImportDialog').focus();$('pdfImportName').textContent=file.name;$('pdfImportPageCount').textContent='';$('pdfImportStart').textContent='Import pages';
@@ -91,6 +92,8 @@
     $('pdfImportProgress').max=selected.length;$('pdfImportProgress').value=0;
     const pages=[];let total=0;
     try{
+      const textEngine=global.WindsPdfText;
+      const chapters=await textEngine?.readChapters(session.pdf,selected,()=>current===session&&!session.cancelled).catch(()=>new Map());
       for(const number of selected){
         check(session);status(`Preparing PDF page ${number} · ${pages.length+1} of ${selected.length}…`);
         const page=await session.pdf.getPage(number);check(session);const base=page.getViewport({scale:1}),layout=pageLayout(base.width,base.height),viewport=page.getViewport({scale:layout.scale});
@@ -98,11 +101,17 @@
         try{
           session.render=page.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport,background:'#ffffff',annotationMode:session.lib.AnnotationMode.ENABLE});
           await session.render.promise;check(session);
+          const words=await textEngine?.readWords(page,viewport).catch(()=>[]);
+          check(session);
           const src=canvas.toDataURL('image/jpeg',.93),thumb=document.createElement('canvas');
           const scale=Math.min(240/canvas.width,340/canvas.height);thumb.width=Math.max(1,Math.round(canvas.width*scale));thumb.height=Math.max(1,Math.round(canvas.height*scale));
           thumb.getContext('2d',{alpha:false}).drawImage(canvas,0,0,thumb.width,thumb.height);const thumbnail=thumb.toDataURL('image/jpeg',.8);thumb.width=thumb.height=1;
-          total+=src.length+thumbnail.length;if(total>MAX_RENDERED_BYTES)throw Error('These pages are too large together. Choose fewer pages and try again.');
-          pages.push({orientation:layout.orientation,template:'blank',items:[],background:{type:'pdf',src,thumbnail,width:layout.width,height:layout.height,sourceName:session.file.name.slice(0,200),sourcePage:number}});
+          total+=src.length+thumbnail.length+(words?.length?JSON.stringify(words).length:0);
+          if(total>MAX_RENDERED_BYTES)throw Error('These pages are too large together. Choose fewer pages and try again.');
+          const background={type:'pdf',src,thumbnail,width:layout.width,height:layout.height,sourceName:session.file.name.slice(0,200),sourcePage:number};
+          if(words?.length)background.pdfWords=words;
+          if(chapters?.has(number))background.chapters=chapters.get(number);
+          pages.push({orientation:layout.orientation,template:'blank',items:[],background});
         }finally{session.render=null;canvas.width=canvas.height=1;page.cleanup();}
         $('pdfImportProgress').value=pages.length;await new Promise(resolve=>setTimeout(resolve,0));
       }
