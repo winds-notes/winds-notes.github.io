@@ -124,8 +124,8 @@
     textDrag=null;
     layer.replaceChildren();layer.hidden=true;
     $('pdfSelectText').setAttribute('aria-pressed','false');$('pdfSelectText').disabled=false;
-    $('pdfInsertQuote').hidden=$('pdfCopyQuote').hidden=true;
-    $('pdfInsertQuote').disabled=$('pdfCopyQuote').disabled=true;
+    $('pdfInsertQuote').hidden=$('pdfCopyQuote').hidden=$('pdfMakeCard').hidden=true;
+    $('pdfInsertQuote').disabled=$('pdfCopyQuote').disabled=$('pdfMakeCard').disabled=true;
     pressedQuote=null;
   }
   function selectionData(){
@@ -216,7 +216,7 @@
       }
       layer.replaceChildren(fragment);layer.hidden=false;session.textWords=entries;
       resizeText();
-      $('pdfSelectText').setAttribute('aria-pressed','true');$('pdfInsertQuote').hidden=$('pdfCopyQuote').hidden=false;
+      $('pdfSelectText').setAttribute('aria-pressed','true');$('pdfInsertQuote').hidden=$('pdfCopyQuote').hidden=$('pdfMakeCard').hidden=false;
       $('studyPdfStatus').textContent='Drag across the words, or tap the first and last word.';
     }catch(error){if(live())$('studyPdfStatus').textContent=error.message||'Could not read this page.';}
     finally{if(live())$('pdfSelectText').disabled=false;}
@@ -238,11 +238,12 @@
     if(!page||!data||!api.ready())return null;
     return {scope:api.scope(),item:api.quoteItem(data.quote,{book:session.book,page:page.id,pdfRegion:data.regions})};
   }
-  function quoteAction(copy){
+  function quoteAction(action){
     const quote=pressedQuote||captureQuote();pressedQuote=null;
     if(!quote||!api.matches(quote.scope)||!api.ready())return;
     try{
-      if(copy)void global.WindsClipboard.copyQuote(quote.item,quote.scope);
+      if(action==='card')api.makeCard(quote);
+      else if(action==='copy')void global.WindsClipboard.copyQuote(quote.item,quote.scope);
       else{
         api.insertQuote(quote.item,quote.scope);
         clearText();$('studyPdfStatus').textContent='Quote inserted with a link to this passage.';
@@ -419,14 +420,14 @@
     $('pdfChapters').onchange=$('pdfBookmarks').onchange=event=>{if(event.target.value!=='')reader.setPage(Number(event.target.value));};
     $('pdfBookmarkToggle').onclick=toggleBookmark;
     $('pdfSelectText').onclick=selectText;
-    for(const id of ['pdfInsertQuote','pdfCopyQuote']){
+    for(const [id,action] of [['pdfInsertQuote','insert'],['pdfCopyQuote','copy'],['pdfMakeCard','card']]){
       $(id).onpointerdown=event=>{pressedQuote=captureQuote();if(pressedQuote)event.preventDefault();};
       $(id).onpointercancel=()=>{pressedQuote=null;};
-      $(id).onclick=()=>quoteAction(id==='pdfCopyQuote');
+      $(id).onclick=()=>quoteAction(action);
     }
     document.addEventListener('selectionchange',()=>{
       if(!ref()?.textWords)return;
-      $('pdfInsertQuote').disabled=$('pdfCopyQuote').disabled=!pressedQuote&&!selectionData();
+      $('pdfInsertQuote').disabled=$('pdfCopyQuote').disabled=$('pdfMakeCard').disabled=!pressedQuote&&!selectionData();
     });
     bindTextSelection();
     new ResizeObserver(resizeText).observe($('studyPdfImage'));

@@ -455,7 +455,7 @@
     if(target===workspaceId)return;
     const unlock=lockInterface();
     try{
-      closeMenus(false);globalThis.WindsStudy?.close();
+      closeMenus(false);globalThis.WindsStudy?.close();globalThis.WindsCards?.close();
       if($('renameDialog').open)$('renameDialog').close();
       if(state.widthAdjustment)finishWidthAdjustment(false);
       globalThis.WindsGraph?.cancel();
@@ -2719,7 +2719,7 @@
   function openNotebookOptions(event){
     const menu=$('moreMenu'),n=notebook();if(!n)return;
     const selected=['select','area'].includes(state.tool)&&!imageCropSession&&page()?.items[state.selected];
-    for(const action of ['editText','copy','cut']){
+    for(const action of ['editText','copy','cut','makeCard']){
       menu.querySelector(`[data-action="${action}"]`).hidden=!selected||(action==='editText'&&(selected.type!=='text'||activeGroup()));
     }
     const linkable=editableSelection();
@@ -2771,6 +2771,8 @@
       case 'cut': window.WindsClipboard.copy(true);break;
       case 'paste': window.WindsClipboard.paste();break;
       case 'pasteInternal': window.WindsClipboard.paste(true);break;
+      case 'makeCard': composeStudyCard();break;
+      case 'studyCards': window.WindsCards.open();break;
       case 'rename': showRename(state.activeId);break;
       case 'duplicate': duplicatePage();break;
       case 'deletePage': deletePage(page()?.id);break;
@@ -3248,14 +3250,19 @@
       const cached=new Image();cached.src=src;await cached.decode();if(!clipboardMatches(scope))throw Error('The account or page changed.');imageCache.set(src,cached);return item;
     }finally{URL.revokeObjectURL(url);}
   }
-  async function clipboardPng(snapshot){
+  async function clipboardPng(snapshot,{maxSide=2048,paper=false}={}){
     await clipboardWait(snapshot.scope);const items=snapshot.items||[snapshot.item];
     for(const item of items)if(item.type==='image'){
       let image=imageCache.get(item.src);if(!image){image=new Image();image.src=item.src;await image.decode();imageCache.set(item.src,image);}else if(!image.complete)await image.decode();
     }
-    await clipboardWait(snapshot.scope);const b=interactions.union(items.map(clipboardBounds)),padding=8,scale=Math.min(2,2048/(b.w+padding*2),2048/(b.h+padding*2)),canvas=document.createElement('canvas');
+    await clipboardWait(snapshot.scope);const b=interactions.union(items.map(clipboardBounds)),padding=8,scale=Math.min(2,maxSide/(b.w+padding*2),maxSide/(b.h+padding*2)),canvas=document.createElement('canvas');
     canvas.width=Math.max(1,Math.ceil((b.w+padding*2)*scale));canvas.height=Math.max(1,Math.ceil((b.h+padding*2)*scale));const ctx=canvas.getContext('2d');ctx.scale(scale,scale);ctx.translate(padding-b.x,padding-b.y);for(const item of items)drawItem(ctx,item);
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));canvas.width=canvas.height=1;if(!blob)throw Error('Could not copy the selected image.');return blob;
+    if(paper){ctx.resetTransform();ctx.globalCompositeOperation='destination-over';ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);}
+    try{
+      const blob=await new Promise(resolve=>canvas.toBlob(resolve,paper?'image/jpeg':'image/png',.9));
+      if(!blob)throw Error('Could not copy the selected image.');
+      return blob;
+    }finally{canvas.width=canvas.height=1;}
   }
   function insertClipboardItems(items,scope,position=null){
     if(!clipboardMatches(scope)||!clipboardEnabled())throw Error('The page changed or writing resumed. Paste again when idle.');
@@ -3303,6 +3310,89 @@
       tx.onabort=tx.onerror=()=>reject(problem||tx.error||Error('Page templates could not be saved.'));
     });
   }
+  const cardKey='study-card-v1:',cardImageKey='study-card-image-v1:';
+  async function studyCardStorage(account,{id,mutate,image,media=false}={}){
+    const check=()=>{if(account!==workspaceId)throw Error('The workspace changed.');};
+    check();
+    if(persistence==='localstorage'){
+      const prefix=`${workspaceLocalStorageKey()}-${cardKey}`;
+      const read=key=>JSON.parse(localStorage.getItem(key));
+      if(!id)return Object.keys(localStorage).filter(key=>key.startsWith(prefix)).map(key=>read(key)?.card).filter(Boolean);
+      const key=prefix+id,previous=read(key);
+      if(media)return previous?.image;
+      const card=mutate(previous?.card);
+      if(card)localStorage.setItem(key,JSON.stringify({card,image:image??previous?.image}));
+      else localStorage.removeItem(key);
+      return card;
+    }
+    return new Promise((resolve,reject)=>{
+      const tx=database.transaction('meta',mutate?'readwrite':'readonly'),store=tx.objectStore('meta');
+      const request=id?store.get((media?cardImageKey:cardKey)+id):store.getAll(IDBKeyRange.bound(cardKey,cardKey+'\uffff'));
+      let result,problem;
+      request.onsuccess=()=>{
+        try{
+          check();
+          result=mutate?mutate(request.result):request.result;
+          if(!mutate)return;
+          if(result){
+            store.put(result,cardKey+id);
+            if(image)store.put(image,cardImageKey+id);
+          }else{
+            store.delete(cardKey+id);store.delete(cardImageKey+id);
+          }
+        }catch(error){problem=error;tx.abort();}
+      };
+      tx.oncomplete=()=>resolve(result);
+      tx.onabort=tx.onerror=()=>reject(problem||tx.error||Error('Study cards could not be saved.'));
+    });
+  }
+  function composeStudyCard(quote){
+    if(!clipboardEnabled())return;
+    const scope=quote?.scope||clipboardContext();
+    if(!clipboardMatches(scope))return;
+    const items=quote?[quote.item]:selectionItems();
+    if(!items.length)return;
+    const original={book:scope.book,page:scope.page,item:items[0].id};
+    const link=items.length===1&&items[0].pageLink;
+    const source=link?.pdfRegion?{
+      primary:{...link,book:link.book||scope.book},...(!quote?{fallback:original}:{})
+    }:{primary:original};
+    window.WindsCards.compose({scope,source,items});
+  }
+  function resolveStudyCardSource(source){
+    for(const location of [source?.primary,source?.fallback]){
+      if(!location)continue;
+      const book=state.notebooks.find(n=>n.id===location.book);
+      const target=book?.pages.find(p=>p.id===location.page);
+      if(target&&(!location.pdfRegion||target.background))return location;
+    }
+    return null;
+  }
+  function navigateStudyPage(bookId,pageId,itemId){
+    const book=state.notebooks.find(book=>book.id===bookId),index=book?.pages.findIndex(p=>p.id===pageId);
+    if(!(index>=0))return false;
+    if(bookId===state.activeId)switchPage(index);else openNotebook(bookId,pageId);
+    if(itemId){
+      const itemIndex=page()?.items.findIndex(item=>item.id===itemId);
+      if(!(itemIndex>=0))return false;
+      setTool('select',{repaint:false});state.selected=itemIndex;renderCanvas();
+      const box=clipboardBounds(page().items[itemIndex]);
+      const [x,y]=window.WindsPdfText.turnPoint((box.x+box.w/2)/W,(box.y+box.h/2)/H,pageTurn);
+      const rect=$('inkCanvas').getBoundingClientRect(),scroller=$('pageScroller'),view=scroller.getBoundingClientRect();
+      scroller.scrollTop+=rect.top+y*rect.height-view.top-view.height/2;
+      scroller.scrollLeft+=rect.left+x*rect.width-view.left-view.width/2;
+    }
+    return true;
+  }
+  function openStudyCardSource(location){
+    const {book,page:pageId,item,pdfRegion}=location;
+    if(pdfRegion){
+      if($('editorView').hidden)openNotebook(book,pageId);
+      window.WindsStudy.follow({pageLink:location});
+    }else if(!navigateStudyPage(book,pageId,item)){
+      toast('Source page opened. The original selection has changed.');
+    }
+  }
   function capturePageTemplate(){
     const book=notebook(),source=page();
     const clean=window.WindsFile.validateShared({id:book.id,title:book.title,pages:[source]}).pages[0];
@@ -3325,6 +3415,14 @@
     book.pages.splice(state.pageIndex+1,0,added);switchPage(state.pageIndex+1);scheduleSave(true);toast('Page added from template');
   }
   function initStudyTools(){
+    window.WindsCards.init({
+      account:()=>workspaceId,id:uid,toast,
+      list:account=>studyCardStorage(account),
+      image:(account,id)=>studyCardStorage(account,{id,media:true}),
+      update:(account,id,mutate,image)=>studyCardStorage(account,{id,mutate,image}),
+      snapshot:input=>clipboardPng(input,{maxSide:1200,paper:true}),
+      resolveSource:resolveStudyCardSource,openSource:openStudyCardSource
+    });
     window.WindsStudy.init({
       scope:clipboardContext,matches:clipboardMatches,selected:editableSelection,ready:clipboardEnabled,
       books:()=>state.notebooks,book:notebook,id:uid,toast,
@@ -3340,17 +3438,8 @@
         if(link)item.pageLink=link;else delete item.pageLink;
         scheduleSave();renderCanvas();return true;
       },
-      navigate(bookId,pageId,itemId){
-        const book=state.notebooks.find(book=>book.id===bookId),index=book?.pages.findIndex(p=>p.id===pageId);
-        if(!(index>=0))return false;
-        if(bookId===state.activeId)switchPage(index);else openNotebook(bookId,pageId);
-        if(itemId){
-          const itemIndex=page()?.items.findIndex(item=>item.id===itemId);
-          if(!(itemIndex>=0))return false;
-          setTool('select',{repaint:false});state.selected=itemIndex;renderCanvas();
-        }
-        return true;
-      },
+      navigate:navigateStudyPage,
+      makeCard:composeStudyCard,
       read:(key,scope)=>templateStorage(key,scope),
       update:templateStorage,
       capturePage:capturePageTemplate,

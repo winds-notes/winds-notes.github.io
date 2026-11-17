@@ -751,6 +751,31 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .study-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:12px}
 .study-actions .btn,.study-pane header .btn,.presentation-nav .btn{padding:7px 10px;font-size:11px}
 .study-dialog p,.study-pane p{font-size:12px;margin:8px 0}
+.study-card-dialog{width:min(520px,calc(100vw - 24px))}
+.study-card-dialog header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.study-card-dialog header h2{margin:0}
+.study-card-dialog label[hidden],.study-card-answer[hidden],#cardRatings[hidden]{display:none}
+.study-card-dialog textarea{width:100%;min-height:62px;resize:vertical;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--pale);color:var(--ink);font-size:15px;line-height:1.45}
+.study-card-dialog .btn{min-height:42px}
+.study-card-dialog .study-card-status:empty{display:none}
+#cardDeckList{list-style:none;padding:0;margin:12px 0 0;max-height:48dvh;overflow:auto}
+#cardDeckList li+li{margin-top:6px}
+#cardDeckList button{width:100%;min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:var(--pale);color:var(--ink)}
+#cardDeckList button:hover{border-color:var(--purple)}
+#cardDeckList span,#cardFacePrompt{overflow-wrap:anywhere;white-space:pre-wrap}
+#cardDeckList span{font-weight:650}
+#cardDeckList small{flex:none;font-size:11px;text-align:right}
+#cardFace{margin-top:14px;padding-top:10px;border-top:1px solid var(--border)}
+#cardFacePrompt{font-size:clamp(19px,4vw,25px);line-height:1.35;margin:0 0 10px}
+.study-card-answer{padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--pale)}
+.study-card-answer img{display:block;max-width:100%;max-height:36dvh;width:auto;height:auto;margin-inline:auto;border-radius:5px}
+.study-card-answer img[hidden]{display:none}
+.study-card-answer p{font-size:15px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+#cardRatings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:12px}
+#cardRatings button{min-height:50px;padding:5px 2px;border:1px solid var(--border);border-radius:9px;background:var(--pale);color:var(--ink);font-size:12px;font-weight:750}
+#cardRatings button:hover:not(:disabled){border-color:var(--purple)}
+#cardRatings button[data-rating="good"]{border-color:#7770d7}
+#cardRatings small{display:block;font-size:10px;font-weight:600;margin-top:3px}
 .study-pane{width:var(--study-split,36%);flex:none;display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px;background:#f8f9fc;overflow:auto}
 .study-pane[hidden],.study-divider[hidden],.presentation-stage[hidden],.presentation-laser[hidden]{display:none}
 .study-divider{position:relative;display:grid;place-items:center;flex:0 0 18px;background:#eeebf9;color:#6656b9;cursor:col-resize;touch-action:none;user-select:none}

@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=94"></script>
-<script src="./google-config.js?v=94"></script>
+<script src="./theme.js?v=96"></script>
+<script src="./google-config.js?v=96"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=94" rel="stylesheet"/>
-<link href="./dark.css?v=94" rel="stylesheet"/>
+<link href="./styles.css?v=96" rel="stylesheet"/>
+<link href="./dark.css?v=96" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -34,7 +34,7 @@
 <div class="hero-copy"><div class="eyebrow"><span class="sparkle">✦</span> YOUR CREATIVE SPACE</div><h1>Every great idea<br/>starts <em>somewhere.</em></h1><p>Beautifully simple handwritten notes, sketches, and ideas — all in one place. Made for your iPad, tablet, and laptop.</p><div class="hero-actions"><button class="btn btn-primary hero-cta" id="heroCreate"><span id="heroPlus"></span> Create a notebook</button><button class="btn btn-outline hero-continue" id="heroContinue" type="button" hidden><span class="hero-continue-label">Continue</span><span class="hero-continue-title" id="heroContinueTitle"></span><span aria-hidden="true">→</span></button></div></div>
 <div aria-hidden="true" class="hero-graphic"><div class="hero-paper paper-back"></div><div class="hero-paper paper-front"><div class="hero-paper-tag">THOUGHTS / 001</div><div class="hero-hello">Make space<br/>for <i>ideas.</i></div><div class="hero-underline"></div><div class="hero-doodle">✳</div><div class="hero-lines"><span></span><span></span><span></span></div></div><div class="hero-pencil"></div><div class="hero-star">✳</div></div>
 </div>
-<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><label class="sort-wrap" title="Sort notebooks"><span class="sr-only">Sort notebooks</span><select id="sortNotebooks" aria-label="Sort notebooks"><option value="recent">Recently edited</option><option value="name">Name A–Z</option><option value="created">Newest first</option><option value="oldest">Oldest first</option></select></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button class="btn btn-outline btn-small" id="importPdfHome" type="button">Import PDF</button><button type="button" class="btn btn-outline btn-small" id="openSharedFromDrive">Open shared from Drive</button><button type="button" class="btn btn-outline btn-small" id="openSharedNotebook">Open shared link</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
+<section class="notebooks-section"><div class="section-heading"><div><div class="section-eyebrow">YOUR WORKSPACE</div><h2>My notebooks <span class="count-pill" id="notebookCount">0</span></h2></div><div class="section-controls"><button class="btn btn-outline btn-small" id="openStudyCards" type="button">Study cards</button><label class="search-wrap"><span id="searchIcon"></span><input aria-label="Search notebooks" id="searchNotebooks" placeholder="Search notebooks" type="search"/></label><label class="sort-wrap" title="Sort notebooks"><span class="sr-only">Sort notebooks</span><select id="sortNotebooks" aria-label="Sort notebooks"><option value="recent">Recently edited</option><option value="name">Name A–Z</option><option value="created">Newest first</option><option value="oldest">Oldest first</option></select></label><button class="btn btn-outline btn-small btn-open-native" id="openNotebookFile"><span id="openFileIcon"></span> Open notebook</button><button class="btn btn-outline btn-small" id="importPdfHome" type="button">Import PDF</button><button type="button" class="btn btn-outline btn-small" id="openSharedFromDrive">Open shared from Drive</button><button type="button" class="btn btn-outline btn-small" id="openSharedNotebook">Open shared link</button><button class="btn btn-primary btn-small" id="newNotebook"><span id="newPlus"></span> New notebook</button></div></div><div class="notebook-grid" id="notebookGrid"></div></section>
 
 <footer class="designer-credit">Designed by <a href="https://alakesh-kalita.github.io/" target="_blank" rel="noopener noreferrer">Alakesh Kalita</a><span aria-hidden="true"> · </span>WiNDS Notes<nav class="legal-links" aria-label="Policies"><a href="./privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a><a href="./terms.html" target="_blank" rel="noopener noreferrer">Terms of Service</a></nav></footer>
 </main>
@@ -138,6 +138,7 @@
   <div class="notebook-action-groups">
     <section data-command-group id="selectionMenuGroup">
       <h3>Selection</h3>
+      <button type="button" data-action="makeCard" data-command data-icon="paper" data-keywords="flashcard study card recall" hidden>Create study card…</button>
       <button type="button" data-action="editText" data-command data-icon="text">Edit selected text…</button>
       <button type="button" data-action="copy" data-command data-icon="copy">Copy selection</button>
       <button type="button" data-action="cut" data-command data-icon="cut">Cut selection</button>
@@ -169,6 +170,7 @@
       <button type="button" data-action="stickers" data-command data-icon="smile" data-keywords="emoji education">Stickers…</button>
       <button type="button" data-action="pdf" data-command data-icon="paper">Import PDF pages…</button>
       <button type="button" data-action="reference" data-command data-icon="pages" data-keywords="study side by side reference pdf figure">Study beside a PDF…</button>
+      <button type="button" data-action="studyCards" data-command data-icon="paper" data-keywords="flashcards review due spaced repetition">Study cards…</button>
       <button type="button" data-action="present" data-command data-icon="pages" data-keywords="presentation projector laser reveal fullscreen">Present notebook…</button>
     </section>
     <section data-command-group>
@@ -382,6 +384,40 @@
 <div class="text-format-row"><div class="text-emphasis" role="group" aria-label="Text emphasis"><button type="button" id="textEditBold" aria-label="Bold" aria-pressed="false"><b>B</b></button><button type="button" id="textEditItalic" aria-label="Italic" aria-pressed="false"><i>I</i></button><button type="button" id="textEditUnderline" aria-label="Underline" aria-pressed="false"><u>U</u></button></div><label>Alignment<select id="textEditAlign" aria-label="Text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Line spacing<input id="textEditSpacing" aria-label="Text line spacing" type="number" min="0.8" max="3" step="any" required></label><label>Box width<input id="textEditWidth" aria-label="Text box width" type="number" min="1" max="2200" step="any" required></label></div>
 <label class="text-content-label" for="textEditContent">Your text</label><textarea id="textEditContent" aria-label="Edit text content" maxlength="1000000" spellcheck="true"></textarea><p id="textEditStatus" role="status"></p><p class="text-edit-hint">Changes apply to this text box. New text uses your last font settings. ⌘/Ctrl+Enter applies · Escape cancels.</p><div class="text-edit-actions"><button type="button" id="textEditCancel" class="btn btn-outline">Cancel</button><button type="submit" id="textEditApply" class="btn btn-primary">Apply changes</button></div></form></section></div>
 <div class="cloud-backdrop" id="clipboardBackdrop" hidden><section class="cloud-dialog" id="clipboardDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardHeading"><button id="clipboardClose" class="cloud-close" aria-label="Close paste">×</button><h2 id="clipboardHeading">Paste into this page</h2><p class="cloud-description">Paste text below using your keyboard or your device’s Paste command. Images can also be pasted with ⌘V / Ctrl+V on the page.</p><textarea id="clipboardText" class="clipboard-text" aria-label="Text to paste" placeholder="Paste or type your text here…" maxlength="100000"></textarea><div class="cloud-actions"><button id="clipboardInsert" class="btn btn-primary">Insert text</button><button id="pasteInternal" class="btn btn-outline">Paste copied object</button><button id="clipboardCancel" class="btn btn-outline">Cancel</button></div></section></div>
+<dialog id="cardComposer" class="shortcuts-dialog study-dialog study-card-dialog" aria-labelledby="cardComposerTitle">
+  <h2 id="cardComposerTitle">Create study card</h2>
+  <form id="cardComposerForm">
+    <label>Prompt <textarea id="cardPrompt" rows="2" maxlength="500" required placeholder="What should you recall?"></textarea></label>
+    <label>Answer <textarea id="cardTextAnswer" rows="4" maxlength="16000"></textarea></label>
+    <div class="study-card-answer" id="cardComposerPreview" hidden><img alt="Selected answer"><p></p></div>
+    <p id="cardComposerStatus" class="study-card-status" role="status"></p>
+    <div class="study-actions"><button type="button" class="btn btn-outline" data-close-study>Cancel</button><button type="submit" class="btn btn-primary" id="cardSave">Save card</button></div>
+  </form>
+</dialog>
+<dialog id="studyCardsDialog" class="shortcuts-dialog study-dialog study-card-dialog" aria-labelledby="studyCardsTitle">
+  <header><h2 id="studyCardsTitle">Study cards</h2><button type="button" class="btn btn-outline" data-close-study>Done</button></header>
+  <p id="cardDeckSummary" role="status"></p>
+  <div class="study-actions"><button type="button" class="btn btn-primary" id="cardReview">Review due</button><button type="button" class="btn btn-outline" id="cardBrowse">All cards</button></div>
+  <ul id="cardDeckList" aria-label="Saved study cards"></ul>
+  <p id="cardDeckEmpty" hidden></p>
+  <section id="cardFace" hidden aria-label="Study card">
+    <h3 id="cardFacePrompt" tabindex="-1"></h3>
+    <div class="study-card-answer" id="cardFaceAnswer" hidden><img alt="Saved handwritten answer or diagram"><p></p></div>
+    <div class="study-actions">
+      <button type="button" class="btn btn-primary" id="cardReveal">Show answer</button>
+      <button type="button" class="btn btn-outline" id="cardOpenSource" hidden>Open source</button>
+      <button type="button" class="btn btn-outline" id="cardEdit" hidden>Edit</button>
+      <button type="button" class="btn btn-outline danger-text" id="cardDelete" hidden>Delete</button>
+    </div>
+    <div id="cardRatings" role="group" aria-label="How well did you remember?" hidden>
+      <button type="button" data-rating="again">Again<small></small></button>
+      <button type="button" data-rating="hard">Hard<small></small></button>
+      <button type="button" data-rating="good">Good<small></small></button>
+      <button type="button" data-rating="easy">Easy<small></small></button>
+    </div>
+  </section>
+  <p id="cardDeckStatus" class="study-card-status" role="status"></p>
+</dialog>
 <dialog id="pageLinkDialog" class="shortcuts-dialog study-dialog" aria-labelledby="pageLinkTitle">
   <form id="pageLinkForm">
     <h2 id="pageLinkTitle">Link selection to a page</h2>
@@ -449,7 +485,7 @@
   </div>
   <div id="studyPdfScroll"><div id="studyPdfSurface"><div id="studyPdfContent"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="pdfHighlights" aria-hidden="true"></div><div id="pdfTextSelection" hidden></div><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div></div>
   <p id="studyPdfStatus" role="status"></p>
-  <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-outline" type="button" id="insertStudyFigure" disabled>Insert figure</button><button class="btn btn-outline" type="button" id="pdfSelectText" aria-pressed="false">Select text</button><button class="btn btn-outline" type="button" id="pdfCopyQuote" hidden disabled>Copy quote</button><button class="btn btn-primary" type="button" id="pdfInsertQuote" hidden disabled>Insert quote</button></div>
+  <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-outline" type="button" id="insertStudyFigure" disabled>Insert figure</button><button class="btn btn-outline" type="button" id="pdfSelectText" aria-pressed="false">Select text</button><button class="btn btn-outline" type="button" id="pdfCopyQuote" hidden disabled>Copy quote</button><button class="btn btn-primary" type="button" id="pdfInsertQuote" hidden disabled>Insert quote</button><button class="btn btn-outline" type="button" id="pdfMakeCard" hidden disabled>Study card…</button></div>
 </aside>
 <dialog id="pageOrganizer" class="shortcuts-dialog study-dialog" aria-labelledby="pageOrganizerTitle">
   <h2 id="pageOrganizerTitle">Organize pages</h2>
@@ -481,31 +517,32 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=94"></script>
-<script src="./svg-stickers.js?v=94"></script>
-<script src="./creative-tools.js?v=94"></script>
-<script src="./graph-tools.js?v=94"></script>
-<script src="./vector-tools.js?v=94"></script>
-<script src="./interaction-tools.js?v=94"></script>
-<script src="./selection-preview.js?v=94"></script>
-<script src="./eraser-preview.js?v=94"></script>
-<script src="./page-stack.js?v=94"></script>
-<script src="./workspace-model.js?v=94"></script>
-<script src="./text-tools.js?v=94"></script>
-<script src="./pdf-export.js?v=94"></script>
-<script src="./pdf-import.js?v=94"></script>
-<script src="./pdf-text.js?v=94"></script>
-<script src="./native-file.js?v=94"></script>
-<script src="./clipboard.js?v=94"></script>
-<script src="./shared-notebook-model.js?v=94"></script>
-<script src="./notebook-sharing.js?v=94"></script>
-<script src="./live-sync.js?v=94"></script>
+<script src="./mandala-art.js?v=96"></script>
+<script src="./svg-stickers.js?v=96"></script>
+<script src="./creative-tools.js?v=96"></script>
+<script src="./graph-tools.js?v=96"></script>
+<script src="./vector-tools.js?v=96"></script>
+<script src="./interaction-tools.js?v=96"></script>
+<script src="./selection-preview.js?v=96"></script>
+<script src="./eraser-preview.js?v=96"></script>
+<script src="./page-stack.js?v=96"></script>
+<script src="./workspace-model.js?v=96"></script>
+<script src="./text-tools.js?v=96"></script>
+<script src="./pdf-export.js?v=96"></script>
+<script src="./pdf-import.js?v=96"></script>
+<script src="./pdf-text.js?v=96"></script>
+<script src="./native-file.js?v=96"></script>
+<script src="./clipboard.js?v=96"></script>
+<script src="./shared-notebook-model.js?v=96"></script>
+<script src="./notebook-sharing.js?v=96"></script>
+<script src="./live-sync.js?v=96"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=94"></script>
-<script defer src="./boundary-fill.js?v=94"></script>
-<script defer src="./mandala-tools.js?v=94"></script>
-<script defer src="./pdf-study.js?v=94"></script>
-<script defer src="./study-tools.js?v=94"></script>
-<script defer="" src="./app.js?v=94"></script>
+<script defer src="./cloud-drive.js?v=96"></script>
+<script defer src="./boundary-fill.js?v=96"></script>
+<script defer src="./mandala-tools.js?v=96"></script>
+<script defer src="./pdf-study.js?v=96"></script>
+<script defer src="./study-tools.js?v=96"></script>
+<script defer src="./study-cards.js?v=96"></script>
+<script defer="" src="./app.js?v=96"></script>
 </body>
 </html>
