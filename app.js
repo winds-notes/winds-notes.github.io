@@ -2725,6 +2725,7 @@
     const linkable=editableSelection();
     menu.querySelector('[data-action="pageLink"]').hidden=!linkable;
     menu.querySelector('[data-action="followLink"]').hidden=!linkable?.pageLink;
+    menu.querySelector('[data-action="pdfText"]').hidden=!page()?.background;
     menu.querySelector('[data-action="previousPage"]').disabled=state.pageIndex===0;
     menu.querySelector('[data-action="nextPage"]').disabled=state.pageIndex===n.pages.length-1;
     menu.querySelector('[data-action="undo"]').disabled=$('undoBtn').disabled;
@@ -2787,6 +2788,9 @@
       case 'browseLinks': setTool('pan');state.followPageLinks=true;toast('Tap a linked object to open its page. Choose Pen to write.');break;
       case 'templates': window.WindsStudy.openTemplates();break;
       case 'reference': window.WindsStudy.openSource();break;
+      case 'pdfText':
+        if(page()?.background&&window.WindsStudy.showReference(state.activeId,page().id))window.WindsPdfStudy.selectText();
+        break;
       case 'present': window.WindsStudy.startPresentation();break;
       case 'open': $('openNotebookInput').click();break;
       case 'drive': window.WindsDrive?.open();break;
@@ -3285,7 +3289,11 @@
       },
       remove:snapshot=>{if(!clipboardMatches(snapshot.scope)||snapshot.version!==saveVersion||!clipboardEnabled()||!snapshot.originals.every(item=>page().items.includes(item)))return false;remember();const originals=new Set(snapshot.originals);page().items=page().items.filter(item=>!originals.has(item));state.selected=-1;groupSelection=null;renderCanvas();renderThumbs();scheduleSave();return true;},
       png:clipboardPng,imageItem:clipboardImage,textItem:text=>({type:'text',x:0,y:0,w:Math.min(500,W-56),...textDefaults(),color:state.color,text}),
-      pdfQuote:()=>window.WindsPdfStudy.captureQuote(),insert:insertClipboardItems,toast});
+      pdfQuote:target=>{
+        const focused=target===document?document.activeElement:target;
+        return focused?.closest?.('#studyPane')?window.WindsPdfStudy.captureQuote():null;
+      },
+      insert:insertClipboardItems,toast});
   }
   function editableSelection(){return state.tool==='select'&&!activeGroup()?page()?.items[state.selected]:null;}
   function prepareObjectEditor(){closeMenus();cancelBoundaryFill(true);finishActiveStroke();commitText();composeInkNow();}

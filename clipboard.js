@@ -50,7 +50,7 @@
   }
   function nativeCopy(event,cut){
     if(event.defaultPrevented||typing(event.target)||!api.enabled()||!event.clipboardData)return;
-    const quote=api.pdfQuote?.();
+    const quote=api.pdfQuote?.(event.target);
     if(quote){
       if(cut)return;
       const text=store([quote.item],quote.scope);
@@ -115,7 +115,17 @@
     }catch(error){if(same(scope)){showFallback(scope);api.toast(error.name==='NotAllowedError'?'Use the text box’s Paste command, or Paste copied object':error.message||'Use your browser’s Paste command in the text box');}}
   }
   function init(adapter){
-    api=adapter;document.addEventListener('keydown',event=>{if(!typing(event.target)&&api.enabled()&&(event.metaKey||event.ctrlKey)&&!event.altKey&&['c','x'].includes(event.key.toLowerCase())&&!api.pdfQuote?.()){event.preventDefault();if(!event.repeat)void copy(event.key.toLowerCase()==='x');}});document.addEventListener('copy',event=>nativeCopy(event,false));document.addEventListener('cut',event=>nativeCopy(event,true));document.addEventListener('paste',nativePaste);
+    api=adapter;
+    document.addEventListener('keydown',event=>{
+      const key=event.key.toLowerCase();
+      if(event.defaultPrevented||typing(event.target)||!api.enabled()||!(event.metaKey||event.ctrlKey)||event.altKey||!['c','x'].includes(key))return;
+      event.preventDefault();
+      if(event.repeat)return;
+      const quote=api.pdfQuote?.(event.target);
+      if(quote){if(key==='c')void copyQuote(quote.item,quote.scope);}
+      else void copy(key==='x');
+    });
+    document.addEventListener('copy',event=>nativeCopy(event,false));document.addEventListener('cut',event=>nativeCopy(event,true));document.addEventListener('paste',nativePaste);
     $('copySelected').onclick=()=>copy();$('cutSelected').onclick=()=>copy(true);
     $('clipboardClose').onclick=close;$('clipboardCancel').onclick=close;
     $('clipboardInsert').onclick=()=>{if(pasteScope)void apply({kind:'text',text:$('clipboardText').value},pasteScope);};

@@ -809,13 +809,13 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 #pdfBacklinks button{width:100%;justify-content:flex-start;text-align:left;white-space:normal;overflow-wrap:anywhere}
 #pdfHighlights,#pdfTextSelection{position:absolute;inset:0}
 #pdfHighlights{pointer-events:none}
-.pdf-highlight,.pdf-word{position:absolute}
+.pdf-highlight,.pdf-selected-word{position:absolute}
 .pdf-highlight{background:#ffdc4677;border-radius:2px}
 .pdf-highlight.current{background:#ffac4b8c;outline:1px solid #b45a11}
 .pdf-highlight.linked{background:#9665ff50;outline:1px solid #6936bf}
-.pdf-word{display:block;color:transparent;white-space:pre;line-height:1;cursor:text;user-select:text;-webkit-user-select:text}
-.pdf-word::selection{color:transparent;background:#518eff66}
-.pdf-word>span{display:block;transform-origin:left center}
+#pdfTextSelection{cursor:text;touch-action:pan-x pan-y pinch-zoom;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#pdfTextSelection:focus-visible{outline:2px solid var(--purple);outline-offset:-2px}
+.pdf-selected-word{pointer-events:none;border-radius:2px;background:#4b8af963;outline:1px solid #315fb1}
 #organizerPages{list-style:none;margin:10px 0;padding:0;max-height:38dvh;overflow:auto}
 .organizer-page{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid var(--border)}
 .organizer-page label{flex:1;flex-direction:row;align-items:center;overflow-wrap:anywhere}

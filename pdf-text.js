@@ -12,6 +12,22 @@
       default:return [x,y];
     }
   }
+  function wordNear(words,x,y,width,height){
+    let index=null,nearest=14**2;
+    for(let i=0;i<words.length;i++){
+      const [,left,top,w,h]=words[i];
+      const dx=Math.max(0,left-x,x-left-w)*width,dy=Math.max(0,top-y,y-top-h)*height;
+      const distance=dx*dx+dy*dy;
+      if(distance===0)return i;
+      if(distance<nearest){nearest=distance;index=i;}
+    }
+    return index;
+  }
+  function passage(words,first,last){
+    const from=Math.min(first,last),to=Math.max(first,last);
+    const entries=words.slice(from,to+1);
+    return {quote:entries.map(word=>word[0]).join(' '),regions:entries.map(word=>word.slice(1))};
+  }
   function box(x,y,right,bottom){
     x=round(clamp(x));y=round(clamp(y));
     const w=round(clamp(right)-x),h=round(clamp(bottom)-y);
@@ -139,5 +155,5 @@
     queue=task.catch(()=>{});
     return task;
   }
-  global.WindsPdfText=Object.freeze({readWords,readChapters,maxPassage,find,ocr,turnPoint});
+  global.WindsPdfText=Object.freeze({readWords,readChapters,maxPassage,find,ocr,turnPoint,wordNear,passage});
 })(globalThis);

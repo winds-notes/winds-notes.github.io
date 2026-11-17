@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=96"></script>
-<script src="./google-config.js?v=96"></script>
+<script src="./theme.js?v=97"></script>
+<script src="./google-config.js?v=97"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=96" rel="stylesheet"/>
-<link href="./dark.css?v=96" rel="stylesheet"/>
+<link href="./styles.css?v=97" rel="stylesheet"/>
+<link href="./dark.css?v=97" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -169,6 +169,7 @@
       <button type="button" data-action="vector" data-command data-icon="vector" data-keywords="svg bézier bezier anchor curve path">Draw vector path…</button>
       <button type="button" data-action="stickers" data-command data-icon="smile" data-keywords="emoji education">Stickers…</button>
       <button type="button" data-action="pdf" data-command data-icon="paper">Import PDF pages…</button>
+      <button type="button" data-action="pdfText" data-command data-icon="text" data-keywords="copy passage quote flashcard OCR" hidden>Select PDF text on this page</button>
       <button type="button" data-action="reference" data-command data-icon="pages" data-keywords="study side by side reference pdf figure">Study beside a PDF…</button>
       <button type="button" data-action="studyCards" data-command data-icon="paper" data-keywords="flashcards review due spaced repetition">Study cards…</button>
       <button type="button" data-action="present" data-command data-icon="pages" data-keywords="presentation projector laser reveal fullscreen">Present notebook…</button>
@@ -483,7 +484,7 @@
     <div class="study-zoom" role="group" aria-label="PDF zoom"><span>PDF</span><button class="btn btn-outline" type="button" id="studyPdfZoomOut" aria-label="Zoom out PDF">−</button><output id="studyPdfZoomValue" aria-label="PDF zoom level">100%</output><button class="btn btn-outline" type="button" id="studyPdfZoomIn" aria-label="Zoom in PDF">+</button><button class="btn btn-outline" type="button" id="studyPdfZoomFit" aria-label="Fit PDF to width">Fit</button></div>
     <div class="study-zoom" role="group" aria-label="Writing zoom"><span>Notes</span><button class="btn btn-outline" type="button" id="studyNotesZoomOut" aria-label="Zoom out writing page">−</button><output id="studyNotesZoomValue" aria-label="Writing zoom level">100%</output><button class="btn btn-outline" type="button" id="studyNotesZoomIn" aria-label="Zoom in writing page">+</button><button class="btn btn-outline" type="button" id="studyNotesZoomFit" aria-label="Fit writing page to width">Fit</button></div>
   </div>
-  <div id="studyPdfScroll"><div id="studyPdfSurface"><div id="studyPdfContent"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="pdfHighlights" aria-hidden="true"></div><div id="pdfTextSelection" hidden></div><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div></div>
+  <div id="studyPdfScroll"><div id="studyPdfSurface"><div id="studyPdfContent"><img id="studyPdfImage" alt="PDF reference page" draggable="false"><div id="pdfHighlights" aria-hidden="true"></div><div id="pdfTextSelection" tabindex="0" role="group" aria-label="PDF text selection. Use the arrow keys and Shift to select words." aria-describedby="studyPdfStatus" hidden></div><div id="studyFigureBox" hidden draggable="true" role="img" aria-label="Selected PDF figure"></div></div></div></div>
   <p id="studyPdfStatus" role="status"></p>
   <div class="study-actions"><button class="btn btn-outline" type="button" id="pickStudyFigure" aria-pressed="false">Select figure</button><button class="btn btn-outline" type="button" id="insertStudyFigure" disabled>Insert figure</button><button class="btn btn-outline" type="button" id="pdfSelectText" aria-pressed="false">Select text</button><button class="btn btn-outline" type="button" id="pdfCopyQuote" hidden disabled>Copy quote</button><button class="btn btn-primary" type="button" id="pdfInsertQuote" hidden disabled>Insert quote</button><button class="btn btn-outline" type="button" id="pdfMakeCard" hidden disabled>Study card…</button></div>
 </aside>
@@ -517,32 +518,32 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=96"></script>
-<script src="./svg-stickers.js?v=96"></script>
-<script src="./creative-tools.js?v=96"></script>
-<script src="./graph-tools.js?v=96"></script>
-<script src="./vector-tools.js?v=96"></script>
-<script src="./interaction-tools.js?v=96"></script>
-<script src="./selection-preview.js?v=96"></script>
-<script src="./eraser-preview.js?v=96"></script>
-<script src="./page-stack.js?v=96"></script>
-<script src="./workspace-model.js?v=96"></script>
-<script src="./text-tools.js?v=96"></script>
-<script src="./pdf-export.js?v=96"></script>
-<script src="./pdf-import.js?v=96"></script>
-<script src="./pdf-text.js?v=96"></script>
-<script src="./native-file.js?v=96"></script>
-<script src="./clipboard.js?v=96"></script>
-<script src="./shared-notebook-model.js?v=96"></script>
-<script src="./notebook-sharing.js?v=96"></script>
-<script src="./live-sync.js?v=96"></script>
+<script src="./mandala-art.js?v=97"></script>
+<script src="./svg-stickers.js?v=97"></script>
+<script src="./creative-tools.js?v=97"></script>
+<script src="./graph-tools.js?v=97"></script>
+<script src="./vector-tools.js?v=97"></script>
+<script src="./interaction-tools.js?v=97"></script>
+<script src="./selection-preview.js?v=97"></script>
+<script src="./eraser-preview.js?v=97"></script>
+<script src="./page-stack.js?v=97"></script>
+<script src="./workspace-model.js?v=97"></script>
+<script src="./text-tools.js?v=97"></script>
+<script src="./pdf-export.js?v=97"></script>
+<script src="./pdf-import.js?v=97"></script>
+<script src="./pdf-text.js?v=97"></script>
+<script src="./native-file.js?v=97"></script>
+<script src="./clipboard.js?v=97"></script>
+<script src="./shared-notebook-model.js?v=97"></script>
+<script src="./notebook-sharing.js?v=97"></script>
+<script src="./live-sync.js?v=97"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=96"></script>
-<script defer src="./boundary-fill.js?v=96"></script>
-<script defer src="./mandala-tools.js?v=96"></script>
-<script defer src="./pdf-study.js?v=96"></script>
-<script defer src="./study-tools.js?v=96"></script>
-<script defer src="./study-cards.js?v=96"></script>
-<script defer="" src="./app.js?v=96"></script>
+<script defer src="./cloud-drive.js?v=97"></script>
+<script defer src="./boundary-fill.js?v=97"></script>
+<script defer src="./mandala-tools.js?v=97"></script>
+<script defer src="./pdf-study.js?v=97"></script>
+<script defer src="./study-tools.js?v=97"></script>
+<script defer src="./study-cards.js?v=97"></script>
+<script defer="" src="./app.js?v=97"></script>
 </body>
 </html>
