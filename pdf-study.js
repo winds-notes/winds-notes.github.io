@@ -6,7 +6,7 @@
   const panels={search:'pdfSearch',places:'pdfPlaces',links:'pdfLinks'};
   const bookmarkKey='pdf-bookmarks-v1';
   const recognized=new WeakMap();
-  let api,reader,organizer,pressedQuote,textDrag;
+  let api,reader,organizer,textDrag;
   const ref=()=>reader.current();
   const current=()=>ref()?.pages[ref().index];
   const valid=(session,page)=>ref()===session&&session.account===api.scope().account&&(!page||page===current());
@@ -116,139 +116,140 @@
     session.search.running=false;session.search.label='Search stopped';
     if(session===ref())updateSearch();
   }
+  const quoteButtons=['pdfInsertQuote','pdfCopyQuote','pdfMakeCard'];
   function clearText(){
     const session=ref(),layer=$('pdfTextSelection');
-    const selection=window.getSelection();
-    if(layer.contains(selection?.anchorNode))selection.removeAllRanges();
-    if(session){session.textRequest=null;session.textWords=null;session.tapStart=null;}
+    if(session){session.textRequest=null;session.textWords=null;session.textRange=null;session.tapStart=null;}
     textDrag=null;
     layer.replaceChildren();layer.hidden=true;
     $('pdfSelectText').setAttribute('aria-pressed','false');$('pdfSelectText').disabled=false;
-    $('pdfInsertQuote').hidden=$('pdfCopyQuote').hidden=$('pdfMakeCard').hidden=true;
-    $('pdfInsertQuote').disabled=$('pdfCopyQuote').disabled=$('pdfMakeCard').disabled=true;
-    pressedQuote=null;
+    $('pdfQuoteTools').hidden=true;
+    $('pdfTextStatus').textContent='';
+    for(const id of quoteButtons)$(id).disabled=true;
   }
-  function selectionData(){
-    const session=ref(),layer=$('pdfTextSelection'),selection=getSelection();
-    if(!session?.textWords||!selection?.rangeCount||selection.isCollapsed||!layer.contains(selection.anchorNode)||!layer.contains(selection.focusNode))return null;
-    const start=selection.getRangeAt(0),first=start.startContainer.parentElement?.closest('[data-word]');
-    const last=start.endContainer.parentElement?.closest('[data-word]');
-    if(!first||!last)return null;
-    const from=Number(first.dataset.word),to=Number(last.dataset.word);
-    if(to-from>=text.maxPassage)return null;
-    const regions=[],tokens=[];
-    for(let index=from;index<=to;index++){
-      const [word,x,y,w,h]=session.textWords[index];
-      const left=index===from&&start.startContainer.nodeType===Node.TEXT_NODE?start.startOffset:0;
-      const right=index===to&&start.endContainer.nodeType===Node.TEXT_NODE?start.endOffset:word.length;
-      if(left>=right)continue;
-      tokens.push(word.slice(left,right));
-      // Preserve the word box even when individual letter positions are estimated.
-      regions.push([x,y,w,h]);
-    }
-    return tokens.length?{quote:tokens.join(' '),regions}:null;
-  }
-  function selectWords(from,to){
+  function selectWords(session,from,to,report){
     if(Math.abs(to-from)>=text.maxPassage)to=from+Math.sign(to-from)*(text.maxPassage-1);
-    const children=$('pdfTextSelection').children;
-    const first=children[Math.min(from,to)]?.firstChild.firstChild;
-    const last=children[Math.max(from,to)]?.firstChild.firstChild;
-    if(!first||!last)return;
-    const range=document.createRange(),selection=getSelection();
-    range.setStart(first,0);range.setEnd(last,last.length);
-    selection.removeAllRanges();selection.addRange(range);
+    const previous=session.textRange;
+    if(previous?.from!==from||previous.to!==to){
+      const passage=text.passage(session.textWords,from,to);
+      session.textRange={from,to,...passage};
+      const fragment=document.createDocumentFragment();
+      for(const bounds of passage.regions){
+        const marker=document.createElement('span');
+        marker.className='pdf-selected-word';marker.setAttribute('aria-hidden','true');
+        place(marker,bounds);fragment.append(marker);
+      }
+      $('pdfTextSelection').replaceChildren(fragment);
+      for(const id of quoteButtons)$(id).disabled=false;
+    }
+    if(report){
+      const count=Math.abs(to-from)+1;
+      $('pdfTextStatus').textContent=session.tapStart!=null?
+        'Tap the last word, or use this word.':
+        `${count} ${count===1?'word':'words'} selected.`;
+    }
   }
   function bindTextSelection(){
     const layer=$('pdfTextSelection');
-    function wordAt(event){
-      const word=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-word]');
-      return word&&layer.contains(word)?Number(word.dataset.word):null;
+    function wordAt(event,session){
+      const rect=layer.getBoundingClientRect();
+      if(!rect.width||!rect.height)return null;
+      const turn=current().background.turn||0,sideways=turn%180!==0;
+      const [x,y]=text.turnPoint((event.clientX-rect.left)/rect.width,(event.clientY-rect.top)/rect.height,(360-turn)%360);
+      return text.wordNear(session.textWords,x,y,sideways?rect.height:rect.width,sideways?rect.width:rect.height);
     }
     layer.onpointerdown=event=>{
-      const session=ref(),index=wordAt(event);
-      if(!session?.textWords||index==null||event.button!==0||textDrag)return;
-      textDrag={id:event.pointerId,from:index,to:index};
-      layer.setPointerCapture(event.pointerId);
-      if(event.pointerType==='touch')return;
-      event.preventDefault();
-      selectWords(index,index);
+      const session=ref();
+      if(!session?.textWords||event.button!==0||event.isPrimary===false||textDrag)return;
+      const from=wordAt(event,session);
+      if(from==null)return;
+      textDrag={id:event.pointerId,session,from,to:from,x:event.clientX,y:event.clientY,moved:false};
+      if(event.pointerType!=='touch'){
+        event.preventDefault();
+        layer.focus({preventScroll:true});
+        layer.setPointerCapture(event.pointerId);
+      }
     };
     layer.onpointermove=event=>{
       const drag=textDrag;
       if(drag?.id!==event.pointerId||event.pointerType==='touch')return;
-      const index=wordAt(event);
-      if(index==null||index===drag.to)return;
-      drag.to=index;
+      if(Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>4)drag.moved=true;
+      if(!drag.moved)return;
+      drag.point={clientX:event.clientX,clientY:event.clientY};
       if(!drag.frame)drag.frame=requestAnimationFrame(()=>{
-        drag.frame=0;if(textDrag===drag)selectWords(drag.from,drag.to);
+        drag.frame=0;
+        if(textDrag!==drag||ref()!==drag.session)return;
+        drag.to=wordAt(drag.point,drag.session)??drag.to;
+        selectWords(drag.session,drag.from,drag.to,false);
       });
     };
     layer.onpointerup=event=>{
       const drag=textDrag,session=ref();
-      if(drag?.id!==event.pointerId||!session)return;
+      if(drag?.id!==event.pointerId||session!==drag.session)return;
       textDrag=null;
-      if(event.pointerType==='touch'){
-        if(wordAt(event)!==drag.from)return;
-        selectWords(session.tapStart??drag.from,drag.from);
-        session.tapStart=session.tapStart==null?drag.from:null;
-      }else selectWords(drag.from,wordAt(event)??drag.to);
+      const travel=Math.hypot(event.clientX-drag.x,event.clientY-drag.y);
+      if(event.pointerType==='touch'&&travel>12)return;
+      const end=wordAt(event,session)??drag.to;
+      if(drag.moved||(event.pointerType!=='touch'&&travel>4)){
+        session.tapStart=null;
+        selectWords(session,drag.from,end,true);
+      }else{
+        const start=session.tapStart??end;
+        session.tapStart=session.tapStart==null?end:null;
+        selectWords(session,start,end,true);
+      }
+      layer.focus({preventScroll:true});
     };
     layer.onpointercancel=layer.onlostpointercapture=event=>{if(textDrag?.id===event.pointerId)textDrag=null;};
+    layer.onkeydown=event=>{
+      if(event.key!=='ArrowLeft'&&event.key!=='ArrowRight')return;
+      const session=ref();if(!session?.textWords)return;
+      event.preventDefault();
+      const range=session.textRange,direction=event.key==='ArrowRight'?1:-1;
+      const next=range?Math.max(0,Math.min(session.textWords.length-1,range.to+direction)):0;
+      session.tapStart=null;
+      selectWords(session,event.shiftKey?(range?.from??next):next,next,true);
+      scrollToBox(session.textWords[next].slice(1));
+    };
   }
   async function selectText(){
     const session=ref(),page=current(),layer=$('pdfTextSelection');
-    if(!page)return;
+    if(!page||session.textRequest)return;
     if(session.textWords){clearText();return;}
     const request=session.textRequest={};
     reader.clearFigure();
+    session.panel=null;syncPanels();
     $('pdfSelectText').disabled=true;
+    $('pdfTextStatus').textContent='Preparing PDF text…';
     const live=()=>valid(session,page)&&session.textRequest===request;
     try{
-      const entries=await words(page,()=>{$('studyPdfStatus').textContent='Reading this page with English OCR…';},live);
+      const entries=await words(page,()=>{$('pdfTextStatus').textContent='Reading this page with English OCR…';},live);
       if(!live())return;
-      if(!entries.length){$('studyPdfStatus').textContent='No selectable words found on this page.';return;}
-      const fragment=document.createDocumentFragment();
-      for(const [index,[word,...box]] of entries.entries()){
-        const span=document.createElement('span');span.className='pdf-word';span.dataset.word=index;place(span,box);
-        span.style.fontSize=`calc(${box[3]*100} * var(--pdf-height-unit))`;
-        const label=document.createElement('span');label.textContent=word;
-        span.append(label);fragment.append(span);
-      }
-      layer.replaceChildren(fragment);layer.hidden=false;session.textWords=entries;
-      resizeText();
-      $('pdfSelectText').setAttribute('aria-pressed','true');$('pdfInsertQuote').hidden=$('pdfCopyQuote').hidden=$('pdfMakeCard').hidden=false;
-      $('studyPdfStatus').textContent='Drag across the words, or tap the first and last word.';
-    }catch(error){if(live())$('studyPdfStatus').textContent=error.message||'Could not read this page.';}
-    finally{if(live())$('pdfSelectText').disabled=false;}
-  }
-  function resizeText(){
-    if(!ref()?.textWords)return;
-    const layer=$('pdfTextSelection');
-    layer.style.setProperty('--pdf-height-unit',`${layer.clientHeight/100}px`);
-    const spans=[...layer.children],labels=spans.map(span=>span.firstChild);
-    for(const label of labels)label.style.width='max-content';
-    const sizes=spans.map((span,index)=>[span.clientWidth,labels[index].offsetWidth]);
-    labels.forEach((label,index)=>{
-      const [available,actual]=sizes[index];
-      label.style.transform=actual?`scaleX(${available/actual})`:'';
-    });
+      if(!entries.length){$('pdfTextStatus').textContent='No selectable words found on this page.';return;}
+      layer.hidden=false;session.textWords=entries;
+      $('pdfSelectText').setAttribute('aria-pressed','true');
+      $('pdfQuoteTools').hidden=false;
+      $('pdfTextStatus').textContent='Tap the first and last word, or drag across the passage.';
+      layer.focus({preventScroll:true});
+    }catch(error){if(live())$('pdfTextStatus').textContent=error.message||'Could not read this page.';}
+    finally{if(live()){session.textRequest=null;$('pdfSelectText').disabled=false;}}
   }
   function captureQuote(){
-    const session=ref(),page=current(),data=selectionData();
+    const session=ref(),page=current(),data=session?.textRange;
     if(!page||!data||!api.ready())return null;
     return {scope:api.scope(),item:api.quoteItem(data.quote,{book:session.book,page:page.id,pdfRegion:data.regions})};
   }
   function quoteAction(action){
-    const quote=pressedQuote||captureQuote();pressedQuote=null;
+    const quote=captureQuote();
     if(!quote||!api.matches(quote.scope)||!api.ready())return;
     try{
       if(action==='card')api.makeCard(quote);
       else if(action==='copy')void global.WindsClipboard.copyQuote(quote.item,quote.scope);
       else{
         api.insertQuote(quote.item,quote.scope);
-        clearText();$('studyPdfStatus').textContent='Quote inserted with a link to this passage.';
+        clearText();$('pdfTextStatus').textContent='Quote inserted with a link to this passage.';
       }
-    }catch(error){$('studyPdfStatus').textContent=error.message;}
+    }catch(error){$('pdfTextStatus').textContent=error.message;}
   }
   function syncPlaces(){
     const session=ref(),page=current();
@@ -420,17 +421,8 @@
     $('pdfChapters').onchange=$('pdfBookmarks').onchange=event=>{if(event.target.value!=='')reader.setPage(Number(event.target.value));};
     $('pdfBookmarkToggle').onclick=toggleBookmark;
     $('pdfSelectText').onclick=selectText;
-    for(const [id,action] of [['pdfInsertQuote','insert'],['pdfCopyQuote','copy'],['pdfMakeCard','card']]){
-      $(id).onpointerdown=event=>{pressedQuote=captureQuote();if(pressedQuote)event.preventDefault();};
-      $(id).onpointercancel=()=>{pressedQuote=null;};
-      $(id).onclick=()=>quoteAction(action);
-    }
-    document.addEventListener('selectionchange',()=>{
-      if(!ref()?.textWords)return;
-      $('pdfInsertQuote').disabled=$('pdfCopyQuote').disabled=$('pdfMakeCard').disabled=!pressedQuote&&!selectionData();
-    });
+    for(const [id,action] of [['pdfInsertQuote','insert'],['pdfCopyQuote','copy'],['pdfMakeCard','card']])$(id).onclick=()=>quoteAction(action);
     bindTextSelection();
-    new ResizeObserver(resizeText).observe($('studyPdfImage'));
     $('organizerAll').onclick=()=>choosePages('all');
     $('organizerAnnotated').onclick=()=>choosePages('annotated');
     $('organizerNone').onclick=()=>choosePages('none');
@@ -443,5 +435,5 @@
   function close(){
     $('pageOrganizer').close();organizer=null;
   }
-  global.WindsPdfStudy=Object.freeze({init,stopSearch,clearText,onTab,onPage,follow,captureQuote,organize,close});
+  global.WindsPdfStudy=Object.freeze({init,stopSearch,clearText,onTab,onPage,follow,captureQuote,selectText,organize,close});
 })(window);

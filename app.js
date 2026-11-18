@@ -352,16 +352,20 @@
       }catch(err){reject(err);}
     });
   }
-  function writeChanged(bookIds,pageIds){
+  function writeChanged(bookIds,pageIds,removedBooks=[],removedPages=[]){
     if(persistence==='localstorage')return writeData({version:2,notebooks:state.notebooks});
     return new Promise((resolve,reject)=>{
       try{
         const tx=database.transaction(['notebooks','pages','meta'],'readwrite');
         const books=tx.objectStore('notebooks'),pages=tx.objectStore('pages');
         tx.objectStore('meta').put(true,'initialized');tx.objectStore('meta').put(tombstones,'deleted');
+        for(const id of removedBooks)books.delete(id);
+        for(const id of removedPages)pages.delete(id);
         for(const id of bookIds){const n=state.notebooks.find(b=>b.id===id);if(n)books.put(metadata(n));}
-        for(const id of pageIds){
-          for(const n of state.notebooks){const p=n.pages.find(p=>p.id===id);if(p){pages.put({...p,notebookId:n.id});break;}}
+        const wanted=new Set(pageIds);
+        for(const n of state.notebooks){
+          if(!wanted.size)break;
+          for(const p of n.pages)if(wanted.delete(p.id))pages.put({...p,notebookId:n.id});
         }
         tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
         tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
@@ -391,7 +395,7 @@
     if(changedPage&&state.tool==='eraser')queueEraserPreparation();
   }
   let saveTask=null,lastTimedEditAt=0;
-  async function saveNow(force=false,fromDrive=false){
+  async function saveNow(force=false,fromDrive=false,remoteChanges=null){
     clearTimeout(state.saveTimer);
     while(saving){
       if(!force){state.saveTimer=setTimeout(()=>saveNow(false,fromDrive),600);return;}
@@ -403,14 +407,16 @@
       state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
     }
     if(!dirtyAll && !dirtyBooks.size && !dirtyPages.size)return;
-    const version=saveVersion,full=dirtyAll,editedAt=lastInkAt;
-    const bookIds=[...dirtyBooks],pageIds=[...dirtyPages];
+    const version=saveVersion,full=dirtyAll&&!remoteChanges,editedAt=lastInkAt;
+    const bookIds=remoteChanges?.books||[...dirtyBooks],pageIds=remoteChanges?.pages||[...dirtyPages];
     dirtyAll=false;dirtyBooks.clear();dirtyPages.clear();
     saving=true;
     try{
-      const changedPages=full?null:new Set(pageIds);
-      for(const n of state.notebooks)if(full||bookIds.includes(n.id))globalThis.WindsWorkspaceModel.capture(n,workspaceActor,changedPages);
-      saveTask=full?writeData({version:2,notebooks:state.notebooks}):writeChanged(bookIds,pageIds);
+      if(!remoteChanges){
+        const changedPages=full?null:new Set(pageIds);
+        for(const n of state.notebooks)if(full||bookIds.includes(n.id))globalThis.WindsWorkspaceModel.capture(n,workspaceActor,changedPages);
+      }
+      saveTask=full?writeData({version:2,notebooks:state.notebooks}):writeChanged(bookIds,pageIds,remoteChanges?.removedBooks,remoteChanges?.removedPages);
       await saveTask;
       if(version===saveVersion)statusText('Saved');
       else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
@@ -543,6 +549,29 @@
       }
     }
   }
+  function planWorkspaceWrite(before,after,model){
+    const previous=new Map(before.map(book=>[book.id,book]));
+    const changes={books:[],pages:[],removedBooks:[],removedPages:[]};
+    const withoutOwner=({notebookId,...content})=>content;
+    for(const book of after){
+      const prior=previous.get(book.id);
+      previous.delete(book.id);
+      if(prior===book)continue;
+      changes.books.push(book.id);
+      const pages=new Map((prior?.pages||[]).map(p=>[p.id,p]));
+      for(const p of book.pages){
+        const old=pages.get(p.id);
+        pages.delete(p.id);
+        if(!old||old!==p&&!model.equal(withoutOwner(old),withoutOwner(p)))changes.pages.push(p.id);
+      }
+      for(const id of pages.keys())changes.removedPages.push(id);
+    }
+    for(const book of previous.values()){
+      changes.removedBooks.push(book.id);
+      for(const p of book.pages)changes.removedPages.push(p.id);
+    }
+    return changes;
+  }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     const account=workspaceId,receivedAt=Date.now();
     if(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
@@ -558,7 +587,7 @@
     const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map();
     for(const raw of snapshot.notebooks){
       const n=clone(raw);
-      if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>500 || n.pages.some(p=>!Array.isArray(p.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
+      if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>750 || n.pages.some(p=>!Array.isArray(p?.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
       remoteBooks.set(n.id,raw);
       const local=merged.get(n.id);
       // Shared notebooks retain their separate immutable edit history/outbox.
@@ -574,6 +603,7 @@
     const hasChanges=final.length!==state.notebooks.length||final.some((n,index)=>n!==state.notebooks[index])||!model.equal(mergedDeleted,tombstones);
     const needsUpload=final.length!==snapshot.notebooks.length||final.some(n=>!model.equal(n,remoteBooks.get(n.id)))||!model.equal(mergedDeleted,remoteDeleted);
     if(hasChanges){
+      const writePlan=planWorkspaceWrite(state.notebooks,final,model);
       reconcileCloudHistory(final,model);
       const activeNotebook=notebook();
       const activePage=page()?.id;
@@ -581,7 +611,7 @@
       const activeIndex=notebook()?.pages.findIndex(p=>p.id===activePage);if(activeIndex>=0)state.pageIndex=activeIndex;
       const redraw=!activeNotebook||notebook()!==activeNotebook;
       dirtyAll=true;saveVersion++;
-      if(await saveNow(true,report)===false)throw new Error('Received changes could not be saved locally. Sync will retry.');
+      if(await saveNow(true,report,writePlan)===false)throw new Error('Received changes could not be saved locally. Sync will retry.');
       // A new stroke may have started while the IndexedDB write was in flight.
       // Keep that stroke and canvas intact, and compose remote changes when idle.
       if(workspaceId===account)globalThis.WindsDrive?.recordTiming?.('driveApply',Date.now()-receivedAt);
@@ -687,11 +717,12 @@
       const error=Error('Local editing changed while sharing. Try again when idle.');error.syncDeferred=true;throw error;
     }
     if(!/^[\w-]{5,200}$/.test(sharing?.folderId||''))throw Error('Invalid shared notebook folder');
+    const previousBooks=state.notebooks.slice(),model=globalThis.WindsWorkspaceModel;
     const clean=window.WindsFile.validateShared(book),index=state.notebooks.findIndex(n=>n.id===clean.id),current=state.notebooks[index];
     if(current?._sharing&&current._sharing.folderId!==sharing.folderId)throw Error('This notebook ID belongs to another shared notebook.');
     if(current&&!current._sharing&&!attach){
       const copy=window.WindsFile.parse(window.WindsFile.serialize(current)).notebooks[0];
-      copy.title=(copy.title+' (private copy)').slice(0,70);state.notebooks.push(copy);
+      copy.title=(copy.title+' (private copy)').slice(0,70);model.capture(copy,workspaceActor);state.notebooks.push(copy);
       toast('Your existing notebook was preserved as a private copy');
     }
     const before=current?window.WindsFile.validateShared(current):null;
@@ -711,10 +742,13 @@
       h.undo=h.undo.filter(action=>action.kind==='append'&&after.has(action.item.id)&&window.WindsSharedModel.sameValue(previous.get(action.item.id),after.get(action.item.id)));
       h.redo=h.redo.filter(action=>action.kind==='append'&&!after.has(action.item.id));
     }
+    const writePlan=planWorkspaceWrite(previousBooks,state.notebooks,model);
     dirtyAll=true;const saved=++saveVersion,expectedWorkspace=workspaceId;
-    await saveNow(true,true);
+    await saveNow(true,true,writePlan);
     if(saving||dirtyAll||dirtyBooks.size||dirtyPages.size){const error=Error('Shared changes are waiting for durable local saving.');error.syncDeferred=true;throw error;}
-    window.WindsLive?.refreshRooms();renderCloudChanges(expectedWorkspace);return saved;
+    window.WindsLive?.refreshRooms();
+    if(changed||!current?._sharing)renderCloudChanges(expectedWorkspace);
+    return saved;
   }
   function openNotebook(id,pageId=null){
     cancelBoundaryFill(true);
@@ -2725,7 +2759,7 @@
     const linkable=editableSelection();
     menu.querySelector('[data-action="pageLink"]').hidden=!linkable;
     menu.querySelector('[data-action="followLink"]').hidden=!linkable?.pageLink;
-    menu.querySelector('[data-action="pdfText"]').hidden=!page()?.background;
+    menu.querySelector('[data-action="pdfText"]').hidden=page()?.background?.type!=='pdf';
     menu.querySelector('[data-action="previousPage"]').disabled=state.pageIndex===0;
     menu.querySelector('[data-action="nextPage"]').disabled=state.pageIndex===n.pages.length-1;
     menu.querySelector('[data-action="undo"]').disabled=$('undoBtn').disabled;
@@ -2758,6 +2792,13 @@
     $('emojiSearch').value='';
     renderEmojiGrid('');
   }
+  function selectPdfText(pageId=page()?.id){
+    const book=notebook(),index=book?.pages.findIndex(entry=>entry.id===pageId&&entry.background?.type==='pdf');
+    if(!(index>=0))return;
+    if(!clipboardEnabled()){toast('Finish the current edit, then select PDF text.');return;}
+    if(index!==state.pageIndex)switchPage(index);
+    if(window.WindsStudy.showReference(book.id,pageId))window.WindsPdfStudy.selectText();
+  }
   function runNotebookAction(action){
     closeMenus();
     switch(action){
@@ -2788,9 +2829,7 @@
       case 'browseLinks': setTool('pan');state.followPageLinks=true;toast('Tap a linked object to open its page. Choose Pen to write.');break;
       case 'templates': window.WindsStudy.openTemplates();break;
       case 'reference': window.WindsStudy.openSource();break;
-      case 'pdfText':
-        if(page()?.background&&window.WindsStudy.showReference(state.activeId,page().id))window.WindsPdfStudy.selectText();
-        break;
+      case 'pdfText': selectPdfText();break;
       case 'present': window.WindsStudy.startPresentation();break;
       case 'open': $('openNotebookInput').click();break;
       case 'drive': window.WindsDrive?.open();break;
@@ -3222,7 +3261,7 @@
     }).catch(error=>{const previewPainted=eraserPreview?.complete(gesture);if(previewPainted&&clipboardMatches(gesture.scope)){eraserPreview?.invalidate();try{renderCanvas();}catch{}}console.error('Deferred page edit:',error);toast(error.code==='CANVAS_MEMORY'?error.message:`Page edit failed: ${String(error.message||'Unknown drawing error').slice(0,150)}`);}).finally(()=>{eraserPreview?.complete(gesture);if(['select','resize'].includes(gesture.kind))endSelectionTransform(gesture);state.pendingInteractions--;queueInteractionOverlay();queueEraserPreparation();});
   }
   function initPageStack(){
-    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:viewDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,
+    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:viewDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,selectPdfText,
       activate:(id,preserve)=>{const index=notebook()?.pages.findIndex(p=>p.id===id);if(index>=0){if(index!==state.pageIndex)switchPage(index,preserve);else if(!preserve)window.WindsPageStack.focus(id);}},
       paint:async(canvas,p,scope)=>{
         if(p.background)await pdfImage(p.background.src).promise;

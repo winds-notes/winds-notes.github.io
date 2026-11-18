@@ -6,7 +6,17 @@
   const object=o=>o&&typeof o==='object'&&!Array.isArray(o);
   function equal(a,b){
     if(a===b)return true;if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;
-    const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(k=>own(b,k)&&equal(a[k],b[k]));
+    const keys=Object.keys(a),other=Object.keys(b);
+    if(Array.isArray(a))return keys.length===other.length&&keys.every(k=>own(b,k)&&equal(a[k],b[k]));
+    // Optional object properties with undefined values are omitted on the wire.
+    // A round trip through Drive must not turn them into a new local edit.
+    let defined=0;
+    for(const key of keys){
+      if(a[key]===undefined)continue;
+      if(!own(b,key)||!equal(a[key],b[key]))return false;
+      defined++;
+    }
+    return other.length===defined||other.every(key=>b[key]===undefined||a[key]!==undefined&&own(a,key));
   }
   function hash(value){
     const text=JSON.stringify(value);let a=2166136261,b=5381;
