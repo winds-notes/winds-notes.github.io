@@ -36,6 +36,7 @@
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
+  let restorePending=false,restoreFailures=0;
   let pollReads=null;
   const pollResponseSignals=new WeakMap();
   let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null};
@@ -133,6 +134,7 @@
   }
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
+    restorePending=false;
     workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=null;
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null};
     timingSamples.clear();
@@ -504,8 +506,18 @@
   }
   function scheduleRenewal(delay){
     clearTimeout(renewalTimer);
-    if(!SERVER_AUTH||!profile||remoteSignedOut||authorizationRequired)return;
-    renewalTimer=setTimeout(()=>renewServerSession(),delay??(forceRenewal?1000:connected()?Math.max(1000,expires-Date.now()-60000):AUTO_RETRY_MS));
+    if(!SERVER_AUTH||remoteSignedOut||authorizationRequired)return;
+    if(restorePending&&!profile){
+      const wait=delay??Math.min(30000,FIRST_TRANSIENT_RETRY_MS*2**Math.min(restoreFailures++,4));
+      renewalTimer=setTimeout(async()=>{
+        if(!restorePending||signingIn||remoteSignedOut)return;
+        const idle=idleDelay();
+        if(idle||document.hidden||global.navigator?.onLine===false){scheduleRenewal(idle||AUTO_RETRY_MS);return;}
+        await restoreSession();
+      },wait);
+      return;
+    }
+    if(profile)renewalTimer=setTimeout(()=>renewServerSession(),delay??(forceRenewal?1000:connected()?Math.max(1000,expires-Date.now()-60000):AUTO_RETRY_MS));
   }
   async function renewServerSession(){
     if(renewing)return renewing;
@@ -588,6 +600,8 @@
     }catch(err){console.error(err);message('Unable to open Google authorization. Check the OAuth authorized JavaScript origin.',true);}
   }
   async function restoreSession(){
+    if(signingIn)return;
+    restorePending=false;
     const account=rememberedAccount();
     let saved=savedSession()||(account?{...account,token:null,expires:0}:null);
     if(!saved&&!SERVER_AUTH)return;
@@ -605,7 +619,7 @@
         saved=await getServerSession(profile?.sub);
         if(expected!==generation)return;
         if(!profile&&bridge.isWriting()){
-          renewalTimer=setTimeout(()=>restoreSession(),Math.max(ACTIVE_RECHECK_MS,idleDelay()));return;
+          restorePending=true;return;
         }
         profile=saved.profile;logoutStamp=saved.logoutStamp;loadAutoPreference();
       }
@@ -623,6 +637,7 @@
       if(!currentSession(saved)){signedOutElsewhere(profile.sub);return;}
       if(identity.sub!==saved.profile.sub)throw new Error('Google account changed. Reconnect to verify the account.');
       profile=identity;token=saved.token;expires=saved.expires;
+      restoreFailures=0;
       logoutStamp=saved.logoutStamp||'';persistSession();
       message(connectionMessage());
       // Sync later through the existing idle guard; never interrupt new writing.
@@ -632,13 +647,16 @@
       if(expected===generation){
         token=null;expires=0;
         authorizationRequired=Boolean(err.authorizationRequired);
+        restorePending=SERVER_AUTH&&!profile&&!authorizationRequired&&!err.signedOut;
         message(err.message||'Local notebooks remain on this device. Drive sync is unavailable.',true);
       }
     }finally{
       if(expected===generation){
         signingIn=false;
         if(!connected()){token=null;expires=0;}
-        rememberSession();rememberAccount(true);updateUI();schedule();if(profile)scheduleRenewal();global.WindsSharing?.resume();global.WindsLive?.start();
+        rememberSession();rememberAccount(true);updateUI();schedule();
+        scheduleRenewal(restorePending&&bridge.isWriting()?Math.max(ACTIVE_RECHECK_MS,idleDelay()):undefined);
+        global.WindsSharing?.resume();global.WindsLive?.start();
       }
     }
   }
@@ -1145,7 +1163,11 @@
     global.addEventListener?.('storage',event=>{
       if(profile&&event.key===LOGOUT_PREFIX+profile.sub&&!currentSession(sessionSnapshot()))signedOutElsewhere(profile.sub);
     });
-    const resumeSync=()=>{if(SERVER_AUTH&&!connected())scheduleRenewal(0);schedule();};
+    const resumeSync=()=>{
+      if(SERVER_AUTH&&!connected())scheduleRenewal(0);
+      schedule();
+      if(!signingIn)global.WindsLive?.start();
+    };
     global.addEventListener?.('online',resumeSync);
     global.addEventListener?.('focus',resumeSync);
     global.addEventListener?.('pageshow',resumeSync);

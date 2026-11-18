@@ -1,19 +1,21 @@
 /* Fast, ephemeral ink delivery. Durable saves and Drive sync remain independent. */
 (function(global){
   'use strict';
-  const ENABLED=global.WINDS_REALTIME_ENABLED===true,IDLE=150,MAX_BYTES=32768;
+  const ENABLED=global.WINDS_REALTIME_ENABLED===true,IDLE=150,MAX_BYTES=32768,STALE_MS=45000;
   const uuid=()=>crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const clientId=uuid(),streams=new Map(),outgoing=new Map(),previews=new Map();
   let api=null,generation=0,controller=null,timer=0,dueAt=0,inbox=[],inboxBytes=0,sending=false,fresh=null,needsCatchup=false,paintNeeded=false,retryAfter=0;
   const allowed=()=>ENABLED&&typeof global.EventSource==='function'&&api?.session().profile&&api.session().auto;
+  const online=()=>global.navigator?.onLine!==false;
+  const available=()=>online()&&!document.hidden;
   function status(){
     const el=document.getElementById('liveSyncStatus');if(!el)return;
     el.hidden=!ENABLED;
-    const text=!api?.session().auto?'Live previews paused with automatic sync.':!allowed()?'Sign in to enable live handwriting previews.':[...streams.values()].some(s=>s.connected)?'Live handwriting previews connected. Drive backup saves separately.':'Live previews waiting for connection. Drive backup remains available.';
+    const text=!api?.session().auto?'Live previews paused with automatic sync.':!allowed()?'Sign in to enable live handwriting previews.':!online()?'Offline. Live handwriting will reconnect automatically.':[...streams.values()].some(s=>s.connected)?'Live handwriting previews connected. Drive backup saves separately.':'Connecting live handwriting automatically. Drive backup remains available.';
     if(el.textContent!==text)el.textContent=text;
   }
   function schedule(delay=IDLE){
-    if(!allowed())return;
+    if(!allowed()||!available())return;
     const deadline=Date.now()+delay;
     // A burst of events should never push an already scheduled flush back.
     if(timer&&dueAt<=deadline)return;
@@ -34,22 +36,39 @@
     const s=api.session(),version=generation;
     const params=new URLSearchParams({account:s.profile.sub,room,client:clientId});if(record.cursor)params.set('after',record.cursor);
     const source=new global.EventSource('/live/events?'+params,{withCredentials:true});record.source=source;
-    source.onopen=()=>{if(version===generation){record.connected=true;record.retries=0;status();}};
-    for(const type of ['live','ready','reset','auth'])source.addEventListener(type,event=>receive(type,event,room,version));
-    source.onerror=()=>{source.close();record.source=null;record.connected=false;record.retryAt=Date.now()+Math.min(30000,1000*2**Math.min(5,record.retries++));status();schedule(1000);};
+    const current=()=>version===generation&&record.source===source;
+    source.onopen=()=>{if(current()){record.lastSeen=Date.now();record.connected=true;record.retries=0;status();}};
+    for(const type of ['live','ready','reset','auth','ping'])source.addEventListener(type,event=>{
+      if(!current())return;
+      record.lastSeen=Date.now();
+      if(type!=='ping')receive(type,event,room,version);
+    });
+    source.onerror=()=>{
+      if(!current())return;
+      source.close();record.source=null;record.connected=false;
+      record.retryAt=Date.now()+Math.min(30000,1000*2**Math.min(5,record.retries++));
+      status();schedule(1000);
+    };
+    record.lastSeen=Date.now();
   }
   function refreshRooms(){
     if(!allowed())return;
     const rooms=new Set(['account',...api.bridge.rooms()].slice(0,4));
     for(const [room,record] of streams)if(!rooms.has(room)){record.source?.close();streams.delete(room);}
-    for(const room of rooms)if(!streams.has(room))streams.set(room,{source:null,connected:false,retries:0,retryAt:0,cursor:''});
+    for(const room of rooms)if(!streams.has(room))streams.set(room,{source:null,connected:false,retries:0,retryAt:0,cursor:'',lastSeen:0});
     schedule(0);
   }
   async function flush(){
-    if(!allowed())return;
+    if(!allowed()||!available())return;
     if(api.bridge.busy(IDLE)){schedule();return;}
     const version=generation;
-    for(const [room,record] of streams)if(!record.source&&record.retryAt<=Date.now())open(room);
+    for(const [room,record] of streams){
+      if(record.source&&(record.source.readyState===2||Date.now()-record.lastSeen>=STALE_MS)){
+        record.source.close();record.source=null;record.connected=false;record.retryAt=0;
+        needsCatchup=true;status();
+      }
+      if(!record.source&&record.retryAt<=Date.now())open(room);
+    }
     while(inbox.length){
       if(api.bridge.busy(IDLE)){schedule();return;}
       const event=inbox.shift();inboxBytes-=event.data.length;if(event.version!==generation)continue;
@@ -75,7 +94,7 @@
       sending=true;
       try{
         for(const [id,pending] of outgoing){
-          if(version!==generation||api.bridge.busy(IDLE))break;
+          if(version!==generation||!available()||api.bridge.busy(IDLE))break;
           const room=roomFor(pending.bookId);if(!room){outgoing.delete(id);continue;}
           const {queuedAt,...operation}=pending;
           const payload={...operation,clientId};
@@ -92,7 +111,7 @@
       }catch{if(version===generation)retryAfter=Date.now()+3000;}
       finally{if(version===generation)sending=false;}
     }
-    if(version===generation&&(inbox.length||outgoing.size||previews.size||[...streams.values()].some(s=>!s.source)))schedule(outgoing.size?Math.max(IDLE,retryAfter-Date.now()):1000);
+    if(version===generation&&(inbox.length||outgoing.size||previews.size||streams.size))schedule(outgoing.size?Math.max(IDLE,retryAfter-Date.now()):1000);
   }
   function append(bookId,pageId,item){
     if(!allowed())return;
@@ -110,6 +129,27 @@
   function render(){if(allowed()){paintNeeded=true;schedule();}}
   function start(){if(!allowed()){stop();status();return;}if(!controller)controller=new AbortController();refreshRooms();status();}
   function stop(){generation++;controller?.abort();controller=null;clearTimeout(timer);timer=0;for(const s of streams.values())s.source?.close();streams.clear();outgoing.clear();previews.clear();inbox=[];inboxBytes=0;sending=false;fresh=null;paintNeeded=false;needsCatchup=false;retryAfter=0;api?.bridge.clear();status();}
-  function init(adapter){api=adapter;status();}
+  function resume(){
+    if(!allowed()||!available())return;
+    retryAfter=0;
+    for(const record of streams.values())if(!record.source)record.retryAt=0;
+    start();needsCatchup=true;
+  }
+  function offline(){
+    if(!allowed())return;
+    generation++;controller?.abort();controller=null;clearTimeout(timer);timer=0;
+    sending=false;retryAfter=0;
+    for(const record of streams.values()){record.source?.close();record.source=null;record.connected=false;record.retryAt=0;}
+    status();
+  }
+  function init(adapter){
+    api=adapter;status();
+    if(!ENABLED)return;
+    global.addEventListener?.('online',resume);
+    global.addEventListener?.('offline',offline);
+    global.addEventListener?.('focus',resume);
+    global.addEventListener?.('pageshow',resume);
+    document.addEventListener?.('visibilitychange',()=>{if(!document.hidden)resume();});
+  }
   global.WindsLive=Object.freeze({init,start,stop,append,changed,render,refreshRooms});
 })(window);
