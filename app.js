@@ -2928,7 +2928,9 @@
         preserveStudyPosition(()=>{
           if(wanted&&!split){
             left.prepend(handle,drawing);history.append(undo,redo);
-            right.append(...settings,$('railStudyActions'));
+            right.append(...settings);
+            const studyActions=$('railStudyActions');
+            if(studyActions)right.append(studyActions);
           }else if(split&&!wanted){
             dock.append(handle);top.append(...controls);
             historyHome.insertBefore(undo,historyAnchor);historyHome.insertBefore(redo,historyAnchor);
