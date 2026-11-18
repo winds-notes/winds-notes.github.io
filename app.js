@@ -2881,6 +2881,60 @@
     next.hidden=!overflow||strip.scrollLeft+strip.clientWidth>=strip.scrollWidth-3;
   }
   let queueToolbarPosition=()=>{};
+  function prepareToolbarActions(){
+    const left=$('toolbarLeft'),right=$('toolbarRight');
+    for(const rail of [left,right]){
+      for(const node of [...rail.childNodes]){
+        if(node.nodeType===3&&/^(?:null|undefined|\s)+$/.test(node.textContent))node.remove();
+      }
+    }
+    function group(id,className,label,parent){
+      const element=$(id)||parent.querySelector('.'+className)||document.createElement('div');
+      element.id=id;element.className=className;
+      element.setAttribute('role','group');element.setAttribute('aria-label',label);
+      parent.append(element);
+      return element;
+    }
+    function actions(parent,entries){
+      for(const [action,label,fallback,description,id] of entries){
+        const source=$('moreMenu').querySelector(`[data-action="${action}"]`);
+        const button=document.querySelector(`[data-rail-action="${action}"]`)||document.createElement('button');
+        button.type='button';button.className='toolbar-quick-action';
+        button.dataset.railAction=action;button.dataset.railIcon=source?.dataset.icon||fallback;
+        button.title=description;button.setAttribute('aria-label',description);
+        if(id)button.id=id;
+        const caption=document.createElement('span');caption.textContent=label;
+        button.replaceChildren(caption);parent.append(button);
+      }
+    }
+    const pages=group('railPageActions','toolbar-page-actions','Notebook pages',left);
+    if(!pages.querySelector('.toolbar-page-navigation')){
+      const navigation=document.createElement('div');
+      navigation.className='toolbar-page-navigation';navigation.setAttribute('role','group');navigation.setAttribute('aria-label','Navigate pages');
+      navigation.innerHTML='<button type="button" id="railPreviousPage" class="small-icon-button" data-rail-action="previousPage" data-rail-icon="chevronLeft" aria-label="Previous page" title="Previous page" disabled></button><span id="railPageNumber" aria-label="Current page">1 / 1</span><button type="button" id="railNextPage" class="small-icon-button" data-rail-action="nextPage" data-rail-icon="chevronRight" aria-label="Next page" title="Next page" disabled></button>';
+      pages.prepend(navigation);
+    }
+    actions(pages,[
+      ['addPage','Add page','plus','Add a page'],
+      ['pages','Pages','pages','Open page thumbnails','railPages'],
+      ['duplicate','Duplicate','copy','Duplicate current page'],
+      ['organize','Organize','orientation','Organize notebook pages']
+    ]);
+    $('railPages').setAttribute('aria-pressed',String(state.sidebarOpen));
+    const pdf=group('railPdfActions','toolbar-pdf-actions','PDF reading',right);
+    const study=group('railStudyActions','toolbar-study-actions','Study tools',right);
+    actions(pdf,[
+      ['reference','Read PDF','pages','Read a PDF beside your writing page'],
+      ['pdf','Import PDF','upload','Import PDF pages']
+    ]);
+    actions(study,[
+      ['studyCards','Cards','paper','Review study cards'],
+      ['graph','Graph','graph','Insert an interactive graph'],
+      ['templates','Templates','paper','Page templates'],
+      ['present','Present','orientation','Present notebook'],
+      ['drive','Drive','cloud','Google Drive sync']
+    ]);
+  }
   function bindToolbarLayout(){
     const key='winds-notes-toolbar-layout-v1',minWidth=540;
     const editor=$('editorView'),stage=$('canvasStage'),handle=$('toolbarLayoutBtn');
@@ -2928,9 +2982,7 @@
         preserveStudyPosition(()=>{
           if(wanted&&!split){
             left.prepend(handle,drawing);history.append(undo,redo);
-            right.append(...settings);
-            const studyActions=$('railStudyActions');
-            if(studyActions)right.append(studyActions);
+            right.append($('railPdfActions'),...settings,$('railStudyActions'));
           }else if(split&&!wanted){
             dock.append(handle);top.append(...controls);
             historyHome.insertBefore(undo,historyAnchor);historyHome.insertBefore(redo,historyAnchor);
@@ -3056,6 +3108,7 @@
     $('selectionActions').replaceChildren($('graphControls'),$('vectorControls'),follow,$('copySelected'),$('cutSelected'));
   }
   function bind(){
+    prepareToolbarActions();
     compactSelectionActions();
     initStudyTools();
     initGraphs();

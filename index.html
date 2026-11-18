@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=103"></script>
-<script src="./google-config.js?v=103"></script>
+<script src="./theme.js?v=107"></script>
+<script src="./google-config.js?v=107"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=103" rel="stylesheet"/>
-<link href="./dark.css?v=103" rel="stylesheet"/>
+<link href="./styles.css?v=107" rel="stylesheet"/>
+<link href="./dark.css?v=107" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -226,8 +226,32 @@
 <div class="pop-menu emoji-menu" hidden id="emojiMenu"><div class="menu-heading">SMILEYS & STICKERS</div><div id="stickerCollections"></div><input type="search" id="emojiSearch" placeholder="Search stickers or subjects…" aria-label="Find a sticker or subject" class="emoji-search"/><p id="stickerCount" class="sticker-count" role="status"></p><div id="emojiGrid" class="emoji-grid"></div><label class="sticker-size-control">Sticker size <input id="stickerSize" type="range" min="36" max="150" step="2" value="78" aria-label="Sticker size"/><span id="stickerSizeValue">78</span></label><div class="emoji-menu-tip">Tap a sticker to add it. Use Select to move it.</div></div>
 </header>
 
-<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="selection-actions" id="selectionActions" hidden aria-label="Selected object controls"><span id="selectedObjectType">Object</span><button type="button" id="clearAreaSelection" hidden aria-label="Clear handwriting selection">Clear</button><button type="button" id="editSelectedText" class="edit-text-button" hidden>Edit text</button><button type="button" id="copySelected" aria-label="Copy selected object" title="Copy selected object">Copy</button><button type="button" id="cutSelected" aria-label="Cut selected object" title="Cut selected object">Cut</button><button data-resize-control type="button" id="selectedShrink" aria-label="Make selected object smaller" title="Decrease size">−</button><label data-resize-control class="selection-size-label">Width <input id="selectedWidth" type="number" min="16" max="2200" step="1" aria-label="Selected object width"/> <span>px</span></label><button data-resize-control type="button" id="selectedGrow" aria-label="Make selected object larger" title="Increase size">+</button><div id="rotationControls" class="rotation-controls" role="group" aria-label="Selected object rotation" hidden><button type="button" id="rotateSelectedLeft" aria-label="Rotate selected object left 90 degrees" title="Rotate left 90°">↶</button><label class="selection-size-label">Angle <input id="selectedRotation" type="number" min="-360" max="360" step="1" aria-label="Selected object rotation in degrees"/> <span>°</span></label><button type="button" id="rotateSelectedRight" aria-label="Rotate selected object right 90 degrees" title="Rotate right 90°">↷</button></div><button type="button" id="cropSelectedImage" class="crop-image-button" aria-label="Crop selected image" title="Crop image" hidden>Crop</button><button type="button" id="removeSelected" aria-label="Delete selected object" title="Delete selected object">×</button></div><aside class="toolbar-rail" id="toolbarLeft" data-toolbar-side="left" role="toolbar" aria-label="Drawing tools" aria-orientation="vertical" hidden><div class="toolbar-history" id="toolbarHistory"></div></aside>
-<aside class="toolbar-rail" id="toolbarRight" data-toolbar-side="right" role="toolbar" aria-label="Writing settings" aria-orientation="vertical" hidden></aside>
+<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="selection-actions" id="selectionActions" hidden aria-label="Selected object controls"><span id="selectedObjectType">Object</span><button type="button" id="clearAreaSelection" hidden aria-label="Clear handwriting selection">Clear</button><button type="button" id="editSelectedText" class="edit-text-button" hidden>Edit text</button><button type="button" id="copySelected" aria-label="Copy selected object" title="Copy selected object">Copy</button><button type="button" id="cutSelected" aria-label="Cut selected object" title="Cut selected object">Cut</button><button data-resize-control type="button" id="selectedShrink" aria-label="Make selected object smaller" title="Decrease size">−</button><label data-resize-control class="selection-size-label">Width <input id="selectedWidth" type="number" min="16" max="2200" step="1" aria-label="Selected object width"/> <span>px</span></label><button data-resize-control type="button" id="selectedGrow" aria-label="Make selected object larger" title="Increase size">+</button><div id="rotationControls" class="rotation-controls" role="group" aria-label="Selected object rotation" hidden><button type="button" id="rotateSelectedLeft" aria-label="Rotate selected object left 90 degrees" title="Rotate left 90°">↶</button><label class="selection-size-label">Angle <input id="selectedRotation" type="number" min="-360" max="360" step="1" aria-label="Selected object rotation in degrees"/> <span>°</span></label><button type="button" id="rotateSelectedRight" aria-label="Rotate selected object right 90 degrees" title="Rotate right 90°">↷</button></div><button type="button" id="cropSelectedImage" class="crop-image-button" aria-label="Crop selected image" title="Crop image" hidden>Crop</button><button type="button" id="removeSelected" aria-label="Delete selected object" title="Delete selected object">×</button></div><aside class="toolbar-rail" id="toolbarLeft" data-toolbar-side="left" role="toolbar" aria-label="Drawing tools" aria-orientation="vertical" hidden><div class="toolbar-history" id="toolbarHistory"></div>
+<div class="toolbar-page-actions" id="railPageActions" role="group" aria-label="Notebook pages">
+  <div class="toolbar-page-navigation" role="group" aria-label="Navigate pages">
+    <button type="button" id="railPreviousPage" class="small-icon-button" data-rail-action="previousPage" data-rail-icon="chevronLeft" aria-label="Previous page" title="Previous page" disabled></button>
+    <span id="railPageNumber" aria-label="Current page">1 / 1</span>
+    <button type="button" id="railNextPage" class="small-icon-button" data-rail-action="nextPage" data-rail-icon="chevronRight" aria-label="Next page" title="Next page" disabled></button>
+  </div>
+  <button type="button" class="toolbar-quick-action" data-rail-action="addPage" data-rail-icon="plus" aria-label="Add a page" title="Add a page"><span>Add page</span></button>
+  <button type="button" class="toolbar-quick-action" id="railPages" data-rail-action="pages" data-rail-icon="pages" aria-pressed="false" aria-label="Open page thumbnails" title="Open page thumbnails"><span>Pages</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="duplicate" data-rail-icon="copy" aria-label="Duplicate current page" title="Duplicate current page"><span>Duplicate</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="organize" data-rail-icon="orientation" aria-label="Organize notebook pages" title="Reorder, rotate, extract, or export pages"><span>Organize</span></button>
+</div>
+</aside>
+<aside class="toolbar-rail" id="toolbarRight" data-toolbar-side="right" role="toolbar" aria-label="Writing and study tools" aria-orientation="vertical" hidden>
+<div class="toolbar-pdf-actions" id="railPdfActions" role="group" aria-label="PDF reading">
+  <button type="button" class="toolbar-quick-action" data-rail-action="reference" data-rail-icon="pages" aria-label="Read beside a PDF" title="Read a PDF beside your writing page"><span>Read PDF</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="pdf" data-rail-icon="upload" aria-label="Import PDF pages" title="Import a PDF for reading and annotation"><span>Import PDF</span></button>
+</div>
+<div class="toolbar-study-actions" id="railStudyActions" role="group" aria-label="Study tools">
+  <button type="button" class="toolbar-quick-action" data-rail-action="studyCards" data-rail-icon="paper" aria-label="Review study cards" title="Review your study cards"><span>Cards</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="graph" data-rail-icon="graph" aria-label="Insert an interactive graph" title="Insert an interactive graph"><span>Graph</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="templates" data-rail-icon="paper" aria-label="Page templates" title="Save or reuse a page template"><span>Templates</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="present" data-rail-icon="orientation" aria-label="Present notebook" title="Present your notebook"><span>Present</span></button>
+  <button type="button" class="toolbar-quick-action" data-rail-action="drive" data-rail-icon="cloud" aria-label="Google Drive sync" title="Google Drive connection and sync details"><span>Drive</span></button>
+</div>
+</aside>
 <div class="toolbar-page-dock" id="toolbarPageDock" hidden>
   <button type="button" id="toolbarLayoutBtn" class="icon-button toolbar-layout-button" aria-label="Side toolbars" aria-controls="toolbarLeft toolbarRight" aria-pressed="false" title="Drag toward either page edge, or click to show side toolbars">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M8 5v14m8-14v14m-5-9h2m-2 4h2"/></svg>
@@ -533,32 +557,32 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=103"></script>
-<script src="./svg-stickers.js?v=103"></script>
-<script src="./creative-tools.js?v=103"></script>
-<script src="./graph-tools.js?v=103"></script>
-<script src="./vector-tools.js?v=103"></script>
-<script src="./interaction-tools.js?v=103"></script>
-<script src="./selection-preview.js?v=103"></script>
-<script src="./eraser-preview.js?v=103"></script>
-<script src="./page-stack.js?v=103"></script>
-<script src="./workspace-model.js?v=103"></script>
-<script src="./text-tools.js?v=103"></script>
-<script src="./pdf-export.js?v=103"></script>
-<script src="./pdf-import.js?v=103"></script>
-<script src="./pdf-text.js?v=103"></script>
-<script src="./native-file.js?v=103"></script>
-<script src="./clipboard.js?v=103"></script>
-<script src="./shared-notebook-model.js?v=103"></script>
-<script src="./notebook-sharing.js?v=103"></script>
-<script src="./live-sync.js?v=103"></script>
+<script src="./mandala-art.js?v=107"></script>
+<script src="./svg-stickers.js?v=107"></script>
+<script src="./creative-tools.js?v=107"></script>
+<script src="./graph-tools.js?v=107"></script>
+<script src="./vector-tools.js?v=107"></script>
+<script src="./interaction-tools.js?v=107"></script>
+<script src="./selection-preview.js?v=107"></script>
+<script src="./eraser-preview.js?v=107"></script>
+<script src="./page-stack.js?v=107"></script>
+<script src="./workspace-model.js?v=107"></script>
+<script src="./text-tools.js?v=107"></script>
+<script src="./pdf-export.js?v=107"></script>
+<script src="./pdf-import.js?v=107"></script>
+<script src="./pdf-text.js?v=107"></script>
+<script src="./native-file.js?v=107"></script>
+<script src="./clipboard.js?v=107"></script>
+<script src="./shared-notebook-model.js?v=107"></script>
+<script src="./notebook-sharing.js?v=107"></script>
+<script src="./live-sync.js?v=107"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=103"></script>
-<script defer src="./boundary-fill.js?v=103"></script>
-<script defer src="./mandala-tools.js?v=103"></script>
-<script defer src="./pdf-study.js?v=103"></script>
-<script defer src="./study-tools.js?v=103"></script>
-<script defer src="./study-cards.js?v=103"></script>
-<script defer="" src="./app.js?v=103"></script>
+<script defer src="./cloud-drive.js?v=107"></script>
+<script defer src="./boundary-fill.js?v=107"></script>
+<script defer src="./mandala-tools.js?v=107"></script>
+<script defer src="./pdf-study.js?v=107"></script>
+<script defer src="./study-tools.js?v=107"></script>
+<script defer src="./study-cards.js?v=107"></script>
+<script defer="" src="./app.js?v=107"></script>
 </body>
 </html>

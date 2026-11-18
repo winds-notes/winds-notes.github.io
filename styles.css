@@ -880,7 +880,7 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
   max-height:calc(100% - var(--toolbar-page-top,var(--toolbar-rail-gap)) - var(--toolbar-rail-gap));
   display:grid;align-content:start;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;
   padding:5px;background:#fff;border:1px solid var(--border);border-radius:12px;
-  box-shadow:0 3px 12px #26264912;overflow:auto;scrollbar-width:none;overscroll-behavior:contain;
+  box-shadow:0 3px 12px #26264912;overflow:auto;scrollbar-width:thin;overscroll-behavior:contain;
 }
 .toolbar-rail[data-toolbar-side=left]{
   left:max(var(--toolbar-left-gap),calc(var(--toolbar-page-left,0px) - var(--toolbar-rail-width) - var(--toolbar-page-gap)));
@@ -921,9 +921,10 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .toolbar-rail .zoom-value{border:0;border-radius:7px;background:var(--pale);color:var(--ink);font-size:10px;font-weight:750}
 .toolbar-rail .tool-button[aria-expanded=true]{background:#eeebff;color:var(--purple)}
 .toolbar-rail button:focus-visible,.toolbar-rail input:focus-visible{outline-offset:-2px}
-.toolbar-page-actions,.toolbar-study-actions{
+.toolbar-page-actions,.toolbar-pdf-actions,.toolbar-study-actions{
   grid-column:1/-1;display:grid;gap:3px;padding-top:5px;border-top:1px solid var(--border);
 }
+.toolbar-pdf-actions{padding-top:0;padding-bottom:5px;border-top:0;border-bottom:1px solid var(--border)}
 .toolbar-rail .toolbar-quick-action{
   display:flex;align-items:center;gap:4px;width:100%;min-height:34px;padding:5px 2px;
   border:0;border-radius:7px;background:transparent;color:var(--ink);text-align:left;
@@ -936,7 +937,7 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .toolbar-page-navigation .small-icon-button{width:20px;height:32px}
 .toolbar-page-navigation svg{width:15px;height:15px}
 #railPageNumber{font-size:9px;font-weight:650;white-space:nowrap;font-variant-numeric:tabular-nums}
-.toolbar-study-actions .toolbar-quick-action:first-child{background:#eeebff;color:var(--purple);font-weight:750}
+.toolbar-pdf-actions [data-rail-action=reference]{background:#eeebff;color:var(--purple);font-weight:750}
 .toolbar-drop-targets{display:none;position:absolute;inset:6px;z-index:9;pointer-events:none}
 [data-toolbar-drag=sides] .toolbar-drop-targets{display:block}
 .toolbar-drop-targets::before,.toolbar-drop-targets::after{

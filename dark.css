@@ -85,6 +85,7 @@ html[data-theme="dark"] .editor-header .stage-tools{color:#b8babe}
 html[data-theme="dark"] .toolbar-arrow{background:linear-gradient(90deg,#1d1e25 75%,rgba(29,30,37,0.875));color:#bfc0c7}
 html[data-theme="dark"] .toolbar-arrow:hover{background:#1a182e}
 html[data-theme="dark"] .toolbar-arrow-right{background:linear-gradient(270deg,#1d1e25 75%,rgba(29,30,37,0.875))}
+html[data-theme="dark"] .toolbar-layout-button[aria-pressed=true]{background:#1b182e}
 html[data-theme="dark"] .editor-header .page-nav span{color:#bec0c5}
 html[data-theme="dark"] .editor-header .nav-page-btn:hover:not(:disabled){background:#1e1f27}
 html[data-theme="dark"] .editor-header .add-page-top{background:#1a172d;color:#9994e6}
@@ -310,6 +311,14 @@ html[data-theme="dark"] .study-divider{background:#211e2b;color:#b0acc6}
 html[data-theme="dark"] .study-divider:hover,html[data-theme="dark"] .study-divider:focus-visible{background:#201b35}
 html[data-theme="dark"] #studyPdfScroll{background:#22232a}
 html[data-theme="dark"] #studyPdfSurface{background:#1c1c1f}
+html[data-theme="dark"] .toolbar-page-dock{background:#1c1c1f}
+html[data-theme="dark"] .toolbar-rail{background:#1c1c1f}
+html[data-theme="dark"] .toolbar-rail .fill-settings-trigger,html[data-theme="dark"] .toolbar-rail .eraser-settings-button{color:#bab7c1}
+html[data-theme="dark"] .toolbar-rail .tool-button[aria-expanded=true]{background:#1b182e}
+html[data-theme="dark"] .toolbar-quick-action:hover,html[data-theme="dark"] .toolbar-quick-action[aria-pressed=true]{background:#1b182e}
+html[data-theme="dark"] .toolbar-pdf-actions [data-rail-action=reference]{background:#1b182e}
+html[data-theme="dark"] .toolbar-drop-targets::before,html[data-theme="dark"] .toolbar-drop-targets::after{background:rgba(27,24,46,0.333)}
+html[data-theme="dark"] [data-toolbar-drop=sides] .toolbar-drop-targets::before,html[data-theme="dark"] [data-toolbar-drop=sides] .toolbar-drop-targets::after{background:rgba(29,25,49,0.522)}
 html[data-theme="dark"] body.tutorial-page{background:#1c1e24}
 html[data-theme="dark"] .tutorial-skip{background:#1c1c1f}
 html[data-theme="dark"] .tutorial-header{background:#1c1c1f}
