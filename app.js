@@ -785,7 +785,7 @@
     $('prevPage').disabled=state.pageIndex===0;
     $('nextPage').disabled=state.pageIndex===n.pages.length-1;
     $('moreMenu').querySelector('[data-action="deletePage"]').disabled=n.pages.length===1;
-    window.WindsPageStack.sync();renderThumbs();renderCanvas();updateHistoryButtons();
+    window.WindsPageStack.sync();queueToolbarPosition();renderThumbs();renderCanvas();updateHistoryButtons();
   }
   function updateSidebar(){
     $('pagesSidebar').classList.toggle('collapsed',!state.sidebarOpen);
@@ -2874,47 +2874,73 @@
     prev.hidden=!overflow||strip.scrollLeft<=3;
     next.hidden=!overflow||strip.scrollLeft+strip.clientWidth>=strip.scrollWidth-3;
   }
+  let queueToolbarPosition=()=>{};
   function bindToolbarLayout(){
     const key='winds-notes-toolbar-layout-v1',minWidth=540;
     const editor=$('editorView'),stage=$('canvasStage'),handle=$('toolbarLayoutBtn');
     const top=$('editorToolbar'),topWrap=$('toolbarTop'),header=topWrap.parentElement;
+    const dock=$('toolbarPageDock'),scroller=$('pageScroller'),paper=$('pageShell');
     const left=$('toolbarLeft'),right=$('toolbarRight'),history=$('toolbarHistory');
     const drawing=$('toolsGroup'),firstDivider=drawing.nextElementSibling,controls=[...top.children];
     const settings=controls.filter(control=>control!==drawing&&control!==firstDivider);
     const undo=$('undoBtn'),redo=$('redoBtn'),historyHome=undo.parentElement,historyAnchor=redo.nextElementSibling;
-    let preferSides=false,split=false,drag=null,suppressClick=false,layoutTimer=0;
+    let preferSides=false,split=false,drag=null,suppressClick=false,layoutTimer=0,positionFrame=0;
     try{preferSides=localStorage.getItem(key)==='sides';}catch{}
     const busy=()=>inputBusy()||state.pendingInteractions||state.widthAdjustment;
 
+    function align(){
+      if(editor.hidden||stage.clientWidth<minWidth)return;
+      const area=stage.getBoundingClientRect(),viewport=scroller.getBoundingClientRect(),sheet=paper.getBoundingClientRect();
+      // Use the visible sheet edges. At high zoom or while panning, the
+      // rails stop at the viewport gutters instead of covering the canvas.
+      const visibleLeft=Math.max(viewport.left,sheet.left),visibleRight=Math.min(viewport.right,sheet.right);
+      const visible=visibleLeft<visibleRight;
+      const offsetTop=viewport.top-area.top+Math.max(8,Math.min(64,sheet.top-viewport.top));
+      for(const [name,value] of [
+        ['--toolbar-page-left',(visible?visibleLeft:viewport.left)-area.left],
+        ['--toolbar-page-right',area.right-(visible?visibleRight:viewport.right)],
+        ['--toolbar-page-top',offsetTop]
+      ]){
+        const px=`${Math.round(value)}px`;
+        if(stage.style.getPropertyValue(name)!==px)stage.style.setProperty(name,px);
+      }
+      repositionPopup();
+    }
+    function position(){
+      if(!positionFrame)positionFrame=requestAnimationFrame(()=>{positionFrame=0;align();});
+    }
+    queueToolbarPosition=position;
     function refresh(){
       clearTimeout(layoutTimer);
       if(!stage.clientWidth)return;
       const fits=stage.clientWidth>=minWidth,wanted=fits&&preferSides;
-      if(split!==wanted){
+      if(split!==wanted||stage.hasAttribute('data-toolbar-available')!==fits){
         if(drag||busy()){layoutTimer=setTimeout(refresh,100);return;}
         closeMenus(false);
         const focus=document.activeElement;
         const keepFocus=focus===handle||top.contains(focus)||left.contains(focus)||right.contains(focus)||focus===undo||focus===redo;
         preserveStudyPosition(()=>{
-          if(wanted){
+          if(wanted&&!split){
             left.prepend(handle,drawing);history.append(undo,redo);
             right.append(...settings);
-          }else{
-            header.insertBefore(handle,topWrap);top.append(...controls);
+          }else if(split&&!wanted){
+            dock.append(handle);top.append(...controls);
             historyHome.insertBefore(undo,historyAnchor);historyHome.insertBefore(redo,historyAnchor);
           }
           split=wanted;
+          stage.toggleAttribute('data-toolbar-available',fits);
           stage.dataset.toolbarLayout=split?'sides':'top';
           topWrap.hidden=split;left.hidden=right.hidden=!split;
+          dock.hidden=split||!fits;
           historyAnchor.hidden=split;
           resizePage(true);
         });
         if(keepFocus)focus.focus({preventScroll:true});
+        align();
         updateToolbarArrows();
-      }
-      handle.disabled=!fits;
+      }else position();
       handle.setAttribute('aria-pressed',String(split));
-      handle.title=!fits?'Side toolbars need a wider writing area':split?
+      handle.title=split?
         'Drag to the top bar, or click to return tools to the top':
         'Drag toward either page edge, or click to show side toolbars';
     }
@@ -2954,8 +2980,8 @@
     handle.onpointerdown=event=>{
       if(event.button!==0||drag||busy()||stage.clientWidth<minWidth)return;
       try{handle.setPointerCapture(event.pointerId);}catch{}
-      const bounds=stage.getBoundingClientRect(),paper=$('pageShell').getBoundingClientRect();
-      const edge=Math.min(bounds.width*.4,Math.max(bounds.width*.18,(bounds.width-paper.width)/2+32));
+      const bounds=stage.getBoundingClientRect(),sheet=paper.getBoundingClientRect();
+      const edge=Math.min(bounds.width*.4,Math.max(bounds.width*.18,(bounds.width-sheet.width)/2+40));
       stage.style.setProperty('--toolbar-drop-width',`${edge}px`);
       suppressClick=false;
       const tracking=new AbortController(),options={capture:true,signal:tracking.signal};
@@ -2988,8 +3014,12 @@
       if(!busy()&&stage.clientWidth>=minWidth)select(!split);
     };
     for(const rail of [left,right])rail.addEventListener('scroll',repositionPopup,{passive:true});
-    if(window.ResizeObserver)new ResizeObserver(refresh).observe(stage);
-    else window.addEventListener('resize',refresh,{passive:true});
+    scroller.addEventListener('scroll',position,{passive:true});
+    if(window.ResizeObserver){
+      new ResizeObserver(refresh).observe(stage);
+      const paperResize=new ResizeObserver(position);
+      paperResize.observe(paper);paperResize.observe(scroller);
+    }else window.addEventListener('resize',refresh,{passive:true});
   }
   function compactSelectionActions(){
     // Reuse the controls from the HTML so an older cached shell gets the same bar.
