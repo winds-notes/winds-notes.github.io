@@ -784,6 +784,9 @@
     $('pageIndicator').textContent=`${state.pageIndex+1} / ${n.pages.length}`;
     $('prevPage').disabled=state.pageIndex===0;
     $('nextPage').disabled=state.pageIndex===n.pages.length-1;
+    $('railPreviousPage').disabled=state.pageIndex===0;
+    $('railNextPage').disabled=state.pageIndex===n.pages.length-1;
+    $('railPageNumber').textContent=`${state.pageIndex+1} / ${n.pages.length}`;
     $('moreMenu').querySelector('[data-action="deletePage"]').disabled=n.pages.length===1;
     window.WindsPageStack.sync();queueToolbarPosition();renderThumbs();renderCanvas();updateHistoryButtons();
   }
@@ -792,6 +795,7 @@
     $('editorScrim').hidden=!state.sidebarOpen;
     $('togglePages').classList.toggle('active',state.sidebarOpen);
     $('togglePages').setAttribute('aria-pressed',String(state.sidebarOpen));
+    $('railPages').setAttribute('aria-pressed',String(state.sidebarOpen));
     if(state.sidebarOpen && thumbnailsDirty)renderThumbs(true);
   }
   function switchPage(index,preserveScroll=false){
@@ -2832,6 +2836,8 @@
       case 'redo': redo();break;
       case 'previousPage': switchPage(state.pageIndex-1);break;
       case 'nextPage': switchPage(state.pageIndex+1);break;
+      case 'addPage': addPage();break;
+      case 'pages': $('togglePages').click();break;
       case 'fit': setZoom(1);break;
       case 'scroll': setTool('pan');toast('Drag to scroll between notebook pages. Tap Pen to write.');break;
       case 'editText': editSelectedText();break;
@@ -2922,7 +2928,7 @@
         preserveStudyPosition(()=>{
           if(wanted&&!split){
             left.prepend(handle,drawing);history.append(undo,redo);
-            right.append(...settings);
+            right.append(...settings,$('railStudyActions'));
           }else if(split&&!wanted){
             dock.append(handle);top.append(...controls);
             historyHome.insertBefore(undo,historyAnchor);historyHome.insertBefore(redo,historyAnchor);
@@ -3052,6 +3058,10 @@
     initStudyTools();
     initGraphs();
     initVectors();
+    document.querySelectorAll('[data-rail-action]').forEach(button=>{
+      button.insertAdjacentHTML('afterbegin',icon(button.dataset.railIcon,16));
+      button.onclick=()=>runNotebookAction(button.dataset.railAction);
+    });
     $('notebookActionSearchIcon').innerHTML=icon('search',18);
     document.querySelectorAll('#moreMenu [data-icon]').forEach(button=>button.insertAdjacentHTML('afterbegin',icon(button.dataset.icon,17)));
     $('moreMenu').querySelector('[data-action="previousPage"]').innerHTML=icon('chevronLeft',18);

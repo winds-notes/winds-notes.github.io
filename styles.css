@@ -921,6 +921,22 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .toolbar-rail .zoom-value{border:0;border-radius:7px;background:var(--pale);color:var(--ink);font-size:10px;font-weight:750}
 .toolbar-rail .tool-button[aria-expanded=true]{background:#eeebff;color:var(--purple)}
 .toolbar-rail button:focus-visible,.toolbar-rail input:focus-visible{outline-offset:-2px}
+.toolbar-page-actions,.toolbar-study-actions{
+  grid-column:1/-1;display:grid;gap:3px;padding-top:5px;border-top:1px solid var(--border);
+}
+.toolbar-rail .toolbar-quick-action{
+  display:flex;align-items:center;gap:4px;width:100%;min-height:34px;padding:5px 2px;
+  border:0;border-radius:7px;background:transparent;color:var(--ink);text-align:left;
+  font-size:10px;font-weight:650;line-height:1.25;
+}
+.toolbar-quick-action svg{width:15px;height:15px;flex:none}
+.toolbar-quick-action span{min-width:0;overflow-wrap:anywhere}
+.toolbar-quick-action:hover,.toolbar-quick-action[aria-pressed=true]{background:#eeebff;color:var(--purple)}
+.toolbar-page-navigation{display:flex;align-items:center;justify-content:space-between;gap:1px;min-height:32px}
+.toolbar-page-navigation .small-icon-button{width:20px;height:32px}
+.toolbar-page-navigation svg{width:15px;height:15px}
+#railPageNumber{font-size:9px;font-weight:650;white-space:nowrap;font-variant-numeric:tabular-nums}
+.toolbar-study-actions .toolbar-quick-action:first-child{background:#eeebff;color:var(--purple);font-weight:750}
 .toolbar-drop-targets{display:none;position:absolute;inset:6px;z-index:9;pointer-events:none}
 [data-toolbar-drag=sides] .toolbar-drop-targets{display:block}
 .toolbar-drop-targets::before,.toolbar-drop-targets::after{
