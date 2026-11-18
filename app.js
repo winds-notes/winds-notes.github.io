@@ -2710,10 +2710,20 @@
     const rect=trigger.getBoundingClientRect(),viewport=window.visualViewport;
     const left=(viewport?.offsetLeft||0)+8,top=(viewport?.offsetTop||0)+8;
     const right=left+(viewport?.width||innerWidth)-16,bottom=top+(viewport?.height||innerHeight)-16;
+    menu.style.maxWidth=`${right-left}px`;
+    const rail=trigger.closest('.toolbar-rail');
+    if(rail){
+      const bounds=rail.getBoundingClientRect();
+      menu.style.maxHeight=`${bottom-top}px`;
+      const x=rail.dataset.toolbarSide==='left'?bounds.right+8:bounds.left-8-menu.offsetWidth;
+      menu.style.left=`${Math.max(left,Math.min(right-menu.offsetWidth,x))}px`;
+      menu.style.right='auto';
+      menu.style.top=`${Math.max(top,Math.min(bottom-menu.offsetHeight,rect.top))}px`;
+      return;
+    }
     const belowY=Math.max(top,Math.min(bottom,rect.bottom+8));
     const aboveY=Math.max(top,Math.min(bottom,rect.top-8));
     const below=bottom-belowY,above=aboveY-top;
-    menu.style.maxWidth=`${right-left}px`;
     const opensAbove=below<menu.scrollHeight+2&&above>below;
     menu.style.maxHeight=`${Math.max(0,opensAbove?above:below)}px`;
     menu.style.left=`${Math.max(left,Math.min(right-menu.offsetWidth,rect.right-menu.offsetWidth))}px`;
@@ -2724,9 +2734,9 @@
     if(!openPopup)return;
     const {trigger,menu}=openPopup;
     if(!trigger.getClientRects().length){closeMenus(false);return;}
-    const strip=trigger.closest('#editorToolbar'),rect=trigger.getBoundingClientRect();
+    const strip=trigger.closest('#editorToolbar,.toolbar-rail'),rect=trigger.getBoundingClientRect();
     const bounds=strip?.getBoundingClientRect();
-    if(bounds&&(rect.right<=bounds.left||rect.left>=bounds.right)){closeMenus(false);return;}
+    if(bounds&&(rect.right<=bounds.left||rect.left>=bounds.right||rect.bottom<=bounds.top||rect.top>=bounds.bottom)){closeMenus(false);return;}
     positionMenu(trigger,menu);
   }
   function navigatePopup(event){
@@ -2863,6 +2873,123 @@
     const overflow=strip.scrollWidth-strip.clientWidth>3;
     prev.hidden=!overflow||strip.scrollLeft<=3;
     next.hidden=!overflow||strip.scrollLeft+strip.clientWidth>=strip.scrollWidth-3;
+  }
+  function bindToolbarLayout(){
+    const key='winds-notes-toolbar-layout-v1',minWidth=540;
+    const editor=$('editorView'),stage=$('canvasStage'),handle=$('toolbarLayoutBtn');
+    const top=$('editorToolbar'),topWrap=$('toolbarTop'),header=topWrap.parentElement;
+    const left=$('toolbarLeft'),right=$('toolbarRight'),history=$('toolbarHistory');
+    const drawing=$('toolsGroup'),firstDivider=drawing.nextElementSibling,controls=[...top.children];
+    const settings=controls.filter(control=>control!==drawing&&control!==firstDivider);
+    const undo=$('undoBtn'),redo=$('redoBtn'),historyHome=undo.parentElement,historyAnchor=redo.nextElementSibling;
+    let preferSides=false,split=false,drag=null,suppressClick=false,layoutTimer=0;
+    try{preferSides=localStorage.getItem(key)==='sides';}catch{}
+    const busy=()=>inputBusy()||state.pendingInteractions||state.widthAdjustment;
+
+    function refresh(){
+      clearTimeout(layoutTimer);
+      if(!stage.clientWidth)return;
+      const fits=stage.clientWidth>=minWidth,wanted=fits&&preferSides;
+      if(split!==wanted){
+        if(drag||busy()){layoutTimer=setTimeout(refresh,100);return;}
+        closeMenus(false);
+        const focus=document.activeElement;
+        const keepFocus=focus===handle||top.contains(focus)||left.contains(focus)||right.contains(focus)||focus===undo||focus===redo;
+        preserveStudyPosition(()=>{
+          if(wanted){
+            left.prepend(handle,drawing);history.append(undo,redo);
+            right.append(...settings);
+          }else{
+            header.insertBefore(handle,topWrap);top.append(...controls);
+            historyHome.insertBefore(undo,historyAnchor);historyHome.insertBefore(redo,historyAnchor);
+          }
+          split=wanted;
+          stage.dataset.toolbarLayout=split?'sides':'top';
+          topWrap.hidden=split;left.hidden=right.hidden=!split;
+          historyAnchor.hidden=split;
+          resizePage(true);
+        });
+        if(keepFocus)focus.focus({preventScroll:true});
+        updateToolbarArrows();
+      }
+      handle.disabled=!fits;
+      handle.setAttribute('aria-pressed',String(split));
+      handle.title=!fits?'Side toolbars need a wider writing area':split?
+        'Drag to the top bar, or click to return tools to the top':
+        'Drag toward either page edge, or click to show side toolbars';
+    }
+    function select(next){
+      preferSides=next;
+      try{localStorage.setItem(key,next?'sides':'top');}catch{}
+      refresh();
+    }
+    function target(x,y){
+      if(split){
+        const bar=drag.bar;
+        return x>=bar.left&&x<=bar.right&&y>=bar.top&&y<=bar.bottom?'top':'';
+      }
+      const bounds=drag.bounds;
+      if(y<bounds.top||y>bounds.bottom||x<bounds.left||x>bounds.right)return '';
+      return x<=bounds.left+drag.edge||x>=bounds.right-drag.edge?'sides':'';
+    }
+    function move(event){
+      if(drag?.id!==event.pointerId)return;
+      if(!drag.moved){
+        if(Math.hypot(event.clientX-drag.x,event.clientY-drag.y)<9)return;
+        drag.moved=true;
+        closeMenus(false);
+      }
+      editor.dataset.toolbarDrag=split?'top':'sides';
+      editor.dataset.toolbarDrop=target(event.clientX,event.clientY);
+    }
+    function end(complete=false){
+      const {id,moved,tracking}=drag;
+      drag=null;suppressClick=moved||!complete;
+      tracking.abort();
+      const drop=complete&&editor.dataset.toolbarDrop;
+      delete editor.dataset.toolbarDrag;delete editor.dataset.toolbarDrop;
+      if(handle.hasPointerCapture(id))handle.releasePointerCapture(id);
+      if(drop)select(drop==='sides');else refresh();
+    }
+    handle.onpointerdown=event=>{
+      if(event.button!==0||drag||busy()||stage.clientWidth<minWidth)return;
+      try{handle.setPointerCapture(event.pointerId);}catch{}
+      const bounds=stage.getBoundingClientRect(),paper=$('pageShell').getBoundingClientRect();
+      const edge=Math.min(bounds.width*.4,Math.max(bounds.width*.18,(bounds.width-paper.width)/2+32));
+      stage.style.setProperty('--toolbar-drop-width',`${edge}px`);
+      suppressClick=false;
+      const tracking=new AbortController(),options={capture:true,signal:tracking.signal};
+      drag={id:event.pointerId,x:event.clientX,y:event.clientY,bounds,edge,bar:header.getBoundingClientRect(),moved:false,tracking};
+      // Keep a drag started on the handle out of the writing surface, even if
+      // the browser drops pointer capture while crossing onto the paper.
+      document.addEventListener('pointermove',moveEvent=>{
+        if(drag?.id!==moveEvent.pointerId)return;
+        moveEvent.stopPropagation();
+        if(moveEvent.pointerType!=='touch'&&!moveEvent.buttons)end();else move(moveEvent);
+      },options);
+      document.addEventListener('pointerup',upEvent=>{
+        if(drag?.id!==upEvent.pointerId)return;
+        upEvent.stopPropagation();move(upEvent);end(true);
+      },options);
+      document.addEventListener('pointercancel',cancelEvent=>{if(drag?.id===cancelEvent.pointerId)end();},options);
+      window.addEventListener('blur',()=>{if(drag)end();},{signal:tracking.signal});
+      handle.focus({preventScroll:true});
+      event.preventDefault();
+    };
+    handle.onkeydown=event=>{
+      if(event.key==='Escape'&&drag){event.preventDefault();end();}
+      if(event.key==='Enter'||event.key===' '){
+        event.preventDefault();
+        if(!event.repeat&&!drag)handle.click();
+      }
+    };
+    handle.onclick=event=>{
+      if(suppressClick&&event.detail){suppressClick=false;return;}
+      if(!busy()&&stage.clientWidth>=minWidth)select(!split);
+    };
+    for(const rail of [left,right])rail.addEventListener('scroll',repositionPopup,{passive:true});
+    if(window.ResizeObserver)new ResizeObserver(refresh).observe(stage);
+    else window.addEventListener('resize',refresh,{passive:true});
   }
   function compactSelectionActions(){
     // Reuse the controls from the HTML so an older cached shell gets the same bar.
@@ -3065,6 +3192,7 @@
       }
     },{passive:false});
     if(window.ResizeObserver)new ResizeObserver(updateToolbarArrows).observe($('editorToolbar'));
+    bindToolbarLayout();
     $('pencilOnly').onchange=e=>{state.stylusPreferenceChanged=true;state.penOnly=e.target.checked;persistInputPreferences();toast(state.penOnly?'Stylus drawing enabled · fingers scroll and pinch':'Finger drawing enabled');};
     $('addPageSidebar').onclick=$('addPageBottom').onclick=$('addPageFloat').onclick=$('addPageTop').onclick=addPage;
     $('thumbList').onclick=e=>{const remove=e.target.closest('[data-remove-page]');if(remove){deletePage(remove.dataset.removePage);return;}const thumb=e.target.closest('[data-page]');if(thumb)switchPage(Number(thumb.dataset.page));};

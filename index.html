@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=99"></script>
-<script src="./google-config.js?v=99"></script>
+<script src="./theme.js?v=102"></script>
+<script src="./google-config.js?v=102"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=99" rel="stylesheet"/>
-<link href="./dark.css?v=99" rel="stylesheet"/>
+<link href="./styles.css?v=102" rel="stylesheet"/>
+<link href="./dark.css?v=102" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -50,7 +50,10 @@
 <span aria-hidden="true" class="header-divider book-divider"></span>
 <button aria-label="Open page thumbnails" aria-pressed="false" class="tool-button pages-toggle" id="togglePages" title="Open page thumbnails"></button>
 </div>
-<div aria-label="Writing tools and settings" class="toolbar-scroll-wrap">
+<button type="button" id="toolbarLayoutBtn" class="icon-button toolbar-layout-button" aria-label="Side toolbars" aria-controls="toolbarLeft toolbarRight" aria-pressed="false" title="Drag toward either page edge, or click to show side toolbars">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M8 5v14m8-14v14m-5-9h2m-2 4h2"/></svg>
+</button>
+<div aria-label="Writing tools and settings" class="toolbar-scroll-wrap" id="toolbarTop">
 <button aria-label="Scroll tools left" class="toolbar-arrow toolbar-arrow-left" hidden="" id="toolbarPrev" title="More tools to the left">‹</button>
 <div aria-label="Note-taking tools" class="toolbar" id="editorToolbar" role="toolbar" tabindex="0">
 <div class="tool-group" id="toolsGroup">
@@ -60,7 +63,7 @@
 <button aria-label="Scroll notebook pages" aria-pressed="false" class="tool-button" data-tool="pan" title="Scroll pages · drag without drawing (S)">✋</button><button aria-label="Area select handwriting" aria-pressed="false" class="tool-button" data-tool="area" title="Select handwriting · drag a box around multiple strokes (L)">▧</button><button aria-label="Select and move" aria-pressed="false" class="tool-button" data-tool="select" title="Select and move (V)"></button>
 <button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
 <span class="shape-tool-group"><button aria-label="Shapes · Rectangle" aria-pressed="false" class="tool-button shape-tool-trigger" id="shapeToolBtn" data-tool="rectangle" type="button" title="Shapes · Rectangle (R)"></button><button type="button" class="tool-button fill-settings-trigger shape-settings-trigger" id="shapeMenuBtn" aria-controls="shapeMenu" aria-haspopup="menu" aria-label="Choose a shape" aria-expanded="false" title="Choose a shape">⌄</button></span>
-<button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-controls="fillMenu" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/>
+<span class="fill-tool-group"><button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-controls="fillMenu" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/></span>
 <button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" aria-controls="artistMenu" data-tool="artist" type="button" title="Artist Studio"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
@@ -226,7 +229,10 @@
 <div class="pop-menu emoji-menu" hidden id="emojiMenu"><div class="menu-heading">SMILEYS & STICKERS</div><div id="stickerCollections"></div><input type="search" id="emojiSearch" placeholder="Search stickers or subjects…" aria-label="Find a sticker or subject" class="emoji-search"/><p id="stickerCount" class="sticker-count" role="status"></p><div id="emojiGrid" class="emoji-grid"></div><label class="sticker-size-control">Sticker size <input id="stickerSize" type="range" min="36" max="150" step="2" value="78" aria-label="Sticker size"/><span id="stickerSizeValue">78</span></label><div class="emoji-menu-tip">Tap a sticker to add it. Use Select to move it.</div></div>
 </header>
 
-<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="selection-actions" id="selectionActions" hidden aria-label="Selected object controls"><span id="selectedObjectType">Object</span><button type="button" id="clearAreaSelection" hidden aria-label="Clear handwriting selection">Clear</button><button type="button" id="editSelectedText" class="edit-text-button" hidden>Edit text</button><button type="button" id="copySelected" aria-label="Copy selected object" title="Copy selected object">Copy</button><button type="button" id="cutSelected" aria-label="Cut selected object" title="Cut selected object">Cut</button><button data-resize-control type="button" id="selectedShrink" aria-label="Make selected object smaller" title="Decrease size">−</button><label data-resize-control class="selection-size-label">Width <input id="selectedWidth" type="number" min="16" max="2200" step="1" aria-label="Selected object width"/> <span>px</span></label><button data-resize-control type="button" id="selectedGrow" aria-label="Make selected object larger" title="Increase size">+</button><div id="rotationControls" class="rotation-controls" role="group" aria-label="Selected object rotation" hidden><button type="button" id="rotateSelectedLeft" aria-label="Rotate selected object left 90 degrees" title="Rotate left 90°">↶</button><label class="selection-size-label">Angle <input id="selectedRotation" type="number" min="-360" max="360" step="1" aria-label="Selected object rotation in degrees"/> <span>°</span></label><button type="button" id="rotateSelectedRight" aria-label="Rotate selected object right 90 degrees" title="Rotate right 90°">↷</button></div><button type="button" id="cropSelectedImage" class="crop-image-button" aria-label="Crop selected image" title="Crop image" hidden>Crop</button><button type="button" id="removeSelected" aria-label="Delete selected object" title="Delete selected object">×</button></div><div class="page-scroller" id="pageScroller"><div id="notebookStack" class="notebook-stack"><div class="page-shell" id="pageShell"><canvas aria-hidden="true" height="2376" id="pageCanvas" width="1680"></canvas><canvas id="liveCanvas" width="1" height="1" aria-hidden="true"></canvas><canvas aria-label="Writing surface. Draw with Apple Pencil, stylus, finger or mouse." height="2376" id="inkCanvas" width="1680" role="img"></canvas><textarea class="inline-text-editor" hidden="" id="inlineTextEditor" placeholder="Type here…" spellcheck="true"></textarea></div></div><button class="floating-add-page" id="addPageFloat"><span id="floatPlus"></span> Add page</button></div></main></div>
+<div class="editor-body"><aside class="pages-sidebar" id="pagesSidebar"><div class="sidebar-top"><div class="sidebar-eyebrow">THIS NOTEBOOK</div><div class="sidebar-heading"><h3>Pages <span id="pageCount">1</span></h3><button aria-label="Add page" class="icon-button add-small" id="addPageSidebar" title="Add page"></button></div></div><div class="thumb-list" id="thumbList"></div><button class="add-page-bottom" id="addPageBottom"><span id="addPageBottomIcon"></span> Add new page</button><div class="sidebar-tip"><span>✦</span><div><b>A little tip</b><p>Use an Apple Pencil or stylus for your best handwriting experience.</p></div></div></aside><div class="editor-scrim" hidden="" id="editorScrim"></div><main class="canvas-stage" id="canvasStage"><div class="selection-actions" id="selectionActions" hidden aria-label="Selected object controls"><span id="selectedObjectType">Object</span><button type="button" id="clearAreaSelection" hidden aria-label="Clear handwriting selection">Clear</button><button type="button" id="editSelectedText" class="edit-text-button" hidden>Edit text</button><button type="button" id="copySelected" aria-label="Copy selected object" title="Copy selected object">Copy</button><button type="button" id="cutSelected" aria-label="Cut selected object" title="Cut selected object">Cut</button><button data-resize-control type="button" id="selectedShrink" aria-label="Make selected object smaller" title="Decrease size">−</button><label data-resize-control class="selection-size-label">Width <input id="selectedWidth" type="number" min="16" max="2200" step="1" aria-label="Selected object width"/> <span>px</span></label><button data-resize-control type="button" id="selectedGrow" aria-label="Make selected object larger" title="Increase size">+</button><div id="rotationControls" class="rotation-controls" role="group" aria-label="Selected object rotation" hidden><button type="button" id="rotateSelectedLeft" aria-label="Rotate selected object left 90 degrees" title="Rotate left 90°">↶</button><label class="selection-size-label">Angle <input id="selectedRotation" type="number" min="-360" max="360" step="1" aria-label="Selected object rotation in degrees"/> <span>°</span></label><button type="button" id="rotateSelectedRight" aria-label="Rotate selected object right 90 degrees" title="Rotate right 90°">↷</button></div><button type="button" id="cropSelectedImage" class="crop-image-button" aria-label="Crop selected image" title="Crop image" hidden>Crop</button><button type="button" id="removeSelected" aria-label="Delete selected object" title="Delete selected object">×</button></div><aside class="toolbar-rail" id="toolbarLeft" data-toolbar-side="left" role="toolbar" aria-label="Drawing tools" aria-orientation="vertical" hidden><div class="toolbar-history" id="toolbarHistory"></div></aside>
+<aside class="toolbar-rail" id="toolbarRight" data-toolbar-side="right" role="toolbar" aria-label="Writing settings" aria-orientation="vertical" hidden></aside>
+<div class="toolbar-drop-targets" aria-hidden="true"></div>
+<div class="page-scroller" id="pageScroller"><div id="notebookStack" class="notebook-stack"><div class="page-shell" id="pageShell"><canvas aria-hidden="true" height="2376" id="pageCanvas" width="1680"></canvas><canvas id="liveCanvas" width="1" height="1" aria-hidden="true"></canvas><canvas aria-label="Writing surface. Draw with Apple Pencil, stylus, finger or mouse." height="2376" id="inkCanvas" width="1680" role="img"></canvas><textarea class="inline-text-editor" hidden="" id="inlineTextEditor" placeholder="Type here…" spellcheck="true"></textarea></div></div><button class="floating-add-page" id="addPageFloat"><span id="floatPlus"></span> Add page</button></div></main></div>
 </section>
 <aside id="pencilDiagnostics" class="pencil-diagnostics" aria-label="Apple Pencil input diagnostics" hidden>
   <div class="pencil-diag-header"><strong>Apple Pencil input test</strong><button type="button" id="closePencilDiagnostics" aria-label="Close Pencil test">×</button></div>
@@ -525,32 +531,32 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=99"></script>
-<script src="./svg-stickers.js?v=99"></script>
-<script src="./creative-tools.js?v=99"></script>
-<script src="./graph-tools.js?v=99"></script>
-<script src="./vector-tools.js?v=99"></script>
-<script src="./interaction-tools.js?v=99"></script>
-<script src="./selection-preview.js?v=99"></script>
-<script src="./eraser-preview.js?v=99"></script>
-<script src="./page-stack.js?v=99"></script>
-<script src="./workspace-model.js?v=99"></script>
-<script src="./text-tools.js?v=99"></script>
-<script src="./pdf-export.js?v=99"></script>
-<script src="./pdf-import.js?v=99"></script>
-<script src="./pdf-text.js?v=99"></script>
-<script src="./native-file.js?v=99"></script>
-<script src="./clipboard.js?v=99"></script>
-<script src="./shared-notebook-model.js?v=99"></script>
-<script src="./notebook-sharing.js?v=99"></script>
-<script src="./live-sync.js?v=99"></script>
+<script src="./mandala-art.js?v=102"></script>
+<script src="./svg-stickers.js?v=102"></script>
+<script src="./creative-tools.js?v=102"></script>
+<script src="./graph-tools.js?v=102"></script>
+<script src="./vector-tools.js?v=102"></script>
+<script src="./interaction-tools.js?v=102"></script>
+<script src="./selection-preview.js?v=102"></script>
+<script src="./eraser-preview.js?v=102"></script>
+<script src="./page-stack.js?v=102"></script>
+<script src="./workspace-model.js?v=102"></script>
+<script src="./text-tools.js?v=102"></script>
+<script src="./pdf-export.js?v=102"></script>
+<script src="./pdf-import.js?v=102"></script>
+<script src="./pdf-text.js?v=102"></script>
+<script src="./native-file.js?v=102"></script>
+<script src="./clipboard.js?v=102"></script>
+<script src="./shared-notebook-model.js?v=102"></script>
+<script src="./notebook-sharing.js?v=102"></script>
+<script src="./live-sync.js?v=102"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=99"></script>
-<script defer src="./boundary-fill.js?v=99"></script>
-<script defer src="./mandala-tools.js?v=99"></script>
-<script defer src="./pdf-study.js?v=99"></script>
-<script defer src="./study-tools.js?v=99"></script>
-<script defer src="./study-cards.js?v=99"></script>
-<script defer="" src="./app.js?v=99"></script>
+<script defer src="./cloud-drive.js?v=102"></script>
+<script defer src="./boundary-fill.js?v=102"></script>
+<script defer src="./mandala-tools.js?v=102"></script>
+<script defer src="./pdf-study.js?v=102"></script>
+<script defer src="./study-tools.js?v=102"></script>
+<script defer src="./study-cards.js?v=102"></script>
+<script defer="" src="./app.js?v=102"></script>
 </body>
 </html>

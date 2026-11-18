@@ -73,6 +73,11 @@
 .toolbar-arrow:hover{background:#edebff;color:var(--purple)}
 .toolbar-arrow-left{left:0}.toolbar-arrow-right{right:0;background:linear-gradient(270deg,#f6f7fb 75%,#f6f7fbdf)}
 .toolbar-arrow[hidden]{display:none!important}
+.toolbar-layout-button{flex:none;touch-action:none;cursor:grab;-webkit-touch-callout:none}
+.toolbar-layout-button svg{pointer-events:none}
+.toolbar-layout-button:active{cursor:grabbing}
+.toolbar-layout-button[aria-pressed=true]{background:#eeebff;color:var(--purple)}
+.fill-tool-group{display:flex;align-items:center;flex-shrink:0}
 .editor-header .page-nav{display:flex;gap:2px;height:36px;align-items:center;border:0;background:transparent;flex-shrink:0}
 .editor-header .page-nav span{min-width:34px;font-size:10px;color:#626b7b;text-align:center;white-space:nowrap}
 .editor-header .nav-page-btn{width:25px;height:30px;border-radius:7px}
@@ -845,6 +850,75 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
   .has-study-pane .pages-sidebar{position:absolute}
 }
 @media(pointer:coarse){.study-zoom .btn{min-width:32px;min-height:36px}}
+
+/* The rails reserve their own space so tools never cover the writing canvas. */
+#canvasStage{
+  --toolbar-rail-width:88px;--toolbar-rail-gap:8px;
+  --toolbar-left-gap:max(var(--toolbar-rail-gap),env(safe-area-inset-left,0px));
+  --toolbar-right-gap:max(var(--toolbar-rail-gap),env(safe-area-inset-right,0px));
+}
+.editor-header .toolbar-layout-button{touch-action:none}
+#canvasStage[data-toolbar-layout=sides] .page-scroller{
+  margin-left:calc(var(--toolbar-rail-width) + var(--toolbar-left-gap));
+  margin-right:calc(var(--toolbar-rail-width) + var(--toolbar-right-gap));
+  padding-inline:8px;
+}
+.toolbar-rail{
+  position:absolute;z-index:8;inset-block-start:var(--toolbar-rail-gap);
+  width:var(--toolbar-rail-width);max-height:calc(100% - 2 * var(--toolbar-rail-gap));
+  display:grid;align-content:start;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;
+  padding:5px;background:#fff;border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 3px 12px #26264912;overflow:auto;scrollbar-width:none;overscroll-behavior:contain;
+}
+.toolbar-rail[data-toolbar-side=left]{left:var(--toolbar-left-gap)}
+.toolbar-rail[data-toolbar-side=right]{right:var(--toolbar-right-gap)}
+.toolbar-rail :is(.toolbar-layout-button,.tool-group,.toolbar-history,.color-palette,.size-control,.pencil-toggle,.stage-tools,.toolbar-divider,#customColorBtn){grid-column:1/-1}
+.toolbar-rail .toolbar-layout-button{width:100%;height:30px;border-radius:7px}
+.toolbar-rail :is(.tool-group,.toolbar-history,.color-palette){
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;width:100%;
+}
+.toolbar-rail .toolbar-history{padding-top:4px;border-top:1px solid var(--border)}
+.toolbar-rail :is(.tool-button,.icon-button){width:100%;min-width:0;min-height:36px;padding:0;touch-action:manipulation}
+.toolbar-rail .toolbar-layout-button{min-height:30px;touch-action:none}
+.toolbar-rail :is(.eraser-tool-group,.shape-tool-group,.fill-tool-group,.artist-trigger){grid-column:1/-1}
+.toolbar-rail :is(.eraser-trigger,.shape-tool-trigger,.shape-fill-trigger){flex:1;min-width:0}
+.toolbar-rail .fill-settings-trigger,.toolbar-rail .eraser-settings-button{width:24px;min-height:36px;color:#756992}
+.toolbar-rail :is(.fill-tool-label,.shape-tool-label){display:none}
+.toolbar-rail .fill-symbol{font-size:20px}
+.toolbar-rail .active-fill-color{width:23px;min-width:23px;height:26px}
+.toolbar-rail .artist-trigger{
+  display:flex;justify-content:center;gap:4px;border:1px solid var(--border);font-size:11px;font-weight:750;
+}
+.toolbar-rail .artist-current-grade{font-size:9px}
+.toolbar-rail .color-button{width:100%;height:30px;border-radius:7px}
+.toolbar-rail #customColorBtn{font-size:18px}
+.toolbar-rail .toolbar-divider{width:100%;height:1px;margin:1px 0;background:var(--border)}
+.toolbar-rail .size-control{min-width:0;display:grid;grid-template-columns:1fr auto;gap:0 4px;padding:0 3px}
+.toolbar-rail .size-control[hidden]{display:none}
+.toolbar-rail .size-control input{grid-column:1/-1;grid-row:2;width:100%;height:25px;margin:0;touch-action:none}
+.toolbar-rail .size-control #sizeLabel{color:var(--ink);font-weight:700}
+.toolbar-rail .pencil-toggle{justify-content:center;gap:5px;min-height:32px;font-size:9px}
+.toolbar-rail #pencilOnlyIcon{display:none}
+.toolbar-rail .pencil-toggle>span:last-child{display:inline}
+.toolbar-rail .stage-tools{display:grid;grid-template-columns:20px minmax(0,1fr) 20px;gap:2px;width:100%}
+.toolbar-rail .stage-tools button{padding:0;width:100%;height:32px}
+.toolbar-rail .zoom-value{border:0;border-radius:7px;background:var(--pale);color:var(--ink);font-size:10px;font-weight:750}
+.toolbar-rail .tool-button[aria-expanded=true]{background:#eeebff;color:var(--purple)}
+.toolbar-rail button:focus-visible,.toolbar-rail input:focus-visible{outline-offset:-2px}
+.toolbar-drop-targets{display:none;position:absolute;inset:6px;z-index:9;pointer-events:none}
+[data-toolbar-drag=sides] .toolbar-drop-targets{display:block}
+.toolbar-drop-targets::before,.toolbar-drop-targets::after{
+  content:'';position:absolute;inset-block:0;width:var(--toolbar-drop-width);
+  border:1px dashed #9c90e0;border-radius:12px;background:#eeebff55;
+}
+.toolbar-drop-targets::before{left:0}
+.toolbar-drop-targets::after{right:0}
+[data-toolbar-drop=sides] .toolbar-drop-targets::before,[data-toolbar-drop=sides] .toolbar-drop-targets::after{
+  border-color:var(--purple);background:#e9e4ff85;
+}
+[data-toolbar-drag=top] .editor-header.command-bar{box-shadow:inset 0 -2px #b9adee}
+[data-toolbar-drop=top] .editor-header.command-bar{box-shadow:inset 0 -3px var(--purple)}
+@media(max-width:539px){.editor-header .toolbar-layout-button{display:none}}
 
 /* Tutorial */
 body.tutorial-page{height:auto;min-height:100vh;overflow:auto;background:#f8f9fc}
