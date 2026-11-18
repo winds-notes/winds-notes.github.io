@@ -36,6 +36,8 @@
   let channel=null,peerRequest=null,remoteSignedOut=false,logoutStamp='';
   let renewalTimer=0,renewing=null,authorizationRequired=false,forceRenewal=false;
   let manualBusy=false,queuedAction=null,driveController=null,uiState='';
+  let pollReads=null;
+  const pollResponseSignals=new WeakMap();
   let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null};
   let transientFailures=0,rateLimitedUntil=0;
   const timingSamples=new Map();
@@ -138,6 +140,8 @@
     global.WindsSharing?.cancel();
     global.WindsLive?.stop();
     $('cloudBackupList').hidden=true;
+    pollReads?.abort();
+    pollReads=null;
     driveController?.abort();
     driveController=global.AbortController?new global.AbortController():null;
     syncing=false;manualBusy=false;queuedAction=null;
@@ -299,16 +303,36 @@
   function ensureIdle(expected,manual=false){
     ensureSession(expected);
     if(idleDelay(manual)){
-      const error=new Error('Google Drive sync is waiting for writing and local saving to finish.');
-      error.syncDeferred=true;throw error;
+      throw deferSync('Google Drive sync is waiting for writing and local saving to finish.');
     }
+  }
+  function deferSync(message){
+    const error=new Error(message);
+    error.syncDeferred=true;
+    return error;
+  }
+  function driveTimeout(){
+    const error=new Error('Google Drive did not respond in time.');
+    error.status=408;
+    return error;
+  }
+  async function readWithProgressTimeout(read){
+    let timer;
+    try{
+      const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>reject(driveTimeout()),DRIVE_RESPONSE_TIMEOUT_MS);});
+      return await Promise.race([read,deadline]);
+    }finally{clearTimeout(timer);}
   }
   async function readDriveText(response,expected,manual=false,workspace=false){
     ensureIdle(expected,manual);
+    const pollSignal=pollResponseSignals.get(response);
+    pollSignal?.throwIfAborted();
     if(Number(response.headers?.get('content-length')||0)>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
     const reader=response.body?.getReader?.();
     if(!reader){
-      const text=await response.text();ensureIdle(expected,manual);
+      const text=await readWithProgressTimeout(response.text()).catch(error=>{throw pollSignal?.reason||error;});
+      ensureIdle(expected,manual);
+      pollSignal?.throwIfAborted();
       if(text.length>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
       return text;
     }
@@ -316,7 +340,9 @@
     let bytes=0,finished=false,compressed=false;
     try{
       while(true){
-        const chunk=await reader.read();ensureIdle(expected,manual);
+        const chunk=await readWithProgressTimeout(reader.read());
+        ensureIdle(expected,manual);
+        pollSignal?.throwIfAborted();
         if(chunk.done){finished=true;break;}
         // Valid JSON cannot start with the gzip magic byte. The decompressor
         // checks the rest of the header, checksum and compressed stream.
@@ -333,8 +359,10 @@
       }
       parts.push(decoder.decode());
       return parts.join('');
+    }catch(error){
+      throw pollSignal?.reason||error;
     }finally{
-      if(!finished)try{await reader.cancel();}catch{}
+      if(!finished)reader.cancel().catch(()=>{});
       reader.releaseLock();
     }
   }
@@ -350,20 +378,27 @@
     const headers=new Headers(options.headers||{});
     headers.set('Authorization',`Bearer ${token}`);
     const sessionSignal=driveController?.signal;
+    const reading=!options.method||options.method==='GET';
+    const pollSignal=reading&&!manual?pollReads?.signal:null;
+    pollSignal?.throwIfAborted();
     // Bound the wait for headers on reads. The timeout ends when a download
     // starts, and the session signal still cancels it on account changes.
-    const deadline=sessionSignal&&global.AbortSignal?.any&&(!options.method||options.method==='GET')?new global.AbortController():null;
-    const signal=deadline?global.AbortSignal.any([sessionSignal,deadline.signal]):sessionSignal;
+    const deadline=sessionSignal&&global.AbortSignal?.any&&reading?new global.AbortController():null;
+    const signal=deadline?global.AbortSignal.any([sessionSignal,deadline.signal,...(pollSignal?[pollSignal]:[])]):pollSignal||sessionSignal;
     const watchdog=deadline?setTimeout(()=>deadline.abort(),DRIVE_RESPONSE_TIMEOUT_MS):null;
     let response;
     try{response=await fetch(url,{...options,headers,cache:'no-store',signal});}
     catch(error){
-      if(!deadline?.signal.aborted||sessionSignal.aborted)throw error;
-      const timeout=new Error('Google Drive did not respond in time.');timeout.status=408;throw timeout;
+      if(sessionSignal?.aborted)throw error;
+      pollSignal?.throwIfAborted();
+      if(deadline?.signal.aborted)throw driveTimeout();
+      throw error;
     }finally{if(watchdog!==null)clearTimeout(watchdog);}
     ensureIdle(expected,manual);
+    pollSignal?.throwIfAborted();
+    if(pollSignal)pollResponseSignals.set(response,pollSignal);
     if(!response.ok){
-      const text=await response.text();ensureIdle(expected,manual);
+      const text=await readDriveText(response,expected,manual);
       let reason='',code='';try{const detail=JSON.parse(text).error;reason=detail?.message||'';code=detail?.errors?.[0]?.reason||'';}catch{}
       if(response.status===401){
         token=null;expires=0;rememberSession();persistSession();updateUI();
@@ -682,15 +717,35 @@
     }
   }
   function workspaceChanged(){
-    const error=new Error('The workspace changed while downloading. Retrying safely.');error.syncDeferred=true;return error;
+    return deferSync('The workspace changed while downloading. Retrying safely.');
+  }
+  async function applyWorkspaceRevision(saved,expected,manual){
+    if(saved.applied)return;
+    ensureIdle(expected,manual);
+    const merged=await bridge.mergeWorkspace(saved.data,{manual,report:true});
+    ensureIdle(expected,manual);
+    saved.applied=true;
+    if(merged?.changed!==false){
+      syncDetails.received=Date.now();
+      updateSyncDetails();
+    }
   }
   async function refreshWorkspaceHistory(workspace,expected,manual){
     if(workspaceHistory.id!==workspace.id)workspaceHistory={id:workspace.id,revisions:new Map(),checked:0};
     const history=workspaceHistory,headId=workspace.headRevisionId;
-    const [pinned,headResult]=await Promise.all([
-      listPinnedRevisions(workspace.id,expected,manual),
-      getWorkspaceHead(workspace,history,expected,manual)
-    ]);
+    const before=localVersion;
+    const revisionList=listPinnedRevisions(workspace.id,expected,manual).then(pinned=>({pinned}),error=>({error}));
+    const headResult=await getWorkspaceHead(workspace,history,expected,manual);
+    let headSaved=headResult.saved;
+    // An immutable head can be saved and rendered immediately. Reconcile all
+    // protected revisions before allowing any new workspace upload.
+    if(headSaved){
+      await applyWorkspaceRevision(headSaved,expected,manual);
+      history.revisions.set(headId,headSaved);
+      if(lastWorkspaceUpload?.id===workspace.id&&lastWorkspaceUpload.revision===headId)lastWorkspaceUpload=null;
+    }
+    const {pinned,error}=await revisionList;
+    if(error)throw error;
     ensureIdle(expected,manual);
     const headTime=Date.parse(workspace.modifiedTime);
     // Revision metadata can arrive after another device has uploaded. Do not
@@ -700,26 +755,25 @@
       if(current?.headRevisionId!==headId)throw workspaceChanged();
     }
     const pinnedIds=new Set(pinned.map(revision=>revision.id));
-    let headSaved=headResult.saved;
     if(!headSaved){
       if(pinnedIds.has(headId))throw headResult.error;
       const data=await fetchWorkspace(workspace.id,expected,manual);
       const current=await findWorkspace(expected,manual);
       if(current?.headRevisionId!==headId)throw workspaceChanged();
       headSaved={data,applied:false};
+      await applyWorkspaceRevision(headSaved,expected,manual);
+      history.revisions.set(headId,headSaved);
     }
-    history.revisions.set(headId,headSaved);
-    if(lastWorkspaceUpload?.id===workspace.id&&lastWorkspaceUpload.revision===headId)lastWorkspaceUpload=null;
     const olderIds=[...pinnedIds].filter(id=>id!==headId);
-    const versions=[headId,...olderIds];
-    const visible=new Set(versions);
+    const visible=new Set([headId,...olderIds]);
     history.pinnedIds=pinnedIds;
     for(const id of history.revisions.keys())if(!visible.has(id))history.revisions.delete(id);
-    const before=localVersion;
     const covered=new Set(includedRevisions(headSaved.data,workspace.id));
-    for(const id of versions){
-      const isHead=id===headId;
-      if(!isHead&&covered.has(id)){
+    if(!manual&&!syncDetails.checked&&olderIds.some(id=>!covered.has(id))){
+      message('Current notebooks are open. Checking earlier Drive revisions automatically…');
+    }
+    for(const id of olderIds){
+      if(covered.has(id)){
         history.revisions.delete(id);
         continue;
       }
@@ -728,17 +782,10 @@
         try{
           saved={data:await fetchWorkspace(workspace.id,expected,manual,id),applied:false};
         }
-        catch(error){if(error.status===404&&!isHead)continue;throw error;}
+        catch(error){if(error.status===404)continue;throw error;}
         history.revisions.set(id,saved);
       }
-      if(!saved.applied){
-        const merged=await bridge.mergeWorkspace(saved.data,{manual,report:true});ensureIdle(expected,manual);
-        saved.applied=true;if(merged?.changed!==false)syncDetails.received=Date.now();
-      }
-      if(isHead&&!manual&&!syncDetails.checked&&olderIds.some(older=>!covered.has(older))){
-        message('Current notebooks are open. Checking earlier Drive revisions automatically…');
-        updateSyncDetails();
-      }
+      await applyWorkspaceRevision(saved,expected,manual);
     }
     ensureIdle(expected,manual);
     const head=history.revisions.get(workspace.headRevisionId)?.data;
@@ -885,6 +932,8 @@
     if(global.navigator?.onLine===false||document.hidden){schedule(AUTO_RETRY_MS);return;}
     const expected=generation,pollStartedAt=Date.now();
     const firstCheck=!syncDetails.checked,previousUpload=lastSync;
+    const reads=!manual&&global.AbortController?new global.AbortController():null;
+    pollReads=reads;
     syncing=true;manualBusy=manual;updateUI();
     if(manual)message('Synchronizing this account’s notebooks with Google Drive…');
     else if(firstCheck)message('Checking Google Drive for notebooks automatically…');
@@ -927,6 +976,8 @@
         if(manual)bridge.toast('Google Drive sync failed — your local notes are safe');
       }
     }finally{
+      if(nextDelay!==null)reads?.abort();
+      if(pollReads===reads)pollReads=null;
       if(expected===generation&&nextDelay===null)syncDetails.elapsed=Date.now()-pollStartedAt;
       if(expected===generation&&!finishOperation(expected)&&auto){
         // Poll from the start of the previous check: network time must not be
@@ -943,7 +994,11 @@
   }
   function onLocalSave(){
     if(!profile||remoteSignedOut||signingIn)return;
-    localVersion++;schedule();global.WindsLive?.refreshRooms();if(SERVER_AUTH&&!connected())scheduleRenewal(AUTO_RETRY_MS);
+    localVersion++;
+    // A stalled poll must yield to a durable local edit. In-flight writes use
+    // the session signal alone and can complete normally.
+    pollReads?.abort(deferSync('A local edit was saved. Refreshing Drive before uploading.'));
+    schedule();global.WindsLive?.refreshRooms();if(SERVER_AUTH&&!connected())scheduleRenewal(AUTO_RETRY_MS);
   }
   function backupName(){return `WiNDS Notes Backup ${new Date().toISOString().replace(/[:.]/g,'-')}.json`;}
   async function backup(){
