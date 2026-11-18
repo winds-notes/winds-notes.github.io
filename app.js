@@ -336,41 +336,43 @@
     });
   }
   function metadata(n){return {...n,pages:n.pages.map(p=>({id:p.id,template:p.template,orientation:p.orientation||'portrait'}))};}
+  function writeWorkspaceRecords(update){
+    return new Promise((resolve,reject)=>{
+      const tx=database.transaction(['notebooks','pages','meta'],'readwrite');
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error||new Error('Storage error'));
+      tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
+      try{
+        update(tx.objectStore('notebooks'),tx.objectStore('pages'),tx.objectStore('meta'));
+        tx.commit?.();
+      }catch(error){
+        // Earlier requests can still succeed after a synchronous put() error.
+        try{tx.abort();}catch{}
+        reject(error);
+      }
+    });
+  }
   function writeData(payload){
     if(persistence==='localstorage'){
       localStorage.setItem(workspaceLocalStorageKey(),JSON.stringify({...payload,deleted:tombstones}));return Promise.resolve();
     }
-    return new Promise((resolve,reject)=>{
-      try{
-        const tx=database.transaction(['notebooks','pages','meta'],'readwrite');
-        const books=tx.objectStore('notebooks'),pages=tx.objectStore('pages');
-        books.clear();pages.clear();tx.objectStore('meta').put(true,'initialized');tx.objectStore('meta').put(tombstones,'deleted');
-        for(const n of payload.notebooks){books.put(metadata(n));for(const p of n.pages)pages.put({...p,notebookId:n.id});}
-        tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
-        tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
-        tx.commit?.();
-      }catch(err){reject(err);}
+    return writeWorkspaceRecords((books,pages,meta)=>{
+      books.clear();pages.clear();meta.put(true,'initialized');meta.put(tombstones,'deleted');
+      for(const n of payload.notebooks){books.put(metadata(n));for(const p of n.pages)pages.put({...p,notebookId:n.id});}
     });
   }
   function writeChanged(bookIds,pageIds,removedBooks=[],removedPages=[]){
     if(persistence==='localstorage')return writeData({version:2,notebooks:state.notebooks});
-    return new Promise((resolve,reject)=>{
-      try{
-        const tx=database.transaction(['notebooks','pages','meta'],'readwrite');
-        const books=tx.objectStore('notebooks'),pages=tx.objectStore('pages');
-        tx.objectStore('meta').put(true,'initialized');tx.objectStore('meta').put(tombstones,'deleted');
-        for(const id of removedBooks)books.delete(id);
-        for(const id of removedPages)pages.delete(id);
-        for(const id of bookIds){const n=state.notebooks.find(b=>b.id===id);if(n)books.put(metadata(n));}
-        const wanted=new Set(pageIds);
-        for(const n of state.notebooks){
-          if(!wanted.size)break;
-          for(const p of n.pages)if(wanted.delete(p.id))pages.put({...p,notebookId:n.id});
-        }
-        tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('Storage error'));
-        tx.onabort=()=>reject(tx.error||new Error('Storage aborted'));
-        tx.commit?.();
-      }catch(err){reject(err);}
+    return writeWorkspaceRecords((books,pages,meta)=>{
+      meta.put(true,'initialized');meta.put(tombstones,'deleted');
+      for(const id of removedBooks)books.delete(id);
+      for(const id of removedPages)pages.delete(id);
+      for(const id of bookIds){const n=state.notebooks.find(b=>b.id===id);if(n)books.put(metadata(n));}
+      const wanted=new Set(pageIds);
+      for(const n of state.notebooks){
+        if(!wanted.size)break;
+        for(const p of n.pages)if(wanted.delete(p.id))pages.put({...p,notebookId:n.id});
+      }
     });
   }
   function toast(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.remove('show'),2600);}
@@ -803,11 +805,20 @@
   }
   function addPage(){
     finishActiveStroke();if(state.pendingInteractions){setTimeout(addPage,100);return;}const n=notebook();if(!n)return;
+    if(n.pages.length>=750){toast('This notebook already has 750 pages. Create a new notebook for more pages.');return;}
     composeInkNow();commitText();n.pages.splice(state.pageIndex+1,0,makePage(page()?.template||'ruled',page()?.orientation||'portrait'));
     state.pageIndex++;state.selected=-1;syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);
     rememberReadingPosition();window.WindsPageStack.focus(page().id);toast('New page added');
   }
-  function duplicatePage(){finishActiveStroke();if(state.pendingInteractions){setTimeout(duplicatePage,100);return;}const n=notebook();if(!n)return;finishActiveStroke();composeInkNow();commitText();const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);rememberReadingPosition();toast('Page duplicated');}
+  function duplicatePage(){
+    finishActiveStroke();if(state.pendingInteractions){setTimeout(duplicatePage,100);return;}const n=notebook();if(!n)return;
+    if(n.pages.length>=750){toast('This notebook already has 750 pages. Create a new notebook for more pages.');return;}
+    composeInkNow();commitText();
+    const dupe=clone(page());dupe.id=uid();dupe.items.forEach(it=>it.id=uid());
+    n.pages.splice(state.pageIndex+1,0,dupe);state.pageIndex++;state.selected=-1;
+    syncPageGeometry();resizePage(true);renderEditor();scheduleSave(true);
+    rememberReadingPosition();window.WindsPageStack.focus(dupe.id);toast('Page duplicated');
+  }
   function deletePage(pageId,target={account:workspaceId,notebook:notebook()}){
     const n=notebook();if(!n||n!==target.notebook||workspaceId!==target.account||$('editorView').hidden)return;
     const index=n.pages.findIndex(p=>p.id===pageId);if(index<0)return;
@@ -1537,14 +1548,23 @@
     const fallback=small?null:pdfImage(background.thumbnail,true),image=entry.ready?entry.img:fallback?.ready?fallback.img:null;
     if(image){const b=CREATIVE.pageBackgroundRect(background,pageDimensions(p));ctx.save();ctx.globalAlpha=1;ctx.drawImage(image,b.x,b.y,b.w,b.h);ctx.restore();}
   }
-  async function preparePdfExport(p,account){
+  async function preparePageExport(p,account){
     const busy=()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<SAVE_IDLE_MS);
     while(true){
       if(account!==workspaceId)throw Error('The account changed during export.');
       if(busy()){await delay(100);continue;}
       if(p?.background)await pdfImage(p.background.src).promise;
+      const items=p?.items;
+      for(const item of items||[]){
+        if(account!==workspaceId)throw Error('The account changed during export.');
+        if(busy())break;
+        if(item.type!=='image')continue;
+        let image=imageCache.get(item.src);
+        if(!image){image=new Image();imageCache.set(item.src,image);image.src=item.src;}
+        if(!image.complete||!image.naturalWidth)await image.decode();
+      }
       if(account!==workspaceId)throw Error('The account changed during export.');
-      if(!busy())return;
+      if(!busy()&&items===p?.items)return;
     }
   }
   function drawPage(ctx,p,withoutSelection=true,skipItem=null){
@@ -2565,20 +2585,23 @@
     }
     if(format==='native'){saveNativeNotebook();return;}
     if(format==='json'){await backup();return;}
-    const account=workspaceId;finishActiveStroke();
+    const account=workspaceId,title=n.title;finishActiveStroke();
     const button=$('exportBtn');button.disabled=true;button.querySelector('span:last-child').textContent='Working…';
     try{
       if(format==='pdf'){
-        await exportPdfPages(n.pages,n.title,account);
-        toast(`Exported ${n.pages.length} page${n.pages.length===1?'':'s'} as PDF`);
+        const pages=n.pages.slice();
+        await exportPdfPages(pages,title,account);
+        toast(`Exported ${pages.length} page${pages.length===1?'':'s'} as PDF`);
       }else{
-        const exportPage=page();await preparePdfExport(exportPage,account);
+        const exportPage=page(),pageNumber=state.pageIndex+1;await preparePageExport(exportPage,account);
         const c=renderExportCanvas(exportPage);const mime=format==='png'?'image/png':'image/jpeg';
-        const blob=await new Promise(resolve=>c.toBlob(resolve,mime,format==='png'?undefined:.93));
+        let blob;
+        try{blob=await new Promise(resolve=>c.toBlob(resolve,mime,format==='png'?undefined:.93));}
+        finally{c.width=c.height=1;}
         if(!blob)throw Error('Image export not supported');
         if(account!==workspaceId)throw Error('The account changed during export.');
-        downloadBlob(blob,`${filename(n.title)}-page-${state.pageIndex+1}.${format==='png'?'png':'jpg'}`);
-        toast(`Page ${state.pageIndex+1} exported as ${format.toUpperCase()}`);
+        downloadBlob(blob,`${filename(title)}-page-${pageNumber}.${format==='png'?'png':'jpg'}`);
+        toast(`Page ${pageNumber} exported as ${format.toUpperCase()}`);
       }
     }catch(err){console.error(err);toast('Export failed. Try exporting fewer pages.');}
     finally{button.disabled=false;button.querySelector('span:last-child').textContent='Export';}
@@ -2586,14 +2609,7 @@
   async function exportPdfPages(pages,title,account){
     const images=[];
     for(const p of pages){
-      await preparePdfExport(p,account);
-      for(const item of p.items){
-        if(item.type!=='image')continue;
-        let image=imageCache.get(item.src);
-        if(!image){image=new Image();image.src=item.src;imageCache.set(item.src,image);}
-        if(!image.complete)await image.decode();
-      }
-      await preparePdfExport(p,account);
+      await preparePageExport(p,account);
       const canvas=renderExportCanvas(p);
       try{
         const bytes=window.WindsPDF.dataUrlToBytes(canvas.toDataURL('image/jpeg',.9));
@@ -2601,7 +2617,7 @@
       }finally{canvas.width=canvas.height=1;}
       await delay(0);
     }
-    await preparePdfExport(null,account);
+    await preparePageExport(null,account);
     downloadBlob(window.WindsPDF.writePdf(images),`${filename(title)}.pdf`);
   }
   async function organizePages(session,mode){
@@ -2914,7 +2930,11 @@
     $('cardShareNotebook').onclick=()=>{closeMenus();window.WindsSharing?.open(menuNotebookId);};
     $('cardRenameNotebook').onclick=()=>{closeMenus();showRename(menuNotebookId);};
     $('cardDeleteNotebook').onclick=()=>{closeMenus();deleteNotebook(menuNotebookId);};
-    $('notebookGrid').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('[data-open]'))openNotebook(e.target.dataset.open);});
+    $('notebookGrid').addEventListener('keydown',e=>{
+      if((e.key==='Enter'||e.key===' ')&&e.target.matches('[data-open]')){
+        e.preventDefault();openNotebook(e.target.dataset.open);
+      }
+    });
     $('searchNotebooks').oninput=renderLibrary;
     $('sortNotebooks').onchange=e=>{try{localStorage.setItem(SORT_KEY,e.target.value);}catch{}renderLibrary();};
     $('heroContinue').onclick=e=>{const {notebook,page}=e.currentTarget.dataset;openNotebook(notebook,page);};
@@ -3098,32 +3118,37 @@
     $('restoreFileInput').onchange=e=>{const file=e.target.files[0];e.target.value='';if(file)openEditableFile(file);};
     let resizeTimer;window.addEventListener('resize',()=>{repositionPopup();clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(state.drag)return;updateSidebar();resizePage();updateToolbarArrows();},160);});
     document.addEventListener('keydown',e=>{
-      if($('renameDialog').open||$('shortcutsDialog').open||$('graphDialog').open||$('vectorDialog').open||$('pageOrganizer').open||
-        e.target.closest?.('.study-dialog,#presentationStage'))return;
+      if(e.defaultPrevented||e.isComposing||document.querySelector('dialog[open]')||e.target.closest?.('#presentationStage'))return;
       if(e.key==='Escape'&&openPopup){e.preventDefault();closeMenus();return;}
-      if(e.key==='Escape'&&!$('shareBackdrop').hidden){e.preventDefault();$('shareClose').click();return;}
+      for(const [backdrop,close] of [['modalBackdrop','closeModal'],['shareBackdrop','shareClose'],['cloudBackdrop','cloudClose']]){
+        if($(backdrop).hidden)continue;
+        if(e.key==='Escape'){e.preventDefault();$(close).click();}
+        return;
+      }
       navigatePopup(e);
       if(e.defaultPrevented||openPopup?.menu.contains(e.target))return;
       if(globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||!$('pageReader').hidden||!$('sharedAccessBackdrop').hidden||!$('clipboardBackdrop').hidden)return;
+      const editing=e.target.closest?.('input,textarea,select,[contenteditable]:not([contenteditable="false"])');
+      const modified=e.metaKey||e.ctrlKey||e.altKey;
+      const key=e.key.toLowerCase();
       if(imageCropSession){
         if(e.key==='Escape'){e.preventDefault();closeImageCrop();}
-        else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'&&!e.target.matches('input'))e.preventDefault();
+        else if((e.metaKey||e.ctrlKey)&&key==='z'&&!editing)e.preventDefault();
         return;
       }
       if(state.drag?.kind==='rotate'){
         if(e.key==='Escape'){e.preventDefault();finishObjectRotation();}
         return;
       }
-      if(!$('modalBackdrop').hidden && e.key==='Escape'){hideModal();return;}
-      if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){if(['TEXTAREA','INPUT'].includes(document.activeElement?.tagName))return;e.preventDefault();if(e.shiftKey)redo();else undo();return;}
-      if(e.target.matches('input,textarea,select,[contenteditable]'))return;
-      if((e.metaKey||e.ctrlKey)&&['c','x','v'].includes(e.key.toLowerCase()))return;
-      if(e.key==='Escape'){closeMenus();state.selected=-1;renderCanvas();return;}
-      if(e.key==='?'&&!e.metaKey&&!e.ctrlKey){e.preventDefault();showShortcuts();return;}
+      if(editing)return;
+      if(e.key==='?'&&!modified){e.preventDefault();showShortcuts();return;}
       if($('editorView').hidden)return;
+      if((e.metaKey||e.ctrlKey)&&!e.altKey&&key==='z'){e.preventDefault();if(e.shiftKey)redo();else undo();return;}
+      if(modified)return;
+      if(e.key==='Escape'){closeMenus();state.selected=-1;renderCanvas();return;}
       const shortcuts={p:'pen',h:'highlighter',e:'eraser',v:'select',t:'text',s:'pan',l:'area'};
-      if(shortcuts[e.key.toLowerCase()])setTool(shortcuts[e.key.toLowerCase()]);
-      else if(e.key.toLowerCase()==='r'&&!e.metaKey&&!e.ctrlKey&&!e.altKey)setTool($('shapeToolBtn')?.dataset.tool||'rectangle');
+      if(shortcuts[key])setTool(shortcuts[key]);
+      else if(key==='r')setTool($('shapeToolBtn')?.dataset.tool||'rectangle');
       if((e.key==='Delete'||e.key==='Backspace')&&state.selected>=0){e.preventDefault();deleteSelection();}
     });
     function saveBeforeLeaving(){finishWidthAdjustment(true);finishActiveStroke();commitText();saveNow(true);}
