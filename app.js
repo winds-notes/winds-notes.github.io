@@ -3709,6 +3709,55 @@
       throw Error('The template would take this notebook over 100 MB.');
     book.pages.splice(state.pageIndex+1,0,added);switchPage(state.pageIndex+1);scheduleSave(true);toast('Page added from template');
   }
+  function pdfAnnotationTarget(account,bookId,pageId){
+    if(account!==workspaceId)return null;
+    const book=state.notebooks.find(book=>book.id===bookId),target=book?.pages.find(page=>page.id===pageId&&page.background?.type==='pdf');
+    return target?{account,book,page:target}:null;
+  }
+  async function commitPdfAnnotation(edit,idle){
+    const {target}=edit,p=target.page;
+    const valid=()=>pdfAnnotationTarget(target.account,target.book.id,p.id)?.page===p;
+    const pause=async()=>{
+      while(valid()&&(!idle()||inputBusy()||saving))await delay(80);
+      if(!valid())throw Error('The PDF page changed. Reopen it before annotating.');
+    };
+    await pause();
+    if(!history.has(p.id))history.set(p.id,{undo:[],redo:[]});
+    const h=history.get(p.id);
+    if(edit.kind==='append'){
+      if(p.items.some(item=>item.id===edit.item.id))return;
+      h.undo.push({kind:'append',item:clone(edit.item)});h.redo=[];
+      p.items.push(edit.item);
+    }else if(edit.kind==='erase'){
+      const replacements=new Map(),points=edit.points.map(([x,y])=>({x,y}));
+      for(const original of edit.originals.slice(0,edit.count)){
+        const current=p.items.find(item=>item.id===original.id);
+        if(!current)continue;
+        const width=current.tool==='artist'?CREATIVE.artistBoundsPadding(current):(current.size||1)*(current.tool==='highlighter'?2.5:.7);
+        if(!await interactions.eraseHitAsync(current,points,edit.radius,clipboardBounds(current),width,false,pause))continue;
+        const mask=CREATIVE.erasurePath(points,edit.radius,itemBounds(current),point=>CREATIVE.objectPoint(current,point,true));
+        if((current.erasures?.length||0)>=2048||(current.erasures||[]).reduce((total,mask)=>total+mask.points.length,0)+mask.points.length>200000)
+          throw Error('This object has too many erased areas.');
+        replacements.set(current.id,{...current,erasures:[...(current.erasures||[]),mask]});
+      }
+      await pause();if(!replacements.size)return;
+      h.undo.push({kind:'snapshot',items:clone(p.items)});h.redo=[];
+      p.items=p.items.map(item=>replacements.get(item.id)||item);
+    }else{
+      const from=edit.kind==='undo'?h.undo:h.redo,to=edit.kind==='undo'?h.redo:h.undo,action=from.pop();
+      if(!action)return;
+      if(action.kind==='append'){
+        if(edit.kind==='undo')p.items=p.items.filter(item=>item.id!==action.item.id);
+        else p.items.push(clone(action.item));
+        to.push(action);
+      }else{to.push({kind:'snapshot',items:clone(p.items)});p.items=action.items;}
+    }
+    if(h.undo.length>70)h.undo.shift();
+    dirtyPages.add(p.id);window.WindsPageStack.dirty(p.id);window.WindsLive?.changed(target.book.id,p.id);
+    scheduleSave(false,false,target.book);
+    if(p===page()){state.selected=-1;groupSelection=null;renderCanvas();}
+    renderThumbs();updateHistoryButtons();
+  }
   function initStudyTools(){
     window.WindsCards.init({
       account:()=>workspaceId,id:uid,toast,
@@ -3721,6 +3770,21 @@
     window.WindsStudy.init({
       scope:clipboardContext,matches:clipboardMatches,selected:editableSelection,ready:clipboardEnabled,
       books:()=>state.notebooks,book:notebook,id:uid,toast,
+      pdfInk:{
+        id:uid,toast,target:pdfAnnotationTarget,commit:commitPdfAnnotation,
+        settings:()=>({color:state.color,size:state.size,eraserSize:state.eraserSize,penOnly:state.penOnly}),
+        busy:()=>Boolean(inputBusy()||state.widthAdjustment||globalThis.WindsPDFImport?.isOpen()),
+        pending:delta=>{state.pendingInteractions+=delta;},
+        touch:()=>{lastInkAt=Date.now();},
+        history:target=>history.get(target.page.id),
+        paint(ctx,items){for(const item of items)drawItem(ctx,item);},
+        paintDraft(ctx,item,from){
+          if(item.tool==='highlighter'){ctx.clearRect(0,0,ctx.canvas.width/2,ctx.canvas.height/2);drawItem(ctx,item);return;}
+          ctx.save();ctx.strokeStyle=ctx.fillStyle=item.color;ctx.lineCap=ctx.lineJoin='round';
+          for(let i=from;i<item.points.length;i++)smoothPenPart(ctx,item,item.points,i);
+          ctx.restore();
+        }
+      },
       linksEnabled:()=>state.followPageLinks&&state.tool==='pan'&&!state.pinch&&!state.pendingInteractions,
       linkedAt(event){
         const location=point(event,$('inkCanvas').getBoundingClientRect());
