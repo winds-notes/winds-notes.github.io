@@ -2,16 +2,17 @@
 (function(global){
   'use strict';
   const $=id=>document.getElementById(id);
-  let api,reader,gesture=null,mode='pen',frame=0,timer=0,lastInput=0,processing=false;
+  let api,reader,gesture=null,frame=0,timer=0,lastInput=0,processing=false,focused=false;
   const touches=new Map(),pending=[];
-  let pinch=null,pan=null,wheelDistance=0,pageChangedAt=0;
+  let pinch=null,pan=null,wheelDistance=0,pageChangedAt=0,wheelTimer=0,wheelLast=0;
+  let scrollFrame=0,momentum=null,focusFrame=0;
   const source=()=>reader.current();
   const current=()=>{
     const session=source(),page=session?.pages[session.index];
     return session&&page?api.target(session.account,session.book,page.id):null;
   };
-  function point(event,target){
-    const rect=$('studyPdfInk').getBoundingClientRect(),turn=target.page.background.turn||0;
+  function point(event,target,rect=gesture?.rect||$('studyPdfInk').getBoundingClientRect()){
+    const turn=target.page.background.turn||0;
     const [x,y]=global.WindsPdfText.turnPoint((event.clientX-rect.left)/rect.width,(event.clientY-rect.top)/rect.height,(360-turn)%360);
     return [Math.max(0,Math.min(1,x))*target.page.background.width/2,
       Math.max(0,Math.min(1,y))*target.page.background.height/2,event.pressure>0?event.pressure:.5];
@@ -26,13 +27,24 @@
   }
   function clear(id){const canvas=$(id);canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);}
   function buttons(){
-    for(const button of document.querySelectorAll('[data-pdf-ink]'))button.setAttribute('aria-pressed',String(button.dataset.pdfInk===mode));
-    const target=current(),history=target&&api.history(target);
-    $('pdfInkUndo').disabled=!history?.undo.length||processing||pending.length>0;
-    $('pdfInkRedo').disabled=!history?.redo.length||processing||pending.length>0;
+    const target=current();
     $('studyPdfInk').hidden=!target;
     $('studyPdfInk').style.pointerEvents=source()?.picking?'none':'auto';
+    $('studyPdfInk').style.cursor=api.settings().tool==='pan'?'grab':'crosshair';
+    api.historyChanged();
   }
+  function focusNotes(){focused=false;queueFocus();}
+  function queueFocus(){if(!focusFrame)focusFrame=requestAnimationFrame(()=>{focusFrame=0;api.historyChanged();});}
+  function historyState(){
+    if(!focused||!current())return null;
+    return pending.length||gesture||processing?{undo:[],redo:[]}:api.history(current())||{undo:[],redo:[]};
+  }
+  function historyAction(kind){
+    const target=current();if(!focused||!target)return false;
+    if(!pending.length&&!gesture&&!processing){api.pending(1);pending.push({kind,target});schedule();queueFocus();}
+    return true;
+  }
+  function toolChanged(){if(!api)return;finish();stopScroll();reader.clearTools();buttons();}
   function paint(){
     frame=0;
     const target=current();if(!target||api.busy())return;
@@ -69,7 +81,7 @@
       ctx.stroke();ctx.restore();draft.painted=points.length;
     }else{
       api.paintDraft(ctx,draft.item,draft.painted);
-      draft.painted=draft.item.points.length;
+      draft.painted=draft.item.points?.length||0;
     }
   }
   function queueFrame(){if(!frame)frame=requestAnimationFrame(paintDraft);}
@@ -102,44 +114,81 @@
     pageChangedAt=Date.now();wheelDistance=0;reader.setPage(index);
     if(direction<0)$('studyPdfScroll').scrollTop=$('studyPdfScroll').scrollHeight;
   }
+  function stopScroll(){
+    if(scrollFrame)cancelAnimationFrame(scrollFrame);
+    scrollFrame=0;momentum=null;
+  }
+  function scrollTick(now){
+    scrollFrame=0;
+    const scroll=$('studyPdfScroll');
+    if(pinch?.next!=null){reader.zoom(pinch.next);pinch.next=null;}
+    if(pan){
+      const dx=pan.dx,dy=pan.dy;pan.dx=pan.dy=0;
+      const top=scroll.scrollTop;
+      scroll.scrollLeft+=dx;scroll.scrollTop+=dy;
+      pan.overflow=Math.abs(scroll.scrollTop-top)<.5?pan.overflow+dy:0;
+    }else if(momentum){
+      const elapsed=Math.min(32,Math.max(0,now-momentum.time));momentum.time=now;
+      const left=scroll.scrollLeft,top=scroll.scrollTop;
+      scroll.scrollLeft+=momentum.vx*elapsed;scroll.scrollTop+=momentum.vy*elapsed;
+      if(Math.abs(scroll.scrollLeft-left)<.5)momentum.vx=0;
+      if(Math.abs(scroll.scrollTop-top)<.5)momentum.vy=0;
+      const decay=Math.exp(-elapsed/240);momentum.vx*=decay;momentum.vy*=decay;
+      if(Math.abs(momentum.vx)+Math.abs(momentum.vy)<.025)momentum=null;
+      else queueScroll();
+    }
+  }
+  function queueScroll(){if(!scrollFrame)scrollFrame=requestAnimationFrame(scrollTick);}
+  function startPan(event){
+    stopScroll();
+    touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    pan={x:event.clientX,y:event.clientY,pointerType:event.pointerType,dx:0,dy:0,vx:0,vy:0,time:performance.now(),overflow:0};
+    if(touches.size===2){const [a,b]=[...touches.values()];pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:source().zoom};}
+    try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
+  }
   function down(event,recovered=false){
     if((event.button!==0&&!recovered)||!current())return;
+    const settings=api.settings(),mode=settings.tool;
     if(event.pointerType==='touch'){
-      if(gesture?.pointerType==='pen'||Date.now()-lastInput<700)return;
-      if(api.settings().penOnly||mode==='pan'||touches.size){
+      if(gesture?.pointerType==='pen'||Date.now()-lastInput<180)return;
+      if(settings.penOnly||mode==='pan'||touches.size){
         if(gesture?.pointerType==='touch')finish(true);
-        touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
-        pan={x:event.clientX,y:event.clientY,overflow:0};
-        if(touches.size===2){const [a,b]=[...touches.values()];pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:source().zoom};}
-        event.currentTarget.setPointerCapture(event.pointerId);return;
+        startPan(event);return;
       }
     }
     if(api.busy())return;
     if(gesture){if(gesture.pointerType==='pen'&&event.pointerType==='pen')finish();else return;}
-    event.preventDefault();event.currentTarget.setPointerCapture(event.pointerId);
-    const target=current(),settings=api.settings(),first=point(event,target);
-    if(mode==='pan'){pan={x:event.clientX,y:event.clientY,overflow:0};touches.set(event.pointerId,{x:event.clientX,y:event.clientY});return;}
-    gesture={id:event.pointerId,pointerType:event.pointerType,target,painted:0,
-      ...(mode==='eraser'?{kind:'erase',radius:settings.eraserSize/2,points:[first],originals:target.page.items,count:target.page.items.length+pending.length}:
-        {kind:'append',item:{id:api.id(),type:'stroke',tool:mode,color:settings.color,size:settings.size,points:[first]}})};
+    stopScroll();focused=true;queueFocus();
+    event.preventDefault();try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
+    if(mode==='pan'){startPan(event);return;}
+    const target=current(),rect=$('studyPdfInk').getBoundingClientRect(),first=point(event,target,rect);
+    const item=mode==='eraser'?null:api.createItem(first);
+    if(mode!=='eraser'&&!item){api.toast('Open the PDF notebook to use selection, text or fill.');return;}
+    gesture={id:event.pointerId,pointerType:event.pointerType,target,rect,painted:0,start:first,
+      ...(mode==='eraser'?{kind:'erase',radius:settings.eraserSize/2,inkOnly:settings.inkOnly,points:[first],originals:target.page.items,count:target.page.items.length+pending.length}:
+        {kind:'append',item})};
     api.pending(1);lastInput=Date.now();api.touch();queueFrame();
   }
   function move(event){
     if(touches.has(event.pointerId)){
       touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
       if(pinch&&touches.size===2){
-        const [a,b]=[...touches.values()];reader.zoom(pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance));
+        const [a,b]=[...touches.values()];pinch.next=pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance);
       }else if(pan){
-        const scroll=$('studyPdfScroll'),dy=pan.y-event.clientY;
-        const atEdge=dy>0?scroll.scrollTop+scroll.clientHeight>=scroll.scrollHeight-2:scroll.scrollTop<=1;
-        pan.overflow=atEdge?pan.overflow+dy:0;
-        scroll.scrollLeft+=pan.x-event.clientX;scroll.scrollTop+=dy;
+        const dx=pan.x-event.clientX,dy=pan.y-event.clientY,now=performance.now(),elapsed=Math.max(8,now-pan.time);
+        pan.dx+=dx;pan.dy+=dy;
+        pan.vx=.35*pan.vx+.65*dx/elapsed;pan.vy=.35*pan.vy+.65*dy/elapsed;pan.time=now;
         pan.x=event.clientX;pan.y=event.clientY;
       }
+      queueScroll();
       return;
     }
     if(!gesture&&event.pointerType==='pen'&&event.buttons){down(event,true);}
     if(gesture?.id!==event.pointerId)return;
+    if(gesture.item?.type==='shape'){
+      const p=point(event,gesture.target);api.resizeShape(gesture.item,p[0]-gesture.start[0],p[1]-gesture.start[1]);
+      lastInput=Date.now();api.touch();queueFrame();return;
+    }
     const points=gesture.item?.points||gesture.points;
     const samples=event.getCoalescedEvents?.();
     for(const sample of samples?.length?samples:[event])points.push(point(sample,gesture.target));
@@ -147,17 +196,23 @@
   }
   function up(event,cancel=false){
     if(touches.has(event.pointerId)){
-      const overflow=pan?.overflow||0;
+      const wasPinching=Boolean(pinch);
+      if(scrollFrame){cancelAnimationFrame(scrollFrame);scrollTick(performance.now());}
+      const released=pan,overflow=pan?.overflow||0;
       touches.delete(event.pointerId);pinch=null;pan=null;
-      if(!cancel&&!touches.size&&Math.abs(overflow)>70)nextPage(Math.sign(overflow));
+      if(touches.size){const contact=[...touches.values()][0];pan={...released,x:contact.x,y:contact.y,dx:0,dy:0,vx:0,vy:0,overflow:0};}
+      else if(!cancel&&Math.abs(overflow)>70&&!wasPinching)nextPage(Math.sign(overflow));
+      else if(!cancel&&!wasPinching&&released?.pointerType==='touch'&&performance.now()-released.time<100&&!(global.matchMedia?.('(prefers-reduced-motion: reduce)').matches)){
+        momentum={vx:Math.max(-3,Math.min(3,released.vx)),vy:Math.max(-3,Math.min(3,released.vy)),time:performance.now()};queueScroll();
+      }
     }
     if(gesture?.id===event.pointerId)finish(cancel&&gesture.pointerType!=='pen');
   }
   function setPage(){
-    finish();touches.clear();pan=pinch=null;
+    finish();stopScroll();clearTimeout(wheelTimer);wheelDistance=0;touches.clear();pan=pinch=null;
     clear('studyPdfInk');clear('studyPdfAnnotations');refresh();
   }
-  function close(){setPage();$('studyPdfAnnotations').width=$('studyPdfAnnotations').height=1;$('studyPdfInk').width=$('studyPdfInk').height=1;}
+  function close(){setPage();focusNotes();$('studyPdfAnnotations').width=$('studyPdfAnnotations').height=1;$('studyPdfInk').width=$('studyPdfInk').height=1;}
   function init(adapter,reference){
     api=adapter;reader=reference;
     const canvas=$('studyPdfInk');
@@ -168,20 +223,18 @@
     canvas.addEventListener('pointerup',event=>up(event));
     canvas.addEventListener('pointercancel',event=>up(event,true));
     canvas.addEventListener('lostpointercapture',event=>{if(gesture?.id===event.pointerId)finish(gesture.pointerType!=='pen');});
-    for(const button of document.querySelectorAll('[data-pdf-ink]'))button.onclick=()=>{
-      finish();mode=button.dataset.pdfInk;reader.clearTools();buttons();
-    };
-    for(const [id,kind] of [['pdfInkUndo','undo'],['pdfInkRedo','redo']])$(id).onclick=()=>{
-      const target=current();if(!target||pending.length||gesture||processing)return;
-      api.pending(1);pending.push({kind,target});schedule();
-    };
+    $('pageShell').addEventListener('pointerdown',focusNotes,{capture:true,passive:true});
     $('studyPdfScroll').addEventListener('wheel',event=>{
       if(event.ctrlKey||gesture||Math.abs(event.deltaX)>Math.abs(event.deltaY))return;
+      stopScroll();
       const scroll=$('studyPdfScroll'),edge=event.deltaY>0?scroll.scrollTop+scroll.clientHeight>=scroll.scrollHeight-2:scroll.scrollTop<=1;
+      if(Date.now()-wheelLast>180)wheelDistance=0;
+      wheelLast=Date.now();
       wheelDistance=edge?wheelDistance+event.deltaY:0;
-      if(Math.abs(wheelDistance)>90)nextPage(Math.sign(wheelDistance));
+      clearTimeout(wheelTimer);
+      wheelTimer=setTimeout(()=>{if(Math.abs(wheelDistance)>90)nextPage(Math.sign(wheelDistance));wheelDistance=0;},180);
     },{passive:true});
-    global.addEventListener('blur',()=>{finish();touches.clear();pan=pinch=null;});
+    global.addEventListener('blur',()=>{finish();stopScroll();touches.clear();pan=pinch=null;});
   }
-  global.WindsPdfInk=Object.freeze({init,setPage,refresh,close});
+  global.WindsPdfInk=Object.freeze({init,setPage,refresh,close,toolChanged,historyState,historyAction,focusNotes});
 })(window);

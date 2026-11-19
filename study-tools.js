@@ -128,6 +128,7 @@
   }
   function closeReference(){
     tabs.clear();
+    $('pdfToolsMenu').hidden=true;$('pdfToolsToggle').setAttribute('aria-expanded','false');
     if(!reference)return;
     const divider=$('studyDivider'),pane=$('studyPane');
     suspendReference();
@@ -242,6 +243,7 @@
     const zoom=reference.zoom=clamp(value,pdfZoomMin,pdfZoomMax);
     surface.style.setProperty('--pdf-zoom',`${zoom}%`);
     $('studyPdfZoomValue').value=`${zoom}%`;
+    $('pdfQuickZoom').textContent=`${Math.round(zoom)}%`;
     $('studyPdfZoomOut').disabled=zoom===pdfZoomMin;
     $('studyPdfZoomIn').disabled=zoom===pdfZoomMax;
     scroller.scrollLeft=surface.offsetLeft+surface.offsetWidth*ratioX-scroller.clientWidth/2;
@@ -353,9 +355,20 @@
   }
   function bindReference(){
     bindStudyView();
+    const menu=$('pdfToolsMenu'),toggle=$('pdfToolsToggle');
+    const closeTools=()=>{menu.hidden=true;toggle.setAttribute('aria-expanded','false');};
+    toggle.onclick=()=>{menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden));};
+    $('pdfQuickZoom').onclick=()=>setPdfZoom(100);
+    menu.addEventListener('click',event=>{
+      if(event.target.closest('.pdf-reading-actions,#pickStudyFigure,#insertStudyFigure,#closePdfTab'))closeTools();
+    });
+    document.addEventListener('pointerdown',event=>{if(!menu.hidden&&!menu.contains(event.target)&&!toggle.contains(event.target))closeTools();},{passive:true});
+    $('studyPane').addEventListener('keydown',event=>{
+      if(event.key==='Escape'&&!menu.hidden){event.preventDefault();closeTools();toggle.focus();}
+    });
     $('openStudySource').onclick=()=>showReference($('studySource').value);
     $('importStudyPdf').onclick=()=>{closeDialog('studySourceDialog');api.importReference();};
-    $('closeStudyPane').onclick=closeReference;
+    $('closeStudyPane').onclick=()=>{closeTools();closeReference();};
     $('addPdfTab').onclick=openSource;
     $('closePdfTab').onclick=closeCurrentTab;
     $('studyPdfPage').onchange=event=>setReferencePage(Number(event.target.value));

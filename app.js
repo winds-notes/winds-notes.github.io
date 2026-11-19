@@ -892,6 +892,7 @@
     state.followPageLinks=false;
     if(boundaryFillSession)cancelBoundaryFill();
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
+    globalThis.WindsPdfInk?.toolChanged();
     if(tool==='eraser')state.eraserInkOnly=inkOnly;
     if(CREATIVE.isShapeKind(tool))syncShapeTrigger(tool);
     document.querySelectorAll('[data-tool]').forEach(b=>{const active=b.dataset.tool===tool;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
@@ -1408,6 +1409,7 @@
   function rememberAppend(item){recordHistory({kind:'append',item:clone(item)});window.WindsLive?.append(notebook()?.id,page()?.id,item);}
   function undo(){
     if(state.pendingInteractions){setTimeout(undo,100);return;}
+    if(window.WindsPdfInk?.historyAction('undo'))return;
     finishWidthAdjustment(false);
     if(imageCropSession||state.drag?.kind==='rotate')finishActiveStroke();
     commitText();const h=historyForPage();if(!h?.undo.length)return;
@@ -1421,6 +1423,7 @@
   }
   function redo(){
     if(state.pendingInteractions){setTimeout(redo,100);return;}
+    if(window.WindsPdfInk?.historyAction('redo'))return;
     finishWidthAdjustment(false);
     if(imageCropSession||state.drag?.kind==='rotate')finishActiveStroke();
     commitText();const h=historyForPage();if(!h?.redo.length)return;
@@ -1429,7 +1432,7 @@
     else{h.undo.push({kind:'snapshot',items:clone(page().items)});page().items=action.items;}
     state.selected=-1;renderEditor();scheduleSave();
   }
-  function updateHistoryButtons(){const h=historyForPage();$('undoBtn').disabled=!h?.undo.length;$('redoBtn').disabled=!h?.redo.length;}
+  function updateHistoryButtons(){const h=window.WindsPdfInk?.historyState()||historyForPage();$('undoBtn').disabled=!h?.undo.length;$('redoBtn').disabled=!h?.redo.length;}
   function drawTemplate(ctx,kind,dimensions){
     const {width:PW,height:PH}=dimensions;
     ctx.fillStyle='#fff';ctx.fillRect(0,0,PW,PH);
@@ -3733,6 +3736,7 @@
       for(const original of edit.originals.slice(0,edit.count)){
         const current=p.items.find(item=>item.id===original.id);
         if(!current)continue;
+        if(edit.inkOnly&&current.type!=='stroke')continue;
         const width=current.tool==='artist'?CREATIVE.artistBoundsPadding(current):(current.size||1)*(current.tool==='highlighter'?2.5:.7);
         if(!await interactions.eraseHitAsync(current,points,edit.radius,clipboardBounds(current),width,false,pause))continue;
         const mask=CREATIVE.erasurePath(points,edit.radius,itemBounds(current),point=>CREATIVE.objectPoint(current,point,true));
@@ -3772,14 +3776,22 @@
       books:()=>state.notebooks,book:notebook,id:uid,toast,
       pdfInk:{
         id:uid,toast,target:pdfAnnotationTarget,commit:commitPdfAnnotation,
-        settings:()=>({color:state.color,size:state.size,eraserSize:state.eraserSize,penOnly:state.penOnly}),
+        settings:()=>({tool:state.tool,color:state.color,size:state.size,eraserSize:state.eraserSize,inkOnly:state.eraserInkOnly,penOnly:state.penOnly}),
+        historyChanged:updateHistoryButtons,
+        createItem([x,y,pressure]){
+          if(['pen','highlighter','artist'].includes(state.tool))return {id:uid(),type:'stroke',tool:state.tool,color:state.color,size:state.size,points:[[x,y,pressure]],...(state.tool==='artist'?{grade:state.artistGrade,flow:state.artistFlow}:{})};
+          if(CREATIVE.isShapeKind(state.tool))return {id:uid(),type:'shape',kind:state.tool,x,y,w:0,h:0,color:state.shapeOutlineColor,size:state.shapeOutlineSize,strokeStyle:state.shapeOutlineStyle,fillColor:state.shapeFillEnabled&&CREATIVE.isFillableShape(state.tool)?state.shapeFillColor:null,fillOpacity:state.shapeFillOpacity};
+          return null;
+        },
+        resizeShape:updateShapeDraft,
         busy:()=>Boolean(inputBusy()||state.widthAdjustment||globalThis.WindsPDFImport?.isOpen()),
         pending:delta=>{state.pendingInteractions+=delta;},
         touch:()=>{lastInkAt=Date.now();},
         history:target=>history.get(target.page.id),
         paint(ctx,items){for(const item of items)drawItem(ctx,item);},
         paintDraft(ctx,item,from){
-          if(item.tool==='highlighter'){ctx.clearRect(0,0,ctx.canvas.width/2,ctx.canvas.height/2);drawItem(ctx,item);return;}
+          if(item.type==='shape'||item.tool==='highlighter'){ctx.clearRect(0,0,ctx.canvas.width/2,ctx.canvas.height/2);drawItem(ctx,item);return;}
+          if(item.tool==='artist'){for(let i=from;i<item.points.length;i++)CREATIVE.drawArtistPart(ctx,item,item.points,i);return;}
           ctx.save();ctx.strokeStyle=ctx.fillStyle=item.color;ctx.lineCap=ctx.lineJoin='round';
           for(let i=from;i<item.points.length;i++)smoothPenPart(ctx,item,item.points,i);
           ctx.restore();

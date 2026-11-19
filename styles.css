@@ -781,7 +781,7 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 #cardRatings button:hover:not(:disabled){border-color:var(--purple)}
 #cardRatings button[data-rating="good"]{border-color:#7770d7}
 #cardRatings small{display:block;font-size:10px;font-weight:600;margin-top:3px}
-.study-pane{width:var(--study-split,36%);flex:none;display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px;background:#f8f9fc;overflow:auto}
+.study-pane{position:relative;width:var(--study-split,36%);flex:none;display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px;background:#f8f9fc;overflow:auto}
 .study-pane>.study-actions,.study-pane>.study-view-controls,.study-pane>.pdf-study-panel,.study-pane>p{flex-shrink:0}
 .study-pane[hidden],.study-divider[hidden],.presentation-stage[hidden],.presentation-laser[hidden]{display:none}
 .study-divider{position:relative;display:grid;place-items:center;flex:0 0 18px;background:#eeebf9;color:#6656b9;cursor:col-resize;touch-action:none;user-select:none}
@@ -805,9 +805,16 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 #studyPdfAnnotations{pointer-events:none}
 #studyPdfInk{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #studyPdfInk[hidden]{display:none}
-.pdf-ink-tools{gap:4px}
-.pdf-ink-tools .btn{min-height:36px;padding:5px 8px;font-size:11px}
-.pdf-ink-tools [aria-pressed=true]{background:#eeebff;border:1px solid #b9adff;color:var(--purple)}
+.pdf-tabs-row .btn,.pdf-page-navigation .btn{min-width:36px;min-height:36px;padding:5px 8px}
+.pdf-page-navigation{flex-wrap:nowrap}
+.pdf-page-navigation select{flex:1;width:0;min-height:36px}
+.pdf-tools-menu{position:absolute;z-index:12;top:99px;left:8px;right:8px;max-height:calc(100% - 112px);overflow:auto;padding:10px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px #25254726}
+.pdf-tools-menu[hidden]{display:none}
+.pdf-tools-menu .study-actions{gap:6px}
+.pdf-tools-menu .btn{min-height:38px}
+.pdf-tools-menu .study-view-controls{padding-top:8px;margin-top:8px;border-top:1px solid var(--border)}
+#pdfQuickZoom{font-variant-numeric:tabular-nums}
+#studyPdfStatus:empty{display:none}
 #studyFigureBox{position:absolute;background:#6557ed26;border:2px dashed #6557ed;cursor:grab;touch-action:none}
 .select-figure #studyFigureBox{pointer-events:none}
 .pdf-tabs-row{flex-wrap:nowrap}
