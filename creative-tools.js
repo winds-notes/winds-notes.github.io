@@ -4,10 +4,11 @@
  */
 (function (root, factory) {
   const art=(root&&root.WindsMandalaArt)||(typeof module!=='undefined'&&module.exports?require('./mandala-art.js'):null);
-  const api = factory(art);
+  const numbers=(root&&root.WindsColorNumber)||(typeof module!=='undefined'&&module.exports?require('./color-number.js'):null);
+  const api = factory(art,numbers);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.WindsCreative = api;
-})(typeof window !== 'undefined' ? window : globalThis, function (ART) {
+})(typeof window !== 'undefined' ? window : globalThis, function (ART,NUMBERS) {
   'use strict';
 
   const ARTIST_COLLECTIONS=Object.freeze({graphite:'Graphite',ink:'Ink',pigment:'Pigment',paint:'Paint',effects:'Effects'});
@@ -894,7 +895,7 @@
     mandalaDesign("butterfly","Butterfly Circle","Nature","Calm","Six small butterflies orbiting a central blossom",[["petals",6,0.13,0.36,0.12],["butterflies",6,0.61,0.22,0.095],["ring",0.88],["ring",0.4]]),
     mandalaDesign("leaf-wreath","Leaf Wreath","Nature","Calm","Two rings of leaves with generous spaces for color",[["leaves",6,0.16,0.52,0.16],["leaves",12,0.54,0.9,0.095,0.262],["ring",0.54]]),
     mandalaDesign("raindrop","Raindrop Ripples","Nature","Focused","Twelve drop-shaped petals inside soft water ripples",[["petals",12,0.23,0.86,0.11],["circles",12,0.61,0.04],["wave",12,0.9,0.025],["ring",0.21]]),
-    ...(ART?.DESIGNS||[])
+    ...(ART?.DESIGNS||[]),...(NUMBERS?.DESIGNS||[])
   ]);
   function prepareMandala(id){
     const design=MANDALA_DESIGNS.find(design=>design.id===id);
@@ -904,6 +905,7 @@
   function drawMandala(ctx,id,size,prepared){
     const design=MANDALA_DESIGNS.find(design=>design.id===id);
     if(!design||!Number.isFinite(size)||size<16||size>4096)throw Error('Choose a valid mandala design and size.');
+    if(design.numbered){NUMBERS.drawPreview(ctx,id,size);return;}
     ctx.save();
     try{
       ctx.translate(size/2,size/2);ctx.scale((size-8)/2,(size-8)/2);

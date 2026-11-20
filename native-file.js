@@ -115,6 +115,7 @@
     }
     check(typeof item.src==='string' && item.src.length<=50*1024*1024 && /^data:image\/(?:png|jpeg|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(item.src),'Invalid embedded image');
     const image={...base,...(item.boundaryFill===true?{boundaryFill:true}:{}),x:num(item.x),y:num(item.y),w:Math.max(1,num(item.w,200)),h:Math.max(1,num(item.h,200)),src:item.src,...rotationFields(item)};
+    if(typeof item.colorByNumber==='string'&&creative?.MANDALA_DESIGNS.some(design=>design.numbered&&design.id===item.colorByNumber))image.colorByNumber=item.colorByNumber;
     if(item.crop!=null){
       const c=item.crop;
       check(isObject(c) && ['x','y','w','h'].every(k=>Number.isFinite(c[k])) &&

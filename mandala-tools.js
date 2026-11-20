@@ -1,7 +1,8 @@
 /* Local mandala library. Templates are rendered by the shared creative renderer. */
 (function(global){
   'use strict';
-  let api,dialog,selected='lotus',epoch=0,working=false,opener,grid,empty,previewObserver,paintScheduled=false;
+  let api,dialog,selected='lotus',mode='mandala',epoch=0,working=false,opener,grid,empty,previewObserver,paintScheduled=false;
+  const selections={mandala:'lotus',numbers:''};
   const cards=[],previewQueue=new Set(),$=id=>document.getElementById(id);
   function contextMatches(scope){const current=api.context();return current.workspace===scope.workspace&&current.bookId===scope.bookId&&current.pageId===scope.pageId&&current.version===scope.version;}
   function close(){epoch++;working=false;previewQueue.clear();if(dialog?.open)dialog.close();}
@@ -40,29 +41,35 @@
     if(working)return;
     const query=$('mandalaSearch').value.trim().toLowerCase(),collection=$('mandalaCollection').value;
     const visible=[];
+    let total=0;
     for(const record of cards){
-      const design=record.design,match=(collection==='all'||design.collection===collection)&&`${design.name} ${design.detail} ${design.collection||''} ${design.level} ${design.keywords||''}`.toLowerCase().includes(query);
+      const design=record.design,inMode=Boolean(design.numbered)===(mode==='numbers');
+      if(inMode)total++;
+      const match=inMode&&(collection==='all'||design.collection===collection)&&`${design.name} ${design.detail} ${design.collection||''} ${design.level} ${design.keywords||''}`.toLowerCase().includes(query);
       record.card.hidden=!match;if(match)visible.push(record);
     }
     if(!visible.some(record=>record.design.id===selected))selected=visible[0]?.design.id||'';
     empty.hidden=visible.length>0;grid.scrollTop=0;
-    $('mandalaStatus').textContent=`${visible.length===cards.length?cards.length:visible.length+' of '+cards.length} designs · available offline`;
+    $('mandalaStatus').textContent=`${visible.length===total?total:visible.length+' of '+total} ${mode==='numbers'?'pictures':'designs'} · available offline`;
     update();queueVisiblePreviews();
   }
   function init(adapter){
     api=adapter;
     let button=$('openMandala');
     if(!button){button=document.createElement('button');button.type='button';button.id='openMandala';button.textContent='Mandala coloring pages…';$('fillMenu').append(button);}
+    let numberButton=$('openColorNumber');
+    if(!numberButton){numberButton=document.createElement('button');numberButton.type='button';numberButton.id='openColorNumber';numberButton.className='mandala-entry';numberButton.textContent='Color by number…';$('fillMenu').append(numberButton);}
+    numberButton.disabled=!global.WindsCreative?.MANDALA_DESIGNS?.some(design=>design.numbered);
     if(!global.WindsCreative?.MANDALA_DESIGNS?.length){button.disabled=true;return;}
-    button.onclick=open;
+    button.onclick=()=>open('mandala');numberButton.onclick=()=>open('numbers');
     dialog=document.createElement('dialog');dialog.id='mandalaDialog';dialog.className='mandala-dialog';dialog.setAttribute('aria-labelledby','mandalaTitle');
     const header=document.createElement('header'),eyebrow=document.createElement('p'),title=document.createElement('h2'),intro=document.createElement('p');
     eyebrow.className='mandala-eyebrow';eyebrow.textContent='COLORING STUDIO';title.id='mandalaTitle';title.textContent='Mandala coloring studio';
-    intro.textContent='Choose a mandala. Add a new page, then fill each section with your own colors.';intro.id='mandalaIntro';dialog.setAttribute('aria-describedby',intro.id);header.append(eyebrow,title,intro);
+    intro.textContent='Choose a mandala or a Color by number picture. Add a page, then reveal it with Fill.';intro.id='mandalaIntro';dialog.setAttribute('aria-describedby',intro.id);header.append(eyebrow,title,intro);
     const filters=document.createElement('div'),search=document.createElement('input'),collection=document.createElement('select');
     filters.className='mandala-filters';search.id='mandalaSearch';search.type='search';search.placeholder=`Search ${global.WindsCreative.MANDALA_DESIGNS.length} designs…`;search.setAttribute('aria-label','Search mandala designs');search.oninput=filterDesigns;
     collection.id='mandalaCollection';collection.setAttribute('aria-label','Mandala collection');collection.onchange=filterDesigns;
-    const collections=[...new Set(['Floral','Geometric','Celestial','Ornamental','Nature',...global.WindsCreative.MANDALA_DESIGNS.map(design=>design.collection)].filter(Boolean))];
+    const collections=[...new Set(['Floral','Geometric','Celestial','Ornamental','Nature',...global.WindsCreative.MANDALA_DESIGNS.filter(design=>!design.numbered).map(design=>design.collection)].filter(Boolean))];
     for(const [value,label] of [['all','All collections'],...collections.map(name=>[name,name])]){
       const option=document.createElement('option');option.value=value;option.textContent=label;collection.append(option);
     }
@@ -72,7 +79,7 @@
       const card=document.createElement('button');card.type='button';card.dataset.mandalaId=design.id;card.setAttribute('aria-pressed','false');card.setAttribute('aria-label',`${design.name}, ${design.level}. ${design.detail}`);
       const preview=document.createElement('canvas');preview.width=preview.height=1;preview.setAttribute('aria-hidden','true');
       const name=document.createElement('strong'),level=document.createElement('span');name.textContent=design.name;level.textContent=design.level+(design.collection?' · '+design.collection:'');
-      card.append(preview,name,level);card.onclick=()=>{if(!working){selected=design.id;update();}};grid.append(card);
+      card.append(preview,name,level);card.onclick=()=>{if(!working){selected=design.id;selections[mode]=selected;update();}};grid.append(card);
       cards.push({design,card,preview,drawn:false});
     }
     empty=document.createElement('p');empty.className='mandala-empty';empty.textContent='No matching designs. Try another search or collection.';empty.hidden=true;grid.append(empty);
@@ -96,7 +103,7 @@
     $('mandalaSearch').disabled=$('mandalaCollection').disabled=working;
     $('addMandalaPage').disabled=working||!selected;$('addMandalaPage').textContent=working?'Creating page…':'Add coloring page';
   }
-  async function open(){
+  async function open(kind='mandala'){
     if(!dialog||dialog.open)return;
     const requested=api.context();if(!requested.bookId){api.toast('Open a notebook to add a coloring page.');return;}
     const token=++epoch;
@@ -104,7 +111,17 @@
       await api.prepare();
       const scope=api.context();
       if(token!==epoch||scope.workspace!==requested.workspace||scope.bookId!==requested.bookId||scope.pageId!==requested.pageId)return;
-      opener=$('shapeFillBtn')||document.activeElement;working=false;dialog.scope=scope;
+      mode=kind==='numbers'?'numbers':'mandala';
+      const total=cards.filter(record=>Boolean(record.design.numbered)===(mode==='numbers')).length;
+      if(!total){api.toast('No coloring pictures are available. Refresh the app and try again.');return;}
+      selected=selections[mode];
+      $('mandalaTitle').textContent=mode==='numbers'?'Color by number':'Mandala coloring studio';
+      $('mandalaIntro').textContent=mode==='numbers'?'Choose a hidden picture. Fill matching numbers with the same color to reveal the artwork.':'Choose a mandala. Add a new page, then fill each section with your own colors.';
+      $('mandalaSearch').placeholder=`Search ${total} ${mode==='numbers'?'pictures':'designs'}…`;
+      $('mandalaSearch').setAttribute('aria-label',mode==='numbers'?'Search numbered pictures':'Search mandala designs');
+      grid.setAttribute('aria-label',mode==='numbers'?'Numbered pictures':'Mandala designs');
+      $('mandalaCollection').hidden=mode==='numbers';
+      opener=$('fillSettingsBtn')||$('shapeFillBtn')||document.activeElement;working=false;dialog.scope=scope;
       $('mandalaSearch').value='';$('mandalaCollection').value='all';filterDesigns();dialog.showModal();
       dialog.querySelector(`[data-mandala-id="${selected}"]`).focus();queueVisiblePreviews();
     }catch(error){api.toast(error.message||'The coloring studio could not open.');}
@@ -114,9 +131,9 @@
     const valid=()=>token===epoch&&dialog.open&&contextMatches(scope);
     try{
       await api.commit(selected,scope,valid);
-      if(token===epoch&&dialog.open){close();api.toast('Coloring page added · use Fill to color each closed section');}
+      if(token===epoch&&dialog.open){const numbered=global.WindsColorNumber?.DESIGNS.some(design=>design.id===selected);close();api.toast(numbered?'Numbered picture added · choose Fill, tap a color key, then fill matching numbers':'Coloring page added · use Fill to color each closed section');}
     }catch(error){if(token===epoch&&dialog.open)$('mandalaStatus').textContent=error.message||'This page could not be created.';}
     finally{if(token===epoch){working=false;update();}}
   }
-  global.WindsMandala=Object.freeze({init,open,close,isOpen:()=>Boolean(dialog?.open)});
+  global.WindsMandala=Object.freeze({init,open,openNumbers:()=>open('numbers'),close,isOpen:()=>Boolean(dialog?.open)});
 })(typeof window!=='undefined'?window:globalThis);

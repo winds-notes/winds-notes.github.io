@@ -981,6 +981,11 @@
       for(let i=target.items.length-1;i>=0;i--){
         if(i%32===0)await pause();
         const item=target.items[i];
+        if(item.type==='image'&&item.colorByNumber&&!item.crop&&!item.erasures?.length){
+          const local=CREATIVE.objectPoint(item,point,true),numbers=globalThis.WindsColorNumber;
+          const color=numbers?.paletteAt(item.colorByNumber,(local.x-item.x)*numbers.WIDTH/item.w,(local.y-item.y)*numbers.HEIGHT/item.h);
+          if(color){setFillOptions({color,opacity:1});toast('Color selected · fill circles with this number');return;}
+        }
         if(item.type==='sticker'&&item.artwork&&!CREATIVE.erasedAt(item,itemBounds(item),point)){
           const local=CREATIVE.objectPoint(item,point,true),scale=64/(item.size||78);
           const region=globalThis.WindsSvgStickers?.regionAt(ctx,item.artwork,(local.x-item.x)*scale,(local.y-item.y)*scale);
@@ -1064,7 +1069,7 @@
     button.disabled=!globalThis.WindsBoundaryFill;button.onclick=armBoundaryFill;
     $('shapeFillBtn').removeAttribute('aria-expanded');
     if(!$('fillSettingsBtn')){
-      const settings=document.createElement('button');settings.type='button';settings.id='fillSettingsBtn';settings.className='tool-button fill-settings-trigger';settings.textContent='⌄';settings.setAttribute('aria-label','Fill settings and mandala coloring pages');settings.setAttribute('aria-expanded','false');$('shapeFillBtn').after(settings);
+      const settings=document.createElement('button');settings.type='button';settings.id='fillSettingsBtn';settings.className='tool-button fill-settings-trigger';settings.textContent='⌄';settings.setAttribute('aria-label','Fill settings and coloring pages');settings.setAttribute('aria-expanded','false');$('shapeFillBtn').after(settings);
     }
     if(!$('activeFillColor')){
       const input=document.createElement('input');input.type='color';input.id='activeFillColor';input.className='active-fill-color';input.hidden=true;input.setAttribute('aria-label','Current fill color');$('fillSettingsBtn').after(input);
@@ -2514,16 +2519,18 @@
     const index=target.pages.findIndex(item=>item.id===scope.pageId);
     if(index<0)throw Error('The original page is no longer available.');
     const prepared=await CREATIVE.prepareMandala(designId);check();
-    const canvas=document.createElement('canvas');canvas.width=canvas.height=1400;
+    const numbers=globalThis.WindsColorNumber;
+    const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=design.numbered?numbers.HEIGHT*2:1400;
     try{
       const ctx=canvas.getContext('2d');if(!ctx)throw Error('Not enough canvas memory. Close another notebook tab and try again.');
-      CREATIVE.drawMandala(ctx,designId,1400,prepared);
+      if(design.numbered){ctx.scale(2,2);numbers.labels(ctx,designId);}
+      else CREATIVE.drawMandala(ctx,designId,1400,prepared);
       const src=canvas.toDataURL('image/png'),image=new Image();image.src=src;await image.decode();check();
       const added=makePage('blank','portrait');
       added.items=[
         {id:uid(),type:'text',x:70,y:78,w:700,size:30,color:'#30344c',text:design.name},
-        {id:uid(),type:'text',x:70,y:128,w:700,size:15,color:'#74788f',text:'Choose Fill, then tap a closed section. Undo to try another color.'},
-        {id:uid(),type:'image',x:70,y:230,w:700,h:700,src}
+        {id:uid(),type:'text',x:70,y:128,w:700,size:15,color:'#74788f',text:design.numbered?'Choose Fill. Tap a color key below the picture, then color matching numbers.':'Choose Fill, then tap a closed section. Undo to try another color.'},
+        ...(design.numbered?numbers.items(designId,uid,src):[{id:uid(),type:'image',x:70,y:230,w:700,h:700,src}])
       ];
       // Normal editable page objects keep native files and Drive data compatible.
       const clean=window.WindsFile.validateShared({id:target.id,title:target.title,pages:[added]}).pages[0];
