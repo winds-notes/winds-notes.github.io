@@ -86,6 +86,7 @@ html[data-theme="dark"] .toolbar-arrow{background:linear-gradient(90deg,#1d1e25 
 html[data-theme="dark"] .toolbar-arrow:hover{background:#1a182e}
 html[data-theme="dark"] .toolbar-arrow-right{background:linear-gradient(270deg,#1d1e25 75%,rgba(29,30,37,0.875))}
 html[data-theme="dark"] .toolbar-layout-button[aria-pressed=true]{background:#1b182e}
+html[data-theme="dark"] .editor-header .color-pick-trigger[aria-pressed=true]{background:#1b182e}
 html[data-theme="dark"] .editor-header .page-nav span{color:#bec0c5}
 html[data-theme="dark"] .editor-header .nav-page-btn:hover:not(:disabled){background:#1e1f27}
 html[data-theme="dark"] .editor-header .add-page-top{background:#1a172d;color:#9994e6}
