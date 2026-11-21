@@ -78,6 +78,9 @@
 .toolbar-layout-button:active{cursor:grabbing}
 .toolbar-layout-button[aria-pressed=true]{background:#eeebff;color:var(--purple)}
 .fill-tool-group{display:flex;align-items:center;flex-shrink:0}
+.color-palette [hidden]{display:none!important}
+.editor-header .number-color-button span{display:grid;place-items:center;font-size:10px;font-weight:800;line-height:1}
+#inkCanvas.cursor-color-picker{cursor:crosshair}
 .editor-header .page-nav{display:flex;gap:2px;height:36px;align-items:center;border:0;background:transparent;flex-shrink:0}
 .editor-header .page-nav span{min-width:34px;font-size:10px;color:#626b7b;text-align:center;white-space:nowrap}
 .editor-header .nav-page-btn{width:25px;height:30px;border-radius:7px}

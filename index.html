@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=111"></script>
-<script src="./google-config.js?v=111"></script>
+<script src="./theme.js?v=112"></script>
+<script src="./google-config.js?v=112"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=111" rel="stylesheet"/>
-<link href="./dark.css?v=111" rel="stylesheet"/>
+<link href="./styles.css?v=112" rel="stylesheet"/>
+<link href="./dark.css?v=112" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -202,6 +202,7 @@
   <p class="fill-help">Choose a color, then tap inside a closed boundary. Built-in shapes also have editable borders below.</p>
   <label class="fill-toggle"><input id="shapeFillEnabled" type="checkbox"/> <span>Solid fill for drawn shapes</span></label>
   <div class="fill-option-row"><span>Fill color</span><input id="shapeFillColor" type="color" value="#b9adff" aria-label="Choose shape fill color"/></div>
+  <button type="button" id="pickFillColor" aria-pressed="false">Pick color from page</button>
   <div class="fill-swatches" id="shapeFillSwatches" aria-label="Quick fill colors"></div>
   <label class="fill-option-row" for="shapeFillOpacity"><span>Fill opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
   <button type="button" class="mandala-entry" id="openMandala">Mandala coloring pages…</button>
@@ -223,7 +224,7 @@
   <div class="artist-grade-list" id="artistGradeList" aria-label="Artist materials"></div>
 </div>
 <div class="pop-menu zoom-menu" hidden id="zoomMenu" role="group" aria-label="Zoom presets"><div class="menu-heading">PAGE ZOOM</div><div class="zoom-preset-grid"><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button><button data-zoom="1.5">150%</button><button data-zoom="2">200%</button><button data-zoom="3">300%</button><button data-zoom="4">400%</button><button data-zoom="6">600%</button><button data-zoom="8">800%</button></div><p class="artist-help">Pinch with two fingers to zoom and pan.</p></div>
-<div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label></div>
+<div class="pop-menu color-menu" hidden id="colorMenu"><div class="menu-heading">CHOOSE YOUR COLOR</div><div class="color-grid" id="extendedColors"></div><label class="custom-color-choice"><span>Custom color</span><input type="color" id="customColorInput" value="#2b2d4c" aria-label="Choose any ink color"/></label><button type="button" id="pickPageColor" aria-pressed="false">Pick color from page</button></div>
 <div class="pop-menu emoji-menu" hidden id="emojiMenu"><div class="menu-heading">SMILEYS & STICKERS</div><div id="stickerCollections"></div><input type="search" id="emojiSearch" placeholder="Search stickers or subjects…" aria-label="Find a sticker or subject" class="emoji-search"/><p id="stickerCount" class="sticker-count" role="status"></p><div id="emojiGrid" class="emoji-grid"></div><label class="sticker-size-control">Sticker size <input id="stickerSize" type="range" min="36" max="150" step="2" value="78" aria-label="Sticker size"/><span id="stickerSizeValue">78</span></label><div class="emoji-menu-tip">Tap a sticker to add it. Use Select to move it.</div></div>
 </header>
 
@@ -560,34 +561,34 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=111"></script>
-<script src="./color-number.js?v=111"></script>
-<script src="./svg-stickers.js?v=111"></script>
-<script src="./creative-tools.js?v=111"></script>
-<script src="./graph-tools.js?v=111"></script>
-<script src="./vector-tools.js?v=111"></script>
-<script src="./interaction-tools.js?v=111"></script>
-<script src="./selection-preview.js?v=111"></script>
-<script src="./eraser-preview.js?v=111"></script>
-<script src="./page-stack.js?v=111"></script>
-<script src="./workspace-model.js?v=111"></script>
-<script src="./text-tools.js?v=111"></script>
-<script src="./pdf-export.js?v=111"></script>
-<script src="./pdf-import.js?v=111"></script>
-<script src="./pdf-text.js?v=111"></script>
-<script src="./native-file.js?v=111"></script>
-<script src="./clipboard.js?v=111"></script>
-<script src="./shared-notebook-model.js?v=111"></script>
-<script src="./notebook-sharing.js?v=111"></script>
-<script src="./live-sync.js?v=111"></script>
+<script src="./mandala-art.js?v=112"></script>
+<script src="./color-number.js?v=112"></script>
+<script src="./svg-stickers.js?v=112"></script>
+<script src="./creative-tools.js?v=112"></script>
+<script src="./graph-tools.js?v=112"></script>
+<script src="./vector-tools.js?v=112"></script>
+<script src="./interaction-tools.js?v=112"></script>
+<script src="./selection-preview.js?v=112"></script>
+<script src="./eraser-preview.js?v=112"></script>
+<script src="./page-stack.js?v=112"></script>
+<script src="./workspace-model.js?v=112"></script>
+<script src="./text-tools.js?v=112"></script>
+<script src="./pdf-export.js?v=112"></script>
+<script src="./pdf-import.js?v=112"></script>
+<script src="./pdf-text.js?v=112"></script>
+<script src="./native-file.js?v=112"></script>
+<script src="./clipboard.js?v=112"></script>
+<script src="./shared-notebook-model.js?v=112"></script>
+<script src="./notebook-sharing.js?v=112"></script>
+<script src="./live-sync.js?v=112"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=111"></script>
-<script defer src="./boundary-fill.js?v=111"></script>
-<script defer src="./mandala-tools.js?v=111"></script>
-<script defer src="./pdf-study.js?v=111"></script>
-<script defer src="./pdf-ink.js?v=111"></script>
-<script defer src="./study-tools.js?v=111"></script>
-<script defer src="./study-cards.js?v=111"></script>
-<script defer="" src="./app.js?v=111"></script>
+<script defer src="./cloud-drive.js?v=112"></script>
+<script defer src="./boundary-fill.js?v=112"></script>
+<script defer src="./mandala-tools.js?v=112"></script>
+<script defer src="./pdf-study.js?v=112"></script>
+<script defer src="./pdf-ink.js?v=112"></script>
+<script defer src="./study-tools.js?v=112"></script>
+<script defer src="./study-cards.js?v=112"></script>
+<script defer="" src="./app.js?v=112"></script>
 </body>
 </html>

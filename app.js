@@ -788,7 +788,7 @@
     $('railNextPage').disabled=state.pageIndex===n.pages.length-1;
     $('railPageNumber').textContent=`${state.pageIndex+1} / ${n.pages.length}`;
     $('moreMenu').querySelector('[data-action="deletePage"]').disabled=n.pages.length===1;
-    window.WindsPageStack.sync();queueToolbarPosition();renderThumbs();renderCanvas();updateHistoryButtons();
+    window.WindsPageStack.sync();queueToolbarPosition();renderThumbs();renderCanvas();updateHistoryButtons();syncColorControls();
   }
   function updateSidebar(){
     $('pagesSidebar').classList.toggle('collapsed',!state.sidebarOpen);
@@ -945,7 +945,8 @@
     $('fillClosedArea')?.replaceChildren(document.createTextNode('Use Fill tool'));
     $('shapeFillBtn').setAttribute('aria-pressed','false');
     syncColorControls();syncFillControls();
-    $('inkCanvas').classList.remove('cursor-fill');$('fillClosedArea')?.setAttribute('aria-pressed','false');
+    $('inkCanvas').classList.remove('cursor-fill','cursor-color-picker');$('fillClosedArea')?.setAttribute('aria-pressed','false');
+    for(const id of ['pickPageColor','pickFillColor'])$(id)?.setAttribute('aria-pressed','false');
     $('shapeFillBtn').classList.remove('boundary-fill-active');
     if(restore&&session&&state.tool==='pan')setTool(session.previousTool);
   }
@@ -962,6 +963,22 @@
     $('shapeFillBtn').classList.add('boundary-fill-active');
     toast('Fill selected · tap closed areas. Use toolbar colors to change color.');
   }
+  function armColorPicker(fill=false){
+    if(!page()||$('editorView').hidden)return;
+    if(boundaryFillSession?.pending){toast('Let the current fill finish, then pick a color.');return;}
+    const useFill=fill||Boolean(boundaryFillSession),tool=state.tool;
+    armBoundaryFill();if(!boundaryFillSession)return;
+    boundaryFillSession.pickColor={fill:useFill,tool};
+    $('inkCanvas').classList.add('cursor-color-picker');
+    for(const id of ['pickPageColor','pickFillColor'])$(id)?.setAttribute('aria-pressed','true');
+    toast('Pick color · tap a color on the writing page. Escape cancels.');
+  }
+  function sampleCanvasColor(canvas,x,y){
+    if(!canvas?.width||!canvas.height)throw Error('The page is not ready. Try again.');
+    const px=Math.max(0,Math.min(canvas.width-1,Math.floor(x*canvas.width))),py=Math.max(0,Math.min(canvas.height-1,Math.floor(y*canvas.height)));
+    const rgba=canvas.getContext('2d').getImageData(px,py,1,1).data,alpha=rgba[3]/255;
+    return '#'+[0,1,2].map(i=>Math.round(rgba[i]*alpha+255*(1-alpha)).toString(16).padStart(2,'0')).join('');
+  }
   async function applyBoundaryFill(session,point){
     let surface,output;
     const check=()=>{
@@ -974,6 +991,17 @@
     try{
       await pause();
       const target=page(),dimensions=pageDimensions(target);
+      if(session.pickColor){
+        const choice=session.pickColor;
+        const [x,y]=globalThis.WindsPdfText.turnPoint(point.x/dimensions.width,point.y/dimensions.height,pageTurn);
+        const color=sampleCanvasColor($('pageCanvas'),x,y);
+        delete session.pickColor;session.queue=[];
+        $('inkCanvas').classList.remove('cursor-color-picker');
+        for(const id of ['pickPageColor','pickFillColor'])$(id)?.setAttribute('aria-pressed','false');
+        if(choice.fill)setFillOptions({color,opacity:1});
+        else{cancelBoundaryFill();setTool(choice.tool);setColor(color);}
+        toast(`Picked ${color.toUpperCase()} · ${choice.fill?'continue filling':'ink color selected'}`);return;
+      }
       surface=document.createElement('canvas');surface.width=surface.height=1;
       const ctx=surface.getContext('2d',{willReadFrequently:true});
       if(!ctx)throw Error('Not enough canvas memory. Close another notebook tab and try again.');
@@ -1142,6 +1170,10 @@
   function setFillOptions({enabled=state.shapeFillEnabled,color=state.shapeFillColor,
     opacity=state.shapeFillOpacity,outlineColor=state.shapeOutlineColor,
     outlineSize=state.shapeOutlineSize,outlineStyle=state.shapeOutlineStyle}={}){
+    if(boundaryFillSession?.pickColor){
+      delete boundaryFillSession.pickColor;$('inkCanvas').classList.remove('cursor-color-picker');
+      for(const id of ['pickPageColor','pickFillColor'])$(id)?.setAttribute('aria-pressed','false');
+    }
     state.shapeFillEnabled=!!enabled;
     if(/^#[0-9a-f]{6}$/i.test(color))state.shapeFillColor=color;
     state.shapeFillOpacity=Math.max(.05,Math.min(1,Number(opacity)||1));
@@ -1233,11 +1265,34 @@
     $('customColorInput').value=c;
     $('customColorBtn').style.setProperty('--chosen-color',c);
     $('customColorBtn').setAttribute('aria-label',filling?'More fill colors':'More ink colors');
+    $('customColorInput').setAttribute('aria-label',filling?'Choose any fill color':'Choose any ink color');
+    syncNumberColors(filling,c);
   }
   function setColor(c){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
+    if(boundaryFillSession?.pickColor?.fill===false){const tool=boundaryFillSession.pickColor.tool;cancelBoundaryFill();setTool(tool);}
     if(boundaryFillSession){setFillOptions({color:c});return;}
     state.color=c;CREATIVE.prepareArtistColor(c,state.artistGrade);syncColorControls();
+  }
+  function syncNumberColors(filling,color){
+    const numbers=globalThis.WindsColorNumber;if(!numbers)return;
+    const palette=$('colorPalette');if(!palette)return;
+    const marker=filling?page()?.items.find(item=>item.type==='image'&&item.colorByNumber):null;
+    const design=marker&&numbers.DESIGNS.find(design=>design.id===marker.colorByNumber);
+    for(const button of palette.querySelectorAll('[data-color]'))button.hidden=Boolean(design);
+    for(let i=0;i<8;i++){
+      let button=$('numberColor'+(i+1));
+      if(!button&&!design)continue;
+      if(!button){button=document.createElement('button');button.type='button';button.id='numberColor'+(i+1);button.className='color-button number-color-button';button.append(document.createElement('span'));palette.append(button);}
+      button.hidden=!design;if(!design)continue;
+      const value=design.palette[i],span=button.firstElementChild;
+      button.dataset.numberColor=value;button.title=`Number ${i+1} · ${value.toUpperCase()}`;
+      button.setAttribute('aria-label',`Use color ${value} for number ${i+1}`);
+      const selected=value.toLowerCase()===color.toLowerCase();button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
+      const rgb=[1,3,5].map(start=>parseInt(value.slice(start,start+2),16));
+      span.textContent=String(i+1);span.style.background=value;span.style.color=(rgb[0]*.299+rgb[1]*.587+rgb[2]*.114)>150?'#173044':'#ffffff';
+    }
+    if(design)palette.setAttribute('aria-label','Numbered fill colors');
   }
   function ensureStickerCollections(){
     const menu=$('emojiMenu');
@@ -3188,6 +3243,8 @@
     bindBoundaryFill();
     $('shapeFillBtn').onclick=event=>{event.stopPropagation();armBoundaryFill();};
     $('fillSettingsBtn').onclick=showFillMenu;
+    $('pickPageColor')?.addEventListener('click',()=>armColorPicker());
+    $('pickFillColor')?.addEventListener('click',()=>armColorPicker(true));
     $('shapeMenuBtn').onclick=()=>toggleMenu('shapeMenuBtn','shapeMenu');
     const pickShape=e=>{const option=e.target.closest('[data-shape]');if(option)chooseShape(option.dataset.shape);};
     $('shapeChoices').onclick=$('mathShapeChoices').onclick=pickShape;
@@ -3249,7 +3306,7 @@
     $('eraserSizeNumber').onchange=$('eraserSizeNumber').onblur=event=>{setEraserSize(event.target.value);syncEraserControls();};
     document.querySelectorAll('[data-eraser-size]').forEach(button=>button.onclick=()=>setEraserSize(button.dataset.eraserSize));
     $('closeEraserMenu').onclick=()=>{closeMenus();$('eraserBtn').focus();};
-    $('colorPalette').onclick=e=>{const b=e.target.closest('[data-color]');if(b)setColor(b.dataset.color);};
+    $('colorPalette').onclick=e=>{const b=e.target.closest('[data-color],[data-number-color]');if(b)setColor(b.dataset.numberColor||b.dataset.color);};
     const widthSlider=$('penSize');
     widthSlider.oninput=updateSize;
     widthSlider.onchange=widthSlider.onblur=()=>finishWidthAdjustment(true);
