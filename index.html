@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=109"></script>
-<script src="./google-config.js?v=109"></script>
+<script src="./theme.js?v=111"></script>
+<script src="./google-config.js?v=111"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=109" rel="stylesheet"/>
-<link href="./dark.css?v=109" rel="stylesheet"/>
+<link href="./styles.css?v=111" rel="stylesheet"/>
+<link href="./dark.css?v=111" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -60,7 +60,7 @@
 <button aria-label="Scroll notebook pages" aria-pressed="false" class="tool-button" data-tool="pan" title="Scroll pages · drag without drawing (S)">✋</button><button aria-label="Area select handwriting" aria-pressed="false" class="tool-button" data-tool="area" title="Select handwriting · drag a box around multiple strokes (L)">▧</button><button aria-label="Select and move" aria-pressed="false" class="tool-button" data-tool="select" title="Select and move (V)"></button>
 <button aria-label="Text" aria-pressed="false" class="tool-button" data-tool="text" title="Add text (T)"></button>
 <span class="shape-tool-group"><button aria-label="Shapes · Rectangle" aria-pressed="false" class="tool-button shape-tool-trigger" id="shapeToolBtn" data-tool="rectangle" type="button" title="Shapes · Rectangle (R)"></button><button type="button" class="tool-button fill-settings-trigger shape-settings-trigger" id="shapeMenuBtn" aria-controls="shapeMenu" aria-haspopup="menu" aria-label="Choose a shape" aria-expanded="false" title="Choose a shape">⌄</button></span>
-<span class="fill-tool-group"><button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-controls="fillMenu" aria-label="Fill settings and mandala coloring pages" aria-expanded="false" title="Fill settings and mandalas">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/></span>
+<span class="fill-tool-group"><button aria-label="Fill closed areas" class="tool-button shape-fill-trigger" id="shapeFillBtn" type="button" aria-pressed="false" title="Fill closed shapes and hand-drawn boundaries"><span class="fill-symbol" aria-hidden="true">◩</span><span class="fill-tool-label">Fill</span></button><button type="button" class="tool-button fill-settings-trigger" id="fillSettingsBtn" aria-controls="fillMenu" aria-label="Fill settings and coloring pages" aria-expanded="false" title="Fill settings and coloring pages">⌄</button><input type="color" id="activeFillColor" class="active-fill-color" value="#b9adff" aria-label="Current fill color" hidden/></span>
 <button aria-label="Artist studio" aria-expanded="false" aria-pressed="false" class="tool-button artist-trigger" id="artistBtn" aria-controls="artistMenu" data-tool="artist" type="button" title="Artist Studio"><span class="artist-tool-label">Artist</span><span class="artist-current-grade" id="artistGradeBadge">HB</span></button>
 </div>
 <span aria-hidden="true" class="toolbar-divider"></span>
@@ -205,6 +205,7 @@
   <div class="fill-swatches" id="shapeFillSwatches" aria-label="Quick fill colors"></div>
   <label class="fill-option-row" for="shapeFillOpacity"><span>Fill opacity</span><input id="shapeFillOpacity" type="range" min="5" max="100" step="5" value="100"/><strong id="shapeFillOpacityLabel">100%</strong></label>
   <button type="button" class="mandala-entry" id="openMandala">Mandala coloring pages…</button>
+  <button type="button" class="mandala-entry" id="openColorNumber">Color by number…</button>
   <div class="boundary-fill-action"><button type="button" id="fillClosedArea" aria-pressed="false">Use Fill tool</button><p>Keep tapping closed sections. Change color in the toolbar. Choose another tool or press Escape to finish.</p></div>
   <div class="fill-section-title">BORDER / OUTLINE</div>
   <div class="fill-option-row"><label for="shapeOutlineColor">Line color</label><input id="shapeOutlineColor" type="color" value="#2b2d4c" aria-label="Shape outline color"/></div>
@@ -559,33 +560,34 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=109"></script>
-<script src="./svg-stickers.js?v=109"></script>
-<script src="./creative-tools.js?v=109"></script>
-<script src="./graph-tools.js?v=109"></script>
-<script src="./vector-tools.js?v=109"></script>
-<script src="./interaction-tools.js?v=109"></script>
-<script src="./selection-preview.js?v=109"></script>
-<script src="./eraser-preview.js?v=109"></script>
-<script src="./page-stack.js?v=109"></script>
-<script src="./workspace-model.js?v=109"></script>
-<script src="./text-tools.js?v=109"></script>
-<script src="./pdf-export.js?v=109"></script>
-<script src="./pdf-import.js?v=109"></script>
-<script src="./pdf-text.js?v=109"></script>
-<script src="./native-file.js?v=109"></script>
-<script src="./clipboard.js?v=109"></script>
-<script src="./shared-notebook-model.js?v=109"></script>
-<script src="./notebook-sharing.js?v=109"></script>
-<script src="./live-sync.js?v=109"></script>
+<script src="./mandala-art.js?v=111"></script>
+<script src="./color-number.js?v=111"></script>
+<script src="./svg-stickers.js?v=111"></script>
+<script src="./creative-tools.js?v=111"></script>
+<script src="./graph-tools.js?v=111"></script>
+<script src="./vector-tools.js?v=111"></script>
+<script src="./interaction-tools.js?v=111"></script>
+<script src="./selection-preview.js?v=111"></script>
+<script src="./eraser-preview.js?v=111"></script>
+<script src="./page-stack.js?v=111"></script>
+<script src="./workspace-model.js?v=111"></script>
+<script src="./text-tools.js?v=111"></script>
+<script src="./pdf-export.js?v=111"></script>
+<script src="./pdf-import.js?v=111"></script>
+<script src="./pdf-text.js?v=111"></script>
+<script src="./native-file.js?v=111"></script>
+<script src="./clipboard.js?v=111"></script>
+<script src="./shared-notebook-model.js?v=111"></script>
+<script src="./notebook-sharing.js?v=111"></script>
+<script src="./live-sync.js?v=111"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=109"></script>
-<script defer src="./boundary-fill.js?v=109"></script>
-<script defer src="./mandala-tools.js?v=109"></script>
-<script defer src="./pdf-study.js?v=109"></script>
-<script defer src="./pdf-ink.js?v=109"></script>
-<script defer src="./study-tools.js?v=109"></script>
-<script defer src="./study-cards.js?v=109"></script>
-<script defer="" src="./app.js?v=109"></script>
+<script defer src="./cloud-drive.js?v=111"></script>
+<script defer src="./boundary-fill.js?v=111"></script>
+<script defer src="./mandala-tools.js?v=111"></script>
+<script defer src="./pdf-study.js?v=111"></script>
+<script defer src="./pdf-ink.js?v=111"></script>
+<script defer src="./study-tools.js?v=111"></script>
+<script defer src="./study-cards.js?v=111"></script>
+<script defer="" src="./app.js?v=111"></script>
 </body>
 </html>

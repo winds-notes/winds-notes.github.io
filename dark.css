@@ -311,6 +311,7 @@ html[data-theme="dark"] .study-divider{background:#211e2b;color:#b0acc6}
 html[data-theme="dark"] .study-divider:hover,html[data-theme="dark"] .study-divider:focus-visible{background:#201b35}
 html[data-theme="dark"] #studyPdfScroll{background:#22232a}
 html[data-theme="dark"] #studyPdfSurface{background:#1c1c1f}
+html[data-theme="dark"] .pdf-tools-menu{background:#1c1c1f}
 html[data-theme="dark"] .toolbar-page-dock{background:#1c1c1f}
 html[data-theme="dark"] .toolbar-rail{background:#1c1c1f}
 html[data-theme="dark"] .toolbar-rail .fill-settings-trigger,html[data-theme="dark"] .toolbar-rail .eraser-settings-button{color:#bab7c1}
