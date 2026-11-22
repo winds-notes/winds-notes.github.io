@@ -339,6 +339,8 @@
   display:grid;place-items:center;width:40px;height:40px;padding:0;
   border:0;border-radius:8px;background:transparent;color:inherit;
 }
+.selection-actions #moveSelectedPage,.selection-actions #copySelectedTo{width:auto;padding:0 9px;white-space:nowrap;font-size:12px;font-weight:700}
+.selection-actions{max-width:calc(100% - 24px);flex-wrap:wrap;justify-content:flex-end}
 .selection-actions button:hover,.selection-actions button:active{background:#f0edff;color:#5143c5}
 @media(max-width:620px){.selection-actions{right:8px;top:8px}}
 
@@ -756,6 +758,7 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 .study-dialog{max-height:calc(100dvh - 24px);overflow:auto}
 .study-dialog h2{margin:0 0 14px}
 .study-dialog label,.study-pane label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;margin:9px 0}
+#transferSelectionForm label:has(input[type="checkbox"]){flex-direction:row;align-items:center;gap:8px}
 .study-dialog input:not([type="range"]),.study-dialog select,.study-pane select{min-width:0;max-width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#f8f8fc;color:var(--ink)}
 .study-dialog input[type="range"]{width:100%;accent-color:var(--purple)}
 .study-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:12px}
@@ -806,6 +809,8 @@ kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 
 #studyPdfSurface[data-turned]{overflow:hidden}
 #studyPdfSurface[data-turned] #studyPdfContent{position:absolute;width:var(--pdf-content-width);left:50%;top:50%;transform:translate(-50%,-50%) rotate(var(--pdf-turn))}
 #studyPdfImage{width:100%;height:auto;display:block;user-select:none}
+#studyNotebookPaper{width:100%;height:auto;display:block;pointer-events:none}
+#studyPdfImage[hidden],#studyNotebookPaper[hidden]{display:none}
 #studyPdfAnnotations,#studyPdfInk{position:absolute;inset:0;display:block;width:100%;height:100%}
 #studyPdfAnnotations{pointer-events:none}
 #studyPdfInk{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}

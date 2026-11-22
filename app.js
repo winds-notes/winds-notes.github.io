@@ -424,6 +424,7 @@
       await saveTask;
       if(version===saveVersion)statusText('Saved');
       else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
+      globalThis.WindsStudy?.refreshReference?.();
       // Receiving a remote edit is not a new local edit. The merge reports
       // whether this device has additional content that needs uploading.
       if(!fromDrive){
@@ -1548,6 +1549,7 @@
     finishWidthAdjustment(false);
     if(imageCropSession||state.drag?.kind==='rotate')finishActiveStroke();
     commitText();const h=historyForPage();if(!h?.undo.length)return;
+    if(h.undo.at(-1).kind==='transfer'){applyTransferHistory(h.undo.at(-1),'undo');return;}
     const action=h.undo.pop();
     if(action.kind==='append'){
       const index=page().items.findIndex(i=>i.id===action.item.id);
@@ -1562,6 +1564,7 @@
     finishWidthAdjustment(false);
     if(imageCropSession||state.drag?.kind==='rotate')finishActiveStroke();
     commitText();const h=historyForPage();if(!h?.redo.length)return;
+    if(h.redo.at(-1).kind==='transfer'){applyTransferHistory(h.redo.at(-1),'redo');return;}
     const action=h.redo.pop();
     if(action.kind==='append'){page().items.push(clone(action.item));h.undo.push(action);}
     else{h.undo.push({kind:'snapshot',items:clone(page().items)});page().items=action.items;}
@@ -2924,7 +2927,7 @@
   function openNotebookOptions(event){
     const menu=$('moreMenu'),n=notebook();if(!n)return;
     const selected=['select','area'].includes(state.tool)&&!imageCropSession&&page()?.items[state.selected];
-    for(const action of ['editText','copy','cut','makeCard']){
+    for(const action of ['editText','copy','cut','makeCard','moveSelection','copySelectionTo']){
       menu.querySelector(`[data-action="${action}"]`).hidden=!selected||(action==='editText'&&(selected.type!=='text'||activeGroup()));
     }
     const linkable=editableSelection();
@@ -3007,6 +3010,8 @@
       case 'browseLinks': setTool('pan');state.followPageLinks=true;toast('Tap a linked object to open its page. Choose Pen to write.');break;
       case 'templates': window.WindsStudy.openTemplates();break;
       case 'reference': window.WindsStudy.openSource();break;
+      case 'moveSelection': openSelectionTransfer(true);break;
+      case 'copySelectionTo': openSelectionTransfer(false);break;
       case 'pdfText': selectPdfText();break;
       case 'present': window.WindsStudy.startPresentation();break;
       case 'open': $('openNotebookInput').click();break;
@@ -3070,7 +3075,7 @@
     const pdf=group('railPdfActions','toolbar-pdf-actions','PDF reading',right);
     const study=group('railStudyActions','toolbar-study-actions','Study tools',right);
     actions(pdf,[
-      ['reference','Read PDF','pages','Read a PDF beside your writing page'],
+      ['reference','Read beside','pages','Open a notebook or PDF beside your writing page'],
       ['pdf','Import PDF','upload','Import PDF pages']
     ]);
     actions(study,[
@@ -3251,11 +3256,18 @@
     for(const element of [precision,clear,remove])element.setAttribute('data-command','');
     $('selectionMenuGroup').append(precision,clear,remove);
     const follow=document.createElement('button');follow.id='followPageLink';follow.type='button';follow.hidden=true;follow.textContent='Open linked page';
-    $('selectionActions').replaceChildren($('graphControls'),$('vectorControls'),follow,$('copySelected'),$('cutSelected'));
+    const move=document.createElement('button'),copyTo=document.createElement('button');
+    move.id='moveSelectedPage';move.type=copyTo.type='button';move.textContent='Move to page…';
+    copyTo.id='copySelectedTo';copyTo.textContent='Copy to…';
+    move.onclick=()=>openSelectionTransfer(true);copyTo.onclick=()=>openSelectionTransfer(false);
+    $('selectionActions').replaceChildren($('graphControls'),$('vectorControls'),follow,$('copySelected'),$('cutSelected'),move,copyTo);
   }
   function bind(){
     prepareToolbarActions();
     compactSelectionActions();
+    $('transferSelectionBook').onchange=selectionTransferPages;
+    $('transferSelectionForm').onsubmit=event=>{event.preventDefault();commitSelectionTransfer();};
+    $('transferSelectionDialog').onclose=()=>{selectionTransfer=null;};
     initStudyTools();
     initGraphs();
     initVectors();
@@ -3673,6 +3685,79 @@
   }
 
   let clipboardPlacement=null;
+  let selectionTransfer=null;
+  function openSelectionTransfer(move){
+    closeMenus();
+    if(!clipboardEnabled())return;
+    const originals=selectionItems();if(!originals.length){toast('Select an object or handwriting first.');return;}
+    selectionTransfer={move,scope:clipboardContext(),source:page(),originals,items:clone(originals)};
+    $('transferSelectionTitle').textContent=move?'Move selection to a page':'Copy selection to a notebook or page';
+    $('transferSelectionCommit').textContent=move?'Move selection':'Copy selection';
+    $('transferSelectionStatus').textContent=move?'The selection stays editable. Undo restores it to its original page.':'Copies stay editable, including handwriting, shapes and text.';
+    $('transferSelectionBook').replaceChildren(...state.notebooks.filter(book=>!move||book===notebook()).map(book=>new Option(book.title,book.id)));
+    const beside=globalThis.WindsStudy?.referencePage?.();
+    $('transferSelectionBook').value=!move&&beside?beside.book:state.activeId;$('transferSelectionBook').disabled=move;
+    $('transferSelectionOpen').checked=!beside;selectionTransferPages();$('transferSelectionDialog').showModal();
+  }
+  function selectionTransferPages(){
+    const edit=selectionTransfer,book=state.notebooks.find(b=>b.id===$('transferSelectionBook').value);
+    const pages=(book?.pages||[]).map((p,index)=>({p,index})).filter(({p})=>!edit?.move||p!==edit.source);
+    $('transferSelectionPage').replaceChildren(...pages.map(({p,index})=>new Option(`Page ${index+1}${p.background?' · PDF':''}`,p.id)));
+    const beside=globalThis.WindsStudy?.referencePage?.();
+    if(beside?.book===book?.id&&pages.some(({p})=>p.id===beside.page))$('transferSelectionPage').value=beside.page;
+    $('transferSelectionCommit').disabled=!pages.length;
+    if(!pages.length)$('transferSelectionStatus').textContent='Add another page to this notebook first.';
+  }
+  function transferPageChanged(book,p){
+    dirtyPages.add(p.id);window.WindsPageStack?.dirty(p.id);window.WindsLive?.changed(book.id,p.id);
+    scheduleSave(false,false,book);renderThumbs(false,p.id);
+  }
+  function applyTransferHistory(action,kind){
+    const from=kind==='undo'?'undo':'redo',to=kind==='undo'?'redo':'undo';
+    const book=state.notebooks.find(b=>b.id===action.book),source=book?.pages.find(p=>p.id===action.source),target=book?.pages.find(p=>p.id===action.target);
+    const a=history.get(action.source),b=history.get(action.target);
+    if(action.account!==workspaceId||!source||!target||a?.[from].at(-1)!==action||b?.[from].at(-1)!==action){
+      toast('Undo newer edits on both pages first. The moved selection is retained.');return false;
+    }
+    const leaving=kind==='undo'?target:source,arriving=kind==='undo'?source:target;
+    const expected=kind==='undo'?action.placed:action.originals,restore=kind==='undo'?action.originals:action.placed;
+    if(expected.some(entry=>!globalThis.WindsWorkspaceModel.equal(leaving.items.find(i=>i.id===entry.item.id),entry.item))||restore.some(entry=>arriving.items.some(i=>i.id===entry.item.id))){
+      toast('These objects changed on another device. Their current contents are retained.');return false;
+    }
+    const ids=new Set(expected.map(entry=>entry.item.id));leaving.items=leaving.items.filter(item=>!ids.has(item.id));
+    for(const entry of restore)arriving.items.splice(Math.min(entry.index,arriving.items.length),0,clone(entry.item));
+    for(const h of [a,b]){h[from].pop();h[to].push(action);}
+    state.selected=-1;groupSelection=null;transferPageChanged(book,source);transferPageChanged(book,target);
+    renderEditor();globalThis.WindsStudy?.refreshReference();return true;
+  }
+  function commitSelectionTransfer(){
+    const edit=selectionTransfer;if(!edit)return;
+    const book=state.notebooks.find(b=>b.id===$('transferSelectionBook').value),target=book?.pages.find(p=>p.id===$('transferSelectionPage').value);
+    try{
+      if(!clipboardMatches(edit.scope)||page()!==edit.source||!clipboardEnabled()||!target||edit.move&&(book!==notebook()||target===edit.source)||edit.originals.some((item,i)=>!edit.source.items.includes(item)||!globalThis.WindsWorkspaceModel.equal(item,edit.items[i])))throw Error('The selection or destination changed. Close this dialog and select it again.');
+      const dimensions=pageDimensions(target),bounds=interactions.union(edit.items.map(clipboardBounds));
+      const dx=Math.max(16,Math.min(bounds.x,dimensions.width-bounds.w-16))-bounds.x,dy=Math.max(16,Math.min(bounds.y,dimensions.height-bounds.h-16))-bounds.y;
+      let index=0;const placed=window.WindsClipboard.moveItems(edit.items,dx,dy,()=>edit.move?edit.items[index++].id:uid());
+      if(!edit.move)for(const item of placed)if(item.pageLink&&!item.pageLink.book)item.pageLink.book=edit.scope.book;
+      if(placed.some(item=>target.items.some(existing=>existing.id===item.id)))throw Error('An object with this ID already exists on the destination page.');
+      if(!edit.move&&window.WindsFile.serialize({...book,pages:book.pages.map(p=>p===target?{...p,items:[...p.items,...placed]}:p)}).length>window.WindsFile.MAX_FILE_BYTES)throw Error('The copied selection would take this notebook over 100 MB.');
+      if(!history.has(target.id))history.set(target.id,{undo:[],redo:[]});const h=history.get(target.id);
+      if(edit.move){
+        const sourceHistory=historyForPage(),action={kind:'transfer',account:workspaceId,book:book.id,source:edit.source.id,target:target.id,
+          originals:edit.originals.map((item,i)=>({item:clone(edit.items[i]),index:edit.source.items.indexOf(item)})).sort((a,b)=>a.index-b.index),
+          placed:placed.map((item,index)=>({item:clone(item),index:target.items.length+index}))};
+        for(const current of [sourceHistory,h]){current.undo.push(action);if(current.undo.length>70)current.undo.shift();current.redo=[];}
+        const ids=new Set(edit.originals.map(item=>item.id));edit.source.items=edit.source.items.filter(item=>!ids.has(item.id));
+        state.selected=-1;groupSelection=null;transferPageChanged(notebook(),edit.source);
+      }else{h.undo.push({kind:'snapshot',items:clone(target.items)});if(h.undo.length>70)h.undo.shift();h.redo=[];}
+      target.items.push(...placed);transferPageChanged(book,target);
+      if(!edit.move&&groupSelection&&clipboardMatches(groupSelection.scope))groupSelection.version=saveVersion;
+      const open=$('transferSelectionOpen').checked;$('transferSelectionDialog').close();selectionTransfer=null;
+      globalThis.WindsPdfInk?.focusNotes();
+      if(open){navigateStudyPage(book.id,target.id);setTool('select');if(placed.length>1)selectGroup(placed);else state.selected=target.items.indexOf(placed[0]);}
+      renderEditor();globalThis.WindsStudy?.refreshReference();toast(`${edit.move?'Moved':'Copied'} to ${book.title} · Page ${book.pages.indexOf(target)+1}`);
+    }catch(error){$('transferSelectionStatus').textContent=error.message;}
+  }
   function clipboardContext(){return {account:workspaceId,book:state.activeId,page:page()?.id};}
   function clipboardMatches(scope){return scope.account===workspaceId&&scope.book===state.activeId&&scope.page===page()?.id;}
   function clipboardEnabled(){return Boolean(page()&&!$('editorView').hidden&&!state.drag&&!state.pinch&&!state.editingText&&!state.pendingInteractions&&!imageCropSession&&!globalThis.WindsVector?.isEditing()&&!globalThis.WindsGraph?.isEditing()&&!globalThis.WindsText?.isOpen()&&!globalThis.WindsPDFImport?.isOpen()&&$('pageReader').hidden&&$('sharedAccessBackdrop').hidden&&$('shareBackdrop').hidden&&$('cloudBackdrop').hidden&&$('modalBackdrop').hidden);}
@@ -3864,7 +3949,7 @@
   }
   function pdfAnnotationTarget(account,bookId,pageId){
     if(account!==workspaceId)return null;
-    const book=state.notebooks.find(book=>book.id===bookId),target=book?.pages.find(page=>page.id===pageId&&page.background?.type==='pdf');
+    const book=state.notebooks.find(book=>book.id===bookId),target=book?.pages.find(page=>page.id===pageId);
     return target?{account,book,page:target}:null;
   }
   async function commitPdfAnnotation(edit,idle){
@@ -3872,7 +3957,7 @@
     const valid=()=>pdfAnnotationTarget(target.account,target.book.id,p.id)?.page===p;
     const pause=async()=>{
       while(valid()&&(!idle()||inputBusy()||saving))await delay(80);
-      if(!valid())throw Error('The PDF page changed. Reopen it before annotating.');
+      if(!valid())throw Error('The reference page changed. Reopen it before annotating.');
     };
     await pause();
     if(!history.has(p.id))history.set(p.id,{undo:[],redo:[]});
@@ -3898,7 +3983,9 @@
       h.undo.push({kind:'snapshot',items:clone(p.items)});h.redo=[];
       p.items=p.items.map(item=>replacements.get(item.id)||item);
     }else{
-      const from=edit.kind==='undo'?h.undo:h.redo,to=edit.kind==='undo'?h.redo:h.undo,action=from.pop();
+      const from=edit.kind==='undo'?h.undo:h.redo,to=edit.kind==='undo'?h.redo:h.undo;
+      if(from.at(-1)?.kind==='transfer'){applyTransferHistory(from.at(-1),edit.kind);return;}
+      const action=from.pop();
       if(!action)return;
       if(action.kind==='append'){
         if(edit.kind==='undo')p.items=p.items.filter(item=>item.id!==action.item.id);
@@ -3926,6 +4013,7 @@
       books:()=>state.notebooks,book:notebook,id:uid,toast,
       pdfInk:{
         id:uid,toast,target:pdfAnnotationTarget,commit:commitPdfAnnotation,
+        dimensions(target){const d=pageDimensions(target.page);return {width:d.width*2,height:d.height*2,turn:target.page.background?.turn||0};},
         settings:()=>({tool:state.tool,color:state.color,size:state.size,eraserSize:state.eraserSize,inkOnly:state.eraserInkOnly,penOnly:state.penOnly}),
         historyChanged:updateHistoryButtons,
         createItem([x,y,pressure]){
@@ -3972,6 +4060,9 @@
       },
       insertQuote:(item,scope)=>insertClipboardItems([item],scope),
       importReference:()=>$('studyPdfInput').click(),
+      referenceDimensions:pageDimensions,
+      paintPaper(canvas,target){const d=pageDimensions(target);canvas.width=d.width*2;canvas.height=d.height*2;const ctx=canvas.getContext('2d');ctx.setTransform(2,0,0,2,0,0);drawTemplate(ctx,target.template||'ruled',d);},
+      openReferencePage:(bookId,pageId)=>navigateStudyPage(bookId,pageId),
       async readerIdle(valid){while(valid()&&(inputBusy()||state.pendingInteractions))await delay(80);},
       notesZoom:()=>state.zoom,
       layoutBusy:()=>Boolean(state.drag||state.pinch||state.pendingInteractions||state.editingText||imageCropSession),

@@ -11,14 +11,15 @@
     const session=source(),page=session?.pages[session.index];
     return session&&page?api.target(session.account,session.book,page.id):null;
   };
+  const dimensions=target=>api.dimensions?api.dimensions(target):target.page.background;
   function point(event,target,rect=gesture?.rect||$('studyPdfInk').getBoundingClientRect()){
-    const turn=target.page.background.turn||0;
+    const geometry=dimensions(target),turn=geometry.turn||0;
     const [x,y]=global.WindsPdfText.turnPoint((event.clientX-rect.left)/rect.width,(event.clientY-rect.top)/rect.height,(360-turn)%360);
-    return [Math.max(0,Math.min(1,x))*target.page.background.width/2,
-      Math.max(0,Math.min(1,y))*target.page.background.height/2,event.pressure>0?event.pressure:.5];
+    return [Math.max(0,Math.min(1,x))*geometry.width/2,
+      Math.max(0,Math.min(1,y))*geometry.height/2,event.pressure>0?event.pressure:.5];
   }
   function context(id,target){
-    const canvas=$(id),bg=target.page.background;
+    const canvas=$(id),bg=dimensions(target);
     if(canvas.width!==bg.width)canvas.width=bg.width;
     if(canvas.height!==bg.height)canvas.height=bg.height;
     const ctx=canvas.getContext('2d');
@@ -49,7 +50,7 @@
     frame=0;
     const target=current();if(!target||api.busy())return;
     const base=context('studyPdfAnnotations',target);
-    base.clearRect(0,0,target.page.background.width/2,target.page.background.height/2);
+    const geometry=dimensions(target);base.clearRect(0,0,geometry.width/2,geometry.height/2);
     api.paint(base,target.page.items);
     for(const job of pending)if(job.target.page===target.page&&job.item)api.paint(base,[job.item]);
     context('studyPdfInk',target);
@@ -95,7 +96,7 @@
         if(gesture||api.busy())break;
         const job=pending[0];
         try{await api.commit(job,()=>!gesture&&!touches.size&&Date.now()-lastInput>=150);}
-        catch(error){api.toast(error.message||'PDF annotation could not be applied.');}
+        catch(error){api.toast(error.message||'The reference page edit could not be applied.');}
         finally{pending.shift();api.pending(-1);}
       }
     }finally{processing=false;refresh();if(pending.length)schedule();}
@@ -163,7 +164,7 @@
     if(mode==='pan'){startPan(event);return;}
     const target=current(),rect=$('studyPdfInk').getBoundingClientRect(),first=point(event,target,rect);
     const item=mode==='eraser'?null:api.createItem(first);
-    if(mode!=='eraser'&&!item){api.toast('Open the PDF notebook to use selection, text or fill.');return;}
+    if(mode!=='eraser'&&!item){api.toast('Use ↗ to open this page in the main editor for selection, text or fill.');return;}
     gesture={id:event.pointerId,pointerType:event.pointerType,target,rect,painted:0,start:first,
       ...(mode==='eraser'?{kind:'erase',radius:settings.eraserSize/2,inkOnly:settings.inkOnly,points:[first],originals:target.page.items,count:target.page.items.length+pending.length}:
         {kind:'append',item})};

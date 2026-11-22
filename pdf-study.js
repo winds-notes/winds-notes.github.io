@@ -47,6 +47,7 @@
   }
   async function words(page,progress,live){
     const bg=page.background;
+    if(!bg)return [];
     if(bg.pdfWords?.length)return bg.pdfWords;
     if(recognized.has(bg))return recognized.get(bg);
     await api.readerIdle(live);
@@ -91,6 +92,7 @@
       // Native text is available immediately. Scan image-only pages in order afterward.
       const scans=[];
       for(const page of session.pages){
+        if(!page.background)continue;
         if(page.background.pdfWords?.length||recognized.has(page.background))add(page,page.background.pdfWords||recognized.get(page.background));
         else scans.push(page);
       }
@@ -254,8 +256,8 @@
   function syncPlaces(){
     const session=ref(),page=current();
     if(!page)return;
-    const chapters=session.pages.flatMap((p,i)=>(p.background.chapters||[]).map(title=>option(title,String(i))));
-    const bookmarks=session.pages.flatMap((p,i)=>session.bookmarks?.includes(p.id)?[option(`PDF page ${p.background.sourcePage}`,String(i))]:[]);
+    const chapters=session.pages.flatMap((p,i)=>(p.background?.chapters||[]).map(title=>option(title,String(i))));
+    const bookmarks=session.pages.flatMap((p,i)=>session.bookmarks?.includes(p.id)?[option(p.background?`PDF page ${p.background.sourcePage}`:`Page ${i+1}`,String(i))]:[]);
     $('pdfChapters').replaceChildren(option(chapters.length?'Jump to a chapter':'No chapter destinations', ''),...chapters);
     $('pdfBookmarks').replaceChildren(option(bookmarks.length?'Jump to a bookmark':'No bookmarks yet', ''),...bookmarks);
     $('pdfChapters').disabled=!chapters.length;$('pdfBookmarks').disabled=!bookmarks.length;
