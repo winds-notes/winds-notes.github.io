@@ -449,8 +449,8 @@
 .cloud-sync-details[hidden]{display:none}
 .cloud-sync-details summary{font-weight:750;cursor:pointer;color:#5c507e}
 .cloud-sync-details dl{margin:12px 0 0;display:grid;gap:9px}
-.cloud-sync-details dl>div{display:grid;grid-template-columns:1fr 1.3fr;gap:12px;align-items:baseline}
-.cloud-sync-details dt{color:#8a839b}.cloud-sync-details dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;line-height:1.45}
+.cloud-sync-details dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;align-items:baseline}
+.cloud-sync-details dt{color:#8a839b}.cloud-sync-details dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;line-height:1.45;overflow-wrap:anywhere}
 .cloud-sync-details p{font-size:10px;line-height:1.6;margin:12px 0 1px;color:#9a93a8}
 
 /* PDF import stays outside the single-row writing workspace. */
