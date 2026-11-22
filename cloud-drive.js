@@ -11,7 +11,7 @@
   const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-  const SYNC_RELEASE='120';
+  const SYNC_RELEASE='121';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
@@ -40,7 +40,7 @@
   let restorePending=false,restoreFailures=0;
   let pollReads=null;
   const pollResponseSignals=new WeakMap();
-  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null};
+  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null,failedStep:null};
   let transientFailures=0,rateLimitedUntil=0;
   const timingSamples=new Map();
   const timingFields={
@@ -68,7 +68,7 @@
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
   let lastWorkspaceUpload=null,pendingWorkspaceUpload=null;
   let workspaceCandidates=[],workspaceDiscoveryAt=0,workspaceDiscoveryNeeded=true;
-  const reconciledWorkspaces=new Map();
+  const reconciledWorkspaces=new Map(),recoveryHistories=new Map();
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
   function currentLogoutStamp(sub){
@@ -139,8 +139,8 @@
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     restorePending=false;
     workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=pendingWorkspaceUpload=null;
-    workspaceCandidates=[];workspaceDiscoveryAt=0;workspaceDiscoveryNeeded=true;reconciledWorkspaces.clear();
-    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null};
+    workspaceCandidates=[];workspaceDiscoveryAt=0;workspaceDiscoveryNeeded=true;reconciledWorkspaces.clear();recoveryHistories.clear();
+    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null,failedStep:null};
     timingSamples.clear();
     transientFailures=0;rateLimitedUntil=0;
     global.WindsSharing?.cancel();
@@ -237,6 +237,7 @@
     const uploadSize=syncDetails.uploadSize;
     const values={cloudSyncMode:global.WINDS_REALTIME_ENABLED===true?'Drive + live previews enabled':'Drive only · live previews are not enabled on this site',
       cloudSyncRelease:SYNC_RELEASE,cloudWorkspaceFile:activeId||'Not discovered yet',cloudLastSyncError:syncDetails.error||'None',
+      cloudFailedStep:syncDetails.failedStep||'None',
       cloudSyncState:!connected()?'Reconnect Google Drive':!auto?'Automatic sync paused':global.navigator?.onLine===false?'Offline':document.hidden?'Waiting for this tab to be visible':idleDelay()?'Waiting for writing or local saving':syncing?'Synchronizing':syncDetails.retrying?'Retry scheduled':'Ready · checking automatically',
       cloudLastChecked:time(syncDetails.checked),cloudLastReceived:time(syncDetails.received),cloudLastUploaded:time(syncDetails.uploaded),
       cloudWorkspaceUploadSize:!uploadSize?'No upload yet':uploadSize.sent===uploadSize.plain?size(uploadSize.sent):`${size(uploadSize.sent)} of ${size(uploadSize.plain)}`,
@@ -381,6 +382,16 @@
   function isRateLimited(error){
     return error.status===429||error.status===403&&['rateLimitExceeded','userRateLimitExceeded'].includes(error.reason);
   }
+  function serverFailure(error){return [500,502,503,504].includes(error.status);}
+  function driveStep(url,method){
+    if(url.includes('/upload/'))return 'Upload to Drive';
+    if(method==='DELETE')return 'Clean up an old saved revision';
+    if(/\/revisions\/[^/?]+/.test(url))return 'Download a saved revision';
+    if(url.includes('/revisions?'))return 'List saved revisions';
+    if(url.includes('alt=media'))return 'Download current file';
+    if(/[?&]q=/.test(url))return 'Find Drive files';
+    return 'Read file metadata';
+  }
   async function driveRequest(url,options={},expected=generation,manual=false,retainWriteResponse=false){
     ensureIdle(expected,manual);
     const headers=new Headers(options.headers||{});
@@ -397,6 +408,7 @@
     let response;
     try{response=await fetch(url,{...options,headers,cache:'no-store',signal});}
     catch(error){
+      error.operation=error.operation||driveStep(url,options.method);
       if(sessionSignal?.aborted)throw error;
       pollSignal?.throwIfAborted();
       if(deadline?.signal.aborted)throw driveTimeout();
@@ -414,7 +426,7 @@
         if(SERVER_AUTH){forceRenewal=true;scheduleRenewal(1000);}
       }
       const error=new Error(`Google Drive ${response.status}${reason?': '+safeText(reason):''}`);
-      error.status=response.status;error.reason=code;
+      error.status=response.status;error.reason=code;error.operation=driveStep(url,options.method);
       if(isRateLimited(error)){
         const header=response.headers?.get('Retry-After')||'';
         const expiresAt=/^\d+$/.test(header)?Date.now()+Number(header)*1000:Date.parse(header);
@@ -702,7 +714,7 @@
     // whenever one of them is edited. Contents are reconciled below first.
     workspaceCandidates=files.filter(f=>!f.trashed&&f.ownedByMe!==false&&f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
     workspaceDiscoveryAt=Date.now();workspaceDiscoveryNeeded=false;
-    const present=new Set(workspaceCandidates.map(f=>f.id));for(const id of reconciledWorkspaces.keys())if(!present.has(id))reconciledWorkspaces.delete(id);
+    const present=new Set(workspaceCandidates.map(f=>f.id));for(const entries of [reconciledWorkspaces,recoveryHistories])for(const id of entries.keys())if(!present.has(id))entries.delete(id);
     return workspaceCandidates[0];
   }
   async function fetchWorkspace(fileId,expected=generation,manual=false,revision=null){
@@ -722,10 +734,10 @@
     if(snapshot.syncVersion!==1||history?.fileId!==fileId||!Array.isArray(history.included)||history.included.length>200)return [];
     return history.included.filter(id=>typeof id==='string'&&id.length>0&&id.length<=200);
   }
-  async function listPinnedRevisions(fileId,expected,manual){
+  async function listPinnedRevisions(fileId,expected,manual,pageSize=100){
     const pinned=[];let page='';
     do{
-      const params=new URLSearchParams({fields:'nextPageToken,revisions(id,keepForever,modifiedTime)',pageSize:'100'});if(page)params.set('pageToken',page);
+      const params=new URLSearchParams({fields:'nextPageToken,revisions(id,keepForever,modifiedTime)',pageSize:String(pageSize)});if(page)params.set('pageToken',page);
       const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}/revisions?${params}`,{},expected,manual);
       const data=await readDriveJson(response,expected,manual);pinned.push(...(data.revisions||[]).filter(r=>r.keepForever));page=data.nextPageToken||'';
       if(pinned.length>200)throw new Error('Too many protected workspace versions. Your local notes remain safe.');
@@ -744,9 +756,9 @@
     }
     try{return {saved:{data:await fetchWorkspace(id,expected,manual,headRevisionId),applied:false}};}
     catch(error){
-      // Old clients left unpinned heads. A read of current media is safe only
-      // after checking the head revision again.
-      if(!isRateLimited(error)&&(error.status===403||error.status===404))return {error};
+      // Drive can reject the revision endpoint, including for a protected head.
+      // Current media is accepted only after checking the head revision again.
+      if(!isRateLimited(error)&&(error.status===403||error.status===404||serverFailure(error)))return {error};
       throw error;
     }
   }
@@ -766,21 +778,23 @@
     }
   }
   async function refreshWorkspaceHistory(workspace,expected,manual,secondary=false){
-    if(!secondary&&workspaceHistory.id!==workspace.id)workspaceHistory={id:workspace.id,revisions:new Map(),checked:0};
-    const history=secondary?{id:workspace.id,revisions:new Map(),checked:0}:workspaceHistory,headId=workspace.headRevisionId;
+    if(!secondary&&workspaceHistory.id!==workspace.id){const recovered=recoveryHistories.get(workspace.id);workspaceHistory=recovered&&!recovered.compact?recovered:{id:workspace.id,revisions:new Map(),checked:0};recoveryHistories.delete(workspace.id);}
+    if(secondary&&!recoveryHistories.has(workspace.id))recoveryHistories.set(workspace.id,{id:workspace.id,revisions:new Map(),checked:0});
+    const history=secondary?recoveryHistories.get(workspace.id):workspaceHistory,headId=workspace.headRevisionId;
     const before=localVersion;
-    const revisionList=listPinnedRevisions(workspace.id,expected,manual).then(pinned=>({pinned}),error=>({error}));
+    const revisionList=listPinnedRevisions(workspace.id,expected,manual,history.revisionPageSize||100).then(pinned=>({pinned}),error=>({error}));
     const headResult=await getWorkspaceHead(workspace,history,expected,manual);
     let headSaved=headResult.saved;
     // An immutable head can be saved and rendered immediately. Reconcile all
     // protected revisions before allowing any new workspace upload.
     if(headSaved){
       await applyWorkspaceRevision(headSaved,expected,manual);
+      if(secondary){headSaved.data={syncVersion:headSaved.data.syncVersion,workspaceRevisionHistory:headSaved.data.workspaceRevisionHistory};history.compact=true;}
       history.revisions.set(headId,headSaved);
       if(lastWorkspaceUpload?.id===workspace.id&&lastWorkspaceUpload.revision===headId)lastWorkspaceUpload=null;
     }
     const {pinned,error}=await revisionList;
-    if(error)throw error;
+    if(error){if(serverFailure(error))history.revisionPageSize=(history.revisionPageSize||100)>25?25:10;throw error;}
     ensureIdle(expected,manual);
     const headTime=Date.parse(workspace.modifiedTime);
     // Revision metadata can arrive after another device has uploaded. Do not
@@ -791,12 +805,14 @@
     }
     const pinnedIds=new Set(pinned.map(revision=>revision.id));
     if(!headSaved){
-      if(pinnedIds.has(headId))throw headResult.error;
+      // The revision endpoint can fail even for a protected head. Current media
+      // is safe only when the file's head still matches the metadata we read.
       const data=await fetchWorkspace(workspace.id,expected,manual);
       const current=await workspaceMetadata(workspace.id,expected,manual);
       if(current?.headRevisionId!==headId)throw workspaceChanged();
       headSaved={data,applied:false};
       await applyWorkspaceRevision(headSaved,expected,manual);
+      if(secondary){headSaved.data={syncVersion:headSaved.data.syncVersion,workspaceRevisionHistory:headSaved.data.workspaceRevisionHistory};history.compact=true;}
       history.revisions.set(headId,headSaved);
     }
     const olderIds=[...pinnedIds].filter(id=>id!==headId);
@@ -821,6 +837,7 @@
         history.revisions.set(id,saved);
       }
       await applyWorkspaceRevision(saved,expected,manual);
+      if(secondary)saved.data={};
     }
     ensureIdle(expected,manual);
     const head=history.revisions.get(workspace.headRevisionId)?.data;
@@ -832,14 +849,20 @@
     // Defer routine cleanup until the current workspace has been uploaded.
     // Near Drive's revision cap, free space for that upload first.
     const workspaceUpToDate=!manual&&lastSyncedVersion===localVersion;
-    if(!secondary&&pinnedIds.has(workspace.headRevisionId)&&pinned.length>=16&&(workspaceUpToDate||pinned.length>=190)){
+    if(!secondary&&Date.now()>=(history.cleanupAfter||0)&&pinnedIds.has(workspace.headRevisionId)&&pinned.length>=16&&(workspaceUpToDate||pinned.length>=190)){
       let remaining=pinned.length>=190?8:2;
       for(const revision of pinned){
         const saved=history.revisions.get(revision.id)?.data;
         if(revision.id===workspace.headRevisionId||!(Date.parse(revision.modifiedTime)<headTime))continue;
         if(!covered.has(revision.id)&&(!saved||!global.WindsWorkspaceModel.covers(head,saved)))continue;
         try{await driveRequest(`${API}/${encodeURIComponent(workspace.id)}/revisions/${encodeURIComponent(revision.id)}`,{method:'DELETE'},expected,manual);}
-        catch(error){if(error.status===403)break;if(error.status!==404)throw error;}
+        catch(error){
+          if(isRateLimited(error))throw error;
+          if(error.status===403)break;
+          if(serverFailure(error)){history.cleanupAfter=Date.now()+Math.min(AUTO_RETRY_MS,FIRST_TRANSIENT_RETRY_MS*2**Math.min(history.cleanupFailures||0,5));history.cleanupFailures=(history.cleanupFailures||0)+1;break;}
+          if(error.status!==404)throw error;
+        }
+        history.cleanupFailures=0;history.cleanupAfter=0;
         history.revisions.delete(revision.id);pinnedIds.delete(revision.id);
         if(--remaining===0)break;
       }
@@ -860,8 +883,8 @@
           if(current.modifiedTime!==copy.modifiedTime)throw workspaceChanged();
           await applyWorkspaceRevision({data,applied:false},expected,manual);
         }
-        ensureIdle(expected,manual);reconciledWorkspaces.set(copy.id,revision);reconciled=true;
-      }catch(error){if(error.status!==404)throw error;}
+        ensureIdle(expected,manual);reconciledWorkspaces.set(copy.id,revision);recoveryHistories.delete(copy.id);reconciled=true;
+      }catch(error){if(error.status!==404)throw error;recoveryHistories.delete(copy.id);}
     }
     return reconciled;
   }
@@ -1032,6 +1055,7 @@
         if((firstCheck||syncDetails.retrying)&&!manual&&lastSync===previousUpload)message(connectionMessage());
         syncDetails.retrying=false;
         syncDetails.error=null;
+        syncDetails.failedStep=null;
       }
     }catch(err){
       if(expected!==generation)return;
@@ -1047,6 +1071,7 @@
       if(!err.syncDeferred){
         syncDetails.retrying=true;
         syncDetails.error=safeText(err.message||'Unknown Google Drive error');
+        syncDetails.failedStep=err.operation||'Sync or local save';
         console.error('WiNDS Drive sync:',err);
         if(!connected()&&!(SERVER_AUTH&&profile&&!authorizationRequired))message(connectionMessage(),true);
         else if(auto)message(`Google Drive sync will retry automatically in ${Math.ceil(nextDelay/1000)} seconds. ${syncDetails.error}. Your notes remain saved on this device.`,true);
@@ -1191,7 +1216,7 @@
   async function init(appBridge){
     bridge=appBridge;
     const details=$('cloudSyncDetails')?.querySelector?.('dl');
-    if(details)for(const [id,label] of [['cloudSyncRelease','Sync version'],['cloudSyncState','Sync status'],['cloudWorkspaceFile','Workspace file'],['cloudLastSyncError','Last sync error']]){
+    if(details)for(const [id,label] of [['cloudSyncRelease','Sync version'],['cloudSyncState','Sync status'],['cloudWorkspaceFile','Workspace file'],['cloudLastSyncError','Last sync error'],['cloudFailedStep','Last failed step']]){
       if($(id))continue;const row=document.createElement('div'),name=document.createElement('dt'),value=document.createElement('dd');
       name.textContent=label;value.id=id;row.append(name,value);details.append(row);
     }
