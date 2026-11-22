@@ -11,7 +11,7 @@
   const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-  const SYNC_RELEASE='123';
+  const SYNC_RELEASE='124';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
@@ -46,6 +46,8 @@
   const timingFields={
     editToSave:'cloudEditToSave',
     driveUpload:'cloudUploadTime',
+    drivePrepare:'cloudPrepareTime',
+    driveTransfer:'cloudTransferTime',
     driveApply:'cloudDriveApplyTime',
     driveRender:'cloudDriveRenderTime',
     liveSend:'cloudPreviewSendTime',
@@ -67,6 +69,7 @@
   }
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
   let lastWorkspaceUpload=null,pendingWorkspaceUpload=null,repairPending=false;
+  const driveBases=new Map();let driveWireInfo=new WeakMap();
   let workspaceCandidates=[],workspaceDiscoveryAt=0,workspaceDiscoveryNeeded=true;
   const reconciledWorkspaces=new Map(),recoveryHistories=new Map();
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
@@ -139,6 +142,7 @@
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     restorePending=false;
     workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=pendingWorkspaceUpload=null;repairPending=false;
+    driveBases.clear();driveWireInfo=new WeakMap();
     workspaceCandidates=[];workspaceDiscoveryAt=0;workspaceDiscoveryNeeded=true;reconciledWorkspaces.clear();recoveryHistories.clear();
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null,failedStep:null};
     timingSamples.clear();
@@ -730,17 +734,50 @@
     const present=new Set(workspaceCandidates.map(f=>f.id));for(const entries of [reconciledWorkspaces,recoveryHistories])for(const id of entries.keys())if(!present.has(id))entries.delete(id);
     return workspaceCandidates[0];
   }
-  async function fetchWorkspace(fileId,expected=generation,manual=false,revision=null){
+  function cacheDriveBase(fileId,revision,data,size){
+    const key=fileId+':'+revision,record={fileId,revision,data,size};
+    driveBases.delete(key);driveBases.set(key,record);
+    while(driveBases.size>2)driveBases.delete(driveBases.keys().next().value);
+    return record;
+  }
+  async function parseDriveWorkspace(text,fileId,revision,expected,manual,fullOnly=false){
+    ensureIdle(expected,manual);
+    const wire=JSON.parse(text),codec=global.WindsDriveCodec;
+    let data=wire,info={kind:'full',revisionBases:[],size:text.length};
+    if(wire.format==='winds-notes-drive'){
+      if(!codec)throw new Error('Reload WiNDS Notes on this device to read efficient Drive updates. Local notebooks are retained.');
+      if(wire.fileId!==fileId)throw new Error('A compact workspace refers to a different Drive file.');
+      if(wire.version!==1||!['full','delta'].includes(wire.kind))throw new Error('Unsupported compact Drive workspace version.');
+      codec.dependencies(wire.revisionBases);
+      if(fullOnly&&wire.kind!=='full')throw new Error('A compact workspace base must be a complete protected snapshot.');
+      let anchor;
+      if(wire.kind==='delta'){
+        if(!Number.isSafeInteger(wire.logicalBytes)||wire.logicalBytes<=0||wire.logicalBytes>MAX_BYTES)throw new Error('The compact workspace exceeds the decoded size limit.');
+        if(typeof wire.baseRevision!=='string'||!wire.baseRevision||wire.baseRevision.length>200||wire.baseRevision===revision)throw new Error('Invalid compact workspace base revision.');
+        anchor=driveBases.get(fileId+':'+wire.baseRevision);
+        if(!anchor){
+          const base=await fetchWorkspace(fileId,expected,manual,wire.baseRevision,true);
+          anchor=driveBases.get(fileId+':'+wire.baseRevision);
+          if(!anchor||anchor.data!==base)throw new Error('The protected workspace base is unavailable.');
+        }
+      }
+      data=await codec.unpack(wire,anchor?.data,fileId,{check:()=>ensureIdle(expected,manual),yield:bridge.yieldSync});
+      ensureIdle(expected,manual);
+      if(wire.kind==='delta'&&new Blob([JSON.stringify(data)]).size!==wire.logicalBytes)throw new Error('The compact workspace size does not match its content.');
+      info={kind:wire.kind,revisionBases:wire.revisionBases||[],baseRevision:wire.baseRevision,anchor,size:text.length};
+    }
+    ensureIdle(expected,manual);
+    if(data?.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
+    driveWireInfo.set(data,info);
+    if(info.kind==='full'&&revision)cacheDriveBase(fileId,revision,data,text.length);
+    return data;
+  }
+  async function fetchWorkspace(fileId,expected=generation,manual=false,revision=null,fullOnly=false){
     const path=revision?`/revisions/${encodeURIComponent(revision)}`:'';
     const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}${path}?alt=media`,{},expected,manual);
     const text=await readDriveText(response,expected,manual,true);
     ensureIdle(expected,manual);
-    return parseWorkspace(text);
-  }
-  function parseWorkspace(text){
-    const data=JSON.parse(text);
-    if(data.format!=='winds-notes-backup'||!Array.isArray(data.notebooks))throw new Error('The Drive workspace file is not a valid WiNDS Notes document.');
-    return data;
+    return parseDriveWorkspace(text,fileId,revision,expected,manual,fullOnly);
   }
   function includedRevisions(snapshot,fileId){
     const history=snapshot.workspaceRevisionHistory;
@@ -774,7 +811,7 @@
     if(uploaded?.id===id&&uploaded.revision===headRevisionId){
       const text=await uploaded.payload.text();
       ensureIdle(expected,manual);
-      return {saved:{data:parseWorkspace(text),applied:true}};
+      return {saved:{data:await parseDriveWorkspace(text,id,headRevisionId,expected,manual),applied:true}};
     }
     try{return {saved:{data:await fetchWorkspace(id,expected,manual,headRevisionId),applied:false}};}
     catch(error){
@@ -799,6 +836,16 @@
       updateSyncDetails();
     }
   }
+  function trackDriveWire(history,revision,data,secondary=false){
+    const info=driveWireInfo.get(data);
+    history.revisionBases=history.revisionBases||new Map();
+    for(const pair of info?.revisionBases||[])history.revisionBases.set(...pair);
+    if(info?.kind==='delta')history.revisionBases.set(revision,info.baseRevision);
+    if(!secondary){
+      history.usesCodec=info?.kind==='delta'||Boolean(info?.revisionBases?.length);
+      history.anchor=info?.kind==='delta'?info.anchor:cacheDriveBase(history.id,revision,data,info?.size||0);
+    }
+  }
   async function refreshWorkspaceHistory(workspace,expected,manual,secondary=false){
     if(!secondary&&workspaceHistory.id!==workspace.id){const recovered=recoveryHistories.get(workspace.id);workspaceHistory=recovered&&!recovered.compact?recovered:{id:workspace.id,revisions:new Map(),checked:0};recoveryHistories.delete(workspace.id);}
     if(secondary&&!recoveryHistories.has(workspace.id))recoveryHistories.set(workspace.id,{id:workspace.id,revisions:new Map(),checked:0});
@@ -810,6 +857,7 @@
     // An immutable head can be saved and rendered immediately. Reconcile all
     // protected revisions before allowing any new workspace upload.
     if(headSaved){
+      trackDriveWire(history,headId,headSaved.data,secondary);
       await applyWorkspaceRevision(headSaved,expected,manual);
       if(secondary){headSaved.data={syncVersion:headSaved.data.syncVersion,workspaceRevisionHistory:headSaved.data.workspaceRevisionHistory};history.compact=true;}
       history.revisions.set(headId,headSaved);
@@ -841,6 +889,7 @@
       const current=await workspaceMetadata(workspace.id,expected,manual);
       if(current?.headRevisionId!==headId)throw workspaceChanged();
       headSaved={data,applied:false};
+      trackDriveWire(history,headId,data,secondary);
       await applyWorkspaceRevision(headSaved,expected,manual);
       if(secondary){headSaved.data={syncVersion:headSaved.data.syncVersion,workspaceRevisionHistory:headSaved.data.workspaceRevisionHistory};history.compact=true;}
       history.revisions.set(headId,headSaved);
@@ -867,6 +916,7 @@
         history.revisions.set(id,saved);
       }
       await applyWorkspaceRevision(saved,expected,manual);
+      if(saved.data?.notebooks)trackDriveWire(history,id,saved.data,true);
       if(secondary)saved.data={};
     }
     ensureIdle(expected,manual);
@@ -879,11 +929,12 @@
     // Defer routine cleanup until the current workspace has been uploaded.
     // Near Drive's revision cap, free space for that upload first.
     const workspaceUpToDate=!manual&&lastSyncedVersion===localVersion;
+    const protectedBases=new Set([...history.revisionBases||[]].filter(([id])=>pinnedIds.has(id)).map(([,base])=>base));
     if(!secondary&&Date.now()>=(history.cleanupAfter||0)&&pinnedIds.has(workspace.headRevisionId)&&pinned.length>=16&&(workspaceUpToDate||pinned.length>=190)){
       let remaining=pinned.length>=190?8:2;
       for(const revision of pinned){
         const saved=history.revisions.get(revision.id)?.data;
-        if(revision.id===workspace.headRevisionId||!(Date.parse(revision.modifiedTime)<headTime))continue;
+        if(revision.id===workspace.headRevisionId||protectedBases.has(revision.id)||!(Date.parse(revision.modifiedTime)<headTime))continue;
         if(!covered.has(revision.id)&&(!saved||!global.WindsWorkspaceModel.covers(head,saved)))continue;
         try{await driveRequest(`${API}/${encodeURIComponent(workspace.id)}/revisions/${encodeURIComponent(revision.id)}`,{method:'DELETE'},expected,manual);}
         catch(error){
@@ -894,6 +945,7 @@
         }
         history.cleanupFailures=0;history.cleanupAfter=0;
         history.revisions.delete(revision.id);pinnedIds.delete(revision.id);
+        history.revisionBases?.delete(revision.id);
         if(--remaining===0)break;
       }
     }
@@ -927,7 +979,7 @@
     const recovered=workspace?await reconcileWorkspaceCopies(workspace,expected,manual):false;
     if(workspace?.headRevisionId){
       if(!global.WindsWorkspaceModel)throw new Error('Reload WiNDS Notes to load its sync components.');
-      if(changed||recovered||Date.now()-workspaceHistory.checked>=10000)await refreshWorkspaceHistory(workspace,expected,manual);
+      if(manual||changed||recovered||Date.now()-workspaceHistory.checked>=10000)await refreshWorkspaceHistory(workspace,expected,manual);
     }else if(changed||recovered){
       const data=await fetchWorkspace(workspace.id,expected,manual);
       ensureIdle(expected,manual);
@@ -986,7 +1038,9 @@
     pendingWorkspaceUpload=null;
     if(pending.created||workspaceCandidates.length>1)workspaceDiscoveryNeeded=true;
     recordTiming('driveUpload',pending.elapsed);
-    syncDetails.uploadSize={plain:pending.plain.size,sent:pending.sent};
+    if(Number.isFinite(pending.prepareElapsed))recordTiming('drivePrepare',pending.prepareElapsed);
+    if(Number.isFinite(pending.transferElapsed))recordTiming('driveTransfer',pending.transferElapsed);
+    syncDetails.uploadSize={plain:pending.logicalBytes||pending.plain.size,sent:pending.sent};
     activeId=created.id;
     lastWorkspaceUpload=created.headRevisionId?{id:created.id,revision:created.headRevisionId,payload:pending.plain}:null;
     remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
@@ -1097,7 +1151,10 @@
     // created notebooks are not inadvertently overwritten.
     await refreshFromDrive(expected,manual);
     ensureIdle(expected,manual);
-    if(!manual&&activeId&&lastSyncedVersion===localVersion)return;
+    if(activeId&&lastSyncedVersion===localVersion){
+      if(manual){message(`Your notebooks are up to date in ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
+      return;
+    }
     const versionAtStart=localVersion;
     const snapshot={...bridge.getData()};
     delete snapshot.workspaceRevisionHistory;
@@ -1121,8 +1178,18 @@
       if(retained.length)snapshot.workspaceRevisionHistory={fileId:activeId,included:retained};
     }
     const uploadStarted=Date.now();
-    const plain=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
+    let plain=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
     if(plain.size>MAX_BYTES)throw Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
+    const logicalBytes=plain.size,codec=global.WindsDriveCodec,history=workspaceHistory;
+    if(codec&&activeId&&history.id===activeId){
+      const revisionBases=[...history.revisionBases||[]].filter(([id])=>history.pinnedIds?.has(id));
+      if(history.anchor?.size>=MIN_COMPRESS_BYTES&&history.pinnedIds?.has(history.anchor.revision)){
+        const packet=await codec.pack(snapshot,history.anchor.data,{fileId:activeId,revisionId:history.anchor.revision,revisionBases,logicalBytes,check:()=>ensureIdle(expected,manual),yield:bridge.yieldSync});
+        const compact=new Blob([JSON.stringify(packet)],{type:'application/json'});
+        if(compact.size<logicalBytes*.7)plain=compact;
+        else if(history.usesCodec)plain=new Blob([JSON.stringify(codec.full(snapshot,activeId,revisionBases))],{type:'application/json'});
+      }else if(history.usesCodec)plain=new Blob([JSON.stringify(codec.full(snapshot,activeId,revisionBases))],{type:'application/json'});
+    }
     let payload=plain;
     if(compressUploads&&compressionAvailable&&plain.size>=MIN_COMPRESS_BYTES){
       try{
@@ -1136,12 +1203,13 @@
       const error=new Error('More local edits were saved while preparing this upload.');error.syncDeferred=true;throw error;
     }
     const creating=!activeId;
+    const transferStarted=Date.now(),prepareElapsed=transferStarted-uploadStarted;
     const response=await upload(WORKSPACE_NAME,payload,activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
     ensureSession(expected);
     // A successful in-flight upload may finish while the Pencil is down.
     // Retain only its response and the exact bytes prepared before the request;
     // parse/confirm them at the next idle opportunity, in this account only.
-    pendingWorkspaceUpload={expected,response,version:versionAtStart,plain,sent:payload.size,count,created:creating,elapsed:Date.now()-uploadStarted};
+    pendingWorkspaceUpload={expected,response,version:versionAtStart,plain,logicalBytes,sent:payload.size,count,created:creating,elapsed:Date.now()-uploadStarted,prepareElapsed,transferElapsed:Date.now()-transferStarted};
     await finishWorkspaceUpload(expected,manual);
   }
   async function sync(manual=false){
@@ -1165,17 +1233,11 @@
     let nextDelay=null;
     try{
       if(SERVER_AUTH&&!connected()&&!await renewServerSession()){nextDelay=AUTO_RETRY_MS;return;}
-      if(manual){
-        await global.WindsSharing?.sync(sharingSession(),true);
-        await syncWorkspace(expected,true);
-      }
-      else{
-        const priority=bridge.sharing?.activeId?.();
-        if(priority)await global.WindsSharing?.sync(sharingSession(),false,{only:priority});
-        await syncWorkspace(expected,false);
-        ensureIdle(expected,false);
-        await global.WindsSharing?.sync(sharingSession(),false,{exclude:priority,limit:1});
-      }
+      const priority=bridge.sharing?.activeId?.();
+      if(priority)await global.WindsSharing?.sync(sharingSession(),manual,{only:priority});
+      await syncWorkspace(expected,manual);
+      ensureIdle(expected,manual);
+      await global.WindsSharing?.sync(sharingSession(),manual,{exclude:priority,...(manual?{}:{limit:1})});
       if(expected===generation){
         transientFailures=0;
         if((firstCheck||syncDetails.retrying)&&!manual&&lastSync===previousUpload)message(connectionMessage());
@@ -1342,7 +1404,7 @@
   async function init(appBridge){
     bridge=appBridge;
     const details=$('cloudSyncDetails')?.querySelector?.('dl');
-    if(details)for(const [id,label] of [['cloudSyncRelease','Sync version'],['cloudSyncState','Sync status'],['cloudWorkspaceFile','Workspace file'],['cloudLastSyncError','Last sync error'],['cloudFailedStep','Last failed step']]){
+    if(details)for(const [id,label] of [['cloudSyncRelease','Sync version'],['cloudSyncState','Sync status'],['cloudWorkspaceFile','Workspace file'],['cloudLastSyncError','Last sync error'],['cloudFailedStep','Last failed step'],['cloudPrepareTime','Prepare Drive update'],['cloudTransferTime','Send Drive update']]){
       if($(id))continue;const row=document.createElement('div'),name=document.createElement('dt'),value=document.createElement('dd');
       name.textContent=label;value.id=id;row.append(name,value);details.append(row);
     }

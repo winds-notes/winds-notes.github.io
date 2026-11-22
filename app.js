@@ -595,10 +595,13 @@
     for(const [id,mark] of Object.entries(remoteDeleted))mergedDeleted[id]=model.mergeDeletion(mergedDeleted[id],mark);
     const merged=new Map(state.notebooks.map(n=>[n.id,n])),remoteBooks=new Map();
     for(const raw of snapshot.notebooks){
+      if(!raw || typeof raw.id!=='string' || typeof raw.title!=='string' || !Array.isArray(raw.pages)||!raw.pages.length||raw.pages.length>750 || raw.pages.some(p=>!Array.isArray(p?.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
+      remoteBooks.set(raw.id,raw);
+      const local=merged.get(raw.id);
+      // A compact update usually leaves the large PDF/art books untouched.
+      // Exact equality avoids cloning and rehashing their embedded data again.
+      if(local&&(local._sync||local._sharing)&&model.equal(local,raw))continue;
       const n=clone(raw);
-      if(!n || typeof n.id!=='string' || typeof n.title!=='string' || !Array.isArray(n.pages)||!n.pages.length||n.pages.length>750 || n.pages.some(p=>!Array.isArray(p?.items)||p.items.length>50000))throw new Error('Invalid Drive notebook data');
-      remoteBooks.set(n.id,raw);
-      const local=merged.get(n.id);
       // Shared notebooks retain their separate immutable edit history/outbox.
       if(local?._sharing)continue;
       if(n._sharing){if(!local)merged.set(n.id,n);continue;}
@@ -4360,6 +4363,7 @@
     if(!resumeLastNotebook()){view('library',Boolean(pendingResume));renderLibrary();}
     const driveStartup=window.WindsDrive?.init({
       getData:workspaceSnapshot,
+      yieldSync:()=>delay(0),
       switchWorkspace,
       mergeWorkspace,
       isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<saveIdleDelay()),
