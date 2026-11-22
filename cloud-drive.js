@@ -11,7 +11,7 @@
   const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-  const SYNC_RELEASE='122';
+  const SYNC_RELEASE='123';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
@@ -66,7 +66,7 @@
     return `p50 ${percentile(.5)} ms · p95 ${percentile(.95)} ms · ${samples.length} samples`;
   }
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
-  let lastWorkspaceUpload=null,pendingWorkspaceUpload=null;
+  let lastWorkspaceUpload=null,pendingWorkspaceUpload=null,repairPending=false;
   let workspaceCandidates=[],workspaceDiscoveryAt=0,workspaceDiscoveryNeeded=true;
   const reconciledWorkspaces=new Map(),recoveryHistories=new Map();
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
@@ -138,7 +138,7 @@
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     restorePending=false;
-    workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=pendingWorkspaceUpload=null;
+    workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=pendingWorkspaceUpload=null;repairPending=false;
     workspaceCandidates=[];workspaceDiscoveryAt=0;workspaceDiscoveryNeeded=true;reconciledWorkspaces.clear();recoveryHistories.clear();
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null,failedStep:null};
     timingSamples.clear();
@@ -199,6 +199,7 @@
         }else if(data.type==='workspace-updated'&&profile?.sub===data.sub&&data.revision!==remoteRevision){
           // A hint only: fetch and verify this account's own Drive file as usual.
           // Never copy another tab's workspace or credentials into this account.
+          if(typeof data.revision==='string'&&data.revision.startsWith('repair:'))workspaceDiscoveryNeeded=true;
           schedule();
         }
       };
@@ -255,9 +256,10 @@
   function updateUI(){
     updateSyncDetails();
     const yes=connected();
+    const canRepair=yes&&(repairPending||transientFailures>=3&&syncDetails.failedStep?.startsWith('List saved revisions')&&/^Google Drive (500|502|503|504)/.test(syncDetails.error||''));
     // Metadata polling does not change account controls. Avoid rewriting the
     // dialog or flashing disabled states at the background polling cadence.
-    const next=JSON.stringify([yes,profile?.sub,profile?.email,expires,authorizationRequired,signingIn,manualBusy,auto,compressUploads]);
+    const next=JSON.stringify([yes,profile?.sub,profile?.email,expires,authorizationRequired,signingIn,manualBusy,auto,compressUploads,canRepair]);
     if(next===uiState)return;
     uiState=next;
     $('cloudConnection').classList.toggle('connected',yes);
@@ -275,6 +277,8 @@
     if(compressionControl)compressionControl.hidden=!yes||!compressionAvailable;
     if(compressionInput){compressionInput.checked=compressUploads;compressionInput.disabled=signingIn;}
     for(const id of ['googleSync','googleBackup','googleRestore'])$(id).disabled=signingIn||manualBusy;
+    const repairButton=$('googleRepairSync');
+    if(repairButton){repairButton.hidden=!canRepair;repairButton.disabled=signingIn||manualBusy;}
     const sharedButton=$('googleBrowseShared');
     if(sharedButton){
       sharedButton.hidden=!yes||!global.WindsSharing?.listAvailable;
@@ -679,11 +683,14 @@
       }
     }
   }
+  function repairSources(file){
+    return Object.entries(file.appProperties||{}).filter(([key,value])=>/^windsNotesRecoveryOf(?:[0-9]|1[0-9])$/.test(key)&&typeof value==='string'&&/^[\w-]{1,100}$/.test(value)).map(([,value])=>value);
+  }
   async function listFiles(expected=generation,manual=false,backups=false){
     const found=[];let next='';
     do{
-      const key=backups?'windsNotesBackup':'windsNotesWorkspace';
-      const q=`trashed = false and appProperties has {key='${key}' and value='1'}`+(backups?'':" and 'me' in owners");
+      const key=backups==='repair'?'windsNotesRepair':backups?'windsNotesBackup':'windsNotesWorkspace';
+      const q=`trashed = false and appProperties has {key='${key}' and value='1'}`+(backups===true?'':" and 'me' in owners");
       const params=new URLSearchParams({q,fields:'nextPageToken,files(id,name,mimeType,modifiedTime,headRevisionId,appProperties,ownedByMe)',pageSize:'100',orderBy:'modifiedTime desc'});
       if(next)params.set('pageToken',next);
       const response=await driveRequest(`${API}?${params}`,{},expected,manual);
@@ -713,6 +720,12 @@
     // A stable ID order prevents devices from switching between duplicate files
     // whenever one of them is edited. Contents are reconciled below first.
     workspaceCandidates=files.filter(f=>!f.trashed&&f.ownedByMe!==false&&f.appProperties?.windsNotesWorkspace==='1'&&f.name===WORKSPACE_NAME).sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+    // A verified, explicitly confirmed repair supersedes its retained sources.
+    // This also handles a crash between promotion and archiving old metadata.
+    const retainedSources=new Set(workspaceCandidates.flatMap(repairSources));
+    const active=workspaceCandidates.filter(file=>!retainedSources.has(file.id));
+    if(workspaceCandidates.length&&!active.length)throw new Error('Drive recovery links form a cycle. Local notebooks remain safe.');
+    workspaceCandidates=active;
     workspaceDiscoveryAt=Date.now();workspaceDiscoveryNeeded=false;
     const present=new Set(workspaceCandidates.map(f=>f.id));for(const entries of [reconciledWorkspaces,recoveryHistories])for(const id of entries.keys())if(!present.has(id))entries.delete(id);
     return workspaceCandidates[0];
@@ -982,6 +995,102 @@
     if(manual){message(`Synced ${pending.count} notebook${pending.count===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
     else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
   }
+  async function repairDriveSync(){
+    if(!connected()||signingIn||queueAfterSync(repairDriveSync))return;
+    if(rateLimitedUntil>Date.now()){message('Google Drive is limiting requests. Wait for its retry delay before repairing.',true);return;}
+    if(idleDelay(true)){message('Finish writing and wait for Saved locally, then choose Repair Drive sync again.');return;}
+    if(global.navigator?.onLine===false||document.hidden){message('Keep this tab visible and online to repair Drive sync.');return;}
+    const expected=generation;
+    clearTimeout(timer);syncing=true;manualBusy=true;updateUI();
+    try{
+      message('Preparing repair: checking current Drive copies and your local notebooks…');
+      workspaceDiscoveryNeeded=true;await findWorkspace(expected,true);ensureIdle(expected,true);
+      let sources=[...workspaceCandidates];
+      if(!sources.length||sources.length>20)throw new Error('Repair requires between 1 and 20 existing private workspace files. No Drive files were changed.');
+      const stages=(await listFiles(expected,true,'repair')).filter(f=>!f.trashed&&f.ownedByMe!==false&&f.name===WORKSPACE_NAME&&f.appProperties?.windsNotesRepairDevice===deviceId).sort((a,b)=>a.id<b.id?-1:1);
+      // A response can be lost after promotion. Finish that same repair rather
+      // than producing another replacement file on the next button press.
+      let target=stages.find(f=>f.appProperties?.windsNotesWorkspace==='1'&&repairSources(f).length);
+      const promoted=Boolean(target);
+      if(promoted){
+        sources=[];
+        for(const id of repairSources(target))sources.push(await workspaceMetadata(id,expected,true));
+      }else{
+        const ids=sources.map(f=>f.id).sort().join(',');
+        target=stages.find(f=>repairSources(f).sort().join(',')===ids);
+      }
+      const readStable=async file=>{
+        if(!file?.id||file.ownedByMe===false||file.trashed)throw new Error('A repair source is unavailable in this Google account.');
+        const data=await fetchWorkspace(file.id,expected,true),current=await workspaceMetadata(file.id,expected,true);
+        ensureIdle(expected,true);
+        if(current.trashed||current.ownedByMe===false||(file.headRevisionId?current.headRevisionId!==file.headRevisionId:current.modifiedTime!==file.modifiedTime))throw workspaceChanged();
+        return data;
+      };
+      for(const source of sources)await applyWorkspaceRevision({data:await readStable(source),applied:false},expected,true);
+      let verified=target?await readStable(target):null,transfer=null;
+      if(verified)await applyWorkspaceRevision({data:verified,applied:false},expected,true);
+      ensureIdle(expected,true);
+      const snapshot={...bridge.getData()};delete snapshot.workspaceRevisionHistory;
+      const versionAtStart=localVersion;
+      const review=`Repair Drive sync for ${profile.email}?\n\nCreate or finish ONE replacement active sync file from ${snapshot.notebooks.length} local notebook(s) and the latest readable Drive copies.\n\nKeep the original file(s) and ALL their older revisions as recovery copies. Unreadable older edits cannot be merged now.\n\nSources:\n${sources.map(f=>f.id).join('\n')}\n\nUpdate the app on your other devices before continuing. No notebook or revision will be deleted. Continue?`;
+      if(!global.confirm?.(review)){message('Repair cancelled. No Drive files were changed.');return;}
+      ensureIdle(expected,true);repairPending=true;updateUI();
+      if(!promoted){
+        const payload=await prepareWorkspacePayload(snapshot,expected,true);
+        if(versionAtStart!==localVersion)throw deferSync('Local notes changed while preparing repair. Try Repair Drive sync again.');
+        const props={windsNotesWorkspace:'repair',windsNotesRepair:'1',windsNotesRepairDevice:deviceId,windsNotesVersion:'2'};
+        sources.forEach((file,index)=>{props['windsNotesRecoveryOf'+index]=file.id;});
+        message('Saving and verifying the replacement workspace. Original Drive files are retained…');
+        const response=await upload(WORKSPACE_NAME,payload.sent,target?.id||null,props,expected,true);
+        target=await readDriveJson(response,expected,true);
+        if(!target?.id||!target.headRevisionId)throw new Error('Drive did not confirm the repair file. Choose Repair Drive sync to resume.');
+        transfer={plain:payload.plain.size,sent:payload.sent.size};
+        target=await workspaceMetadata(target.id,expected,true);
+        verified=await readStable(target);
+        if(!global.WindsWorkspaceModel.equivalent(snapshot,verified))throw new Error('Repair verification failed. Original files are retained; retry repair.');
+        // Do not promote a snapshot prepared before another device changed a source.
+        for(const source of sources){
+          const current=await workspaceMetadata(source.id,expected,true);
+          if(current.trashed||current.ownedByMe===false||(source.headRevisionId?current.headRevisionId!==source.headRevisionId:current.modifiedTime!==source.modifiedTime))throw workspaceChanged();
+        }
+        await driveRequest(`${API}/${encodeURIComponent(target.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({appProperties:{...target.appProperties,windsNotesWorkspace:'1'}})},expected,true);
+      }
+      // Promotion is already discoverable through the recovery links. Archiving
+      // only metadata lets older clients discover the new file as well.
+      for(const source of sources){
+        await driveRequest(`${API}/${encodeURIComponent(source.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'WiNDS Notes Recovery '+source.id+'.json',appProperties:{...source.appProperties,windsNotesWorkspace:'recovery'}})},expected,true);
+      }
+      await driveRequest(`${API}/${encodeURIComponent(target.id)}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({appProperties:{...target.appProperties,windsNotesWorkspace:'1',windsNotesRepair:'0'}})},expected,true);
+      ensureIdle(expected,true);
+      activeId=target.id;workspaceHistory={id:target.id,revisions:new Map(),checked:0};workspaceDiscoveryNeeded=true;
+      lastWorkspaceUpload={id:target.id,revision:target.headRevisionId,payload:new Blob([JSON.stringify(verified)],{type:'application/json'})};
+      pendingWorkspaceUpload=null;remoteRevision=null;
+      lastSyncedVersion=global.WindsWorkspaceModel.equivalent(bridge.getData(),verified)?localVersion:-1;
+      lastSync=Date.now();syncDetails.uploaded=lastSync;if(transfer)syncDetails.uploadSize=transfer;
+      repairPending=false;transientFailures=0;syncDetails.error=null;syncDetails.failedStep=null;syncDetails.retrying=false;
+      message('Replacement sync file verified. Original Drive history is retained in recovery copies. Checking automatic sync next…');
+      publish('workspace-updated',{sub:profile.sub,revision:'repair:'+target.id});
+    }catch(error){
+      if(expected===generation){
+        workspaceDiscoveryNeeded=true;
+        message((error.syncDeferred?'Repair paused because notes or Drive changed. Choose Repair Drive sync to resume.':safeText(error.message))+ ' Original Drive files and local notebooks are retained.',true);
+        if(!error.syncDeferred)console.error('WiNDS Drive repair:',error);
+      }
+    }finally{if(expected===generation&&!finishOperation(expected))schedule(AUTO_POLL_MS);}
+  }
+  async function prepareWorkspacePayload(snapshot,expected,manual){
+    ensureIdle(expected,manual);
+    const plain=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
+    if(plain.size>MAX_BYTES)throw Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
+    let sent=plain;
+    if(compressUploads&&compressionAvailable&&plain.size>=MIN_COMPRESS_BYTES){
+      try{
+        const packed=await new global.Response(plain.stream().pipeThrough(new global.CompressionStream('gzip'))).blob();
+        if(packed.size<plain.size*.9)sent=packed.slice(0,packed.size,'application/gzip');
+      }catch{/* A failed compression can use the original JSON. */}
+    }
+    ensureIdle(expected,manual);return {plain,sent};
+  }
   async function syncWorkspace(expected,manual){
     await finishWorkspaceUpload(expected,manual);
     // Re-read latest Drive state before writing so another device's newly
@@ -1250,6 +1359,7 @@
     $('googleConnect').onclick=()=>connect();
     $('googleSwitchAccount').onclick=()=>connect(true);
     $('googleSync').onclick=()=>sync(true);
+    if($('googleRepairSync'))$('googleRepairSync').onclick=repairDriveSync;
     $('googleBackup').onclick=backup;
     $('googleRestore').onclick=browse;
     if($('googleBrowseShared'))$('googleBrowseShared').onclick=browseShared;
