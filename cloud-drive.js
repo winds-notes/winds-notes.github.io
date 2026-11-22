@@ -11,7 +11,7 @@
   const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-  const SYNC_RELEASE='121';
+  const SYNC_RELEASE='122';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
@@ -387,7 +387,7 @@
     if(url.includes('/upload/'))return 'Upload to Drive';
     if(method==='DELETE')return 'Clean up an old saved revision';
     if(/\/revisions\/[^/?]+/.test(url))return 'Download a saved revision';
-    if(url.includes('/revisions?'))return 'List saved revisions';
+    if(url.includes('/revisions?'))return url.includes('/drive/v2/')?'List saved revisions (compatibility API)':'List saved revisions';
     if(url.includes('alt=media'))return 'Download current file';
     if(/[?&]q=/.test(url))return 'Find Drive files';
     return 'Read file metadata';
@@ -734,13 +734,22 @@
     if(snapshot.syncVersion!==1||history?.fileId!==fileId||!Array.isArray(history.included)||history.included.length>200)return [];
     return history.included.filter(id=>typeof id==='string'&&id.length>0&&id.length<=200);
   }
-  async function listPinnedRevisions(fileId,expected,manual,pageSize=100){
-    const pinned=[];let page='';
+  async function listPinnedRevisions(fileId,expected,manual,pageSize=100,reader='v3'){
+    const pinned=[],seenPages=new Set();let page='';
     do{
-      const params=new URLSearchParams({fields:'nextPageToken,revisions(id,keepForever,modifiedTime)',pageSize:String(pageSize)});if(page)params.set('pageToken',page);
-      const response=await driveRequest(`${API}/${encodeURIComponent(fileId)}/revisions?${params}`,{},expected,manual);
-      const data=await readDriveJson(response,expected,manual);pinned.push(...(data.revisions||[]).filter(r=>r.keepForever));page=data.nextPageToken||'';
+      // Restart pagination when changing API readers: their tokens are not interchangeable.
+      const legacy=reader==='v2',api=legacy?'https://www.googleapis.com/drive/v2/files':API;
+      const fields=legacy?'nextPageToken,items(id,pinned,modifiedDate)':reader==='v3-full'?'nextPageToken,revisions':'nextPageToken,revisions(id,keepForever,modifiedTime)';
+      const params=new URLSearchParams({fields,[legacy?'maxResults':'pageSize']:String(pageSize)});if(page)params.set('pageToken',page);
+      const response=await driveRequest(`${api}/${encodeURIComponent(fileId)}/revisions?${params}`,{},expected,manual);
+      const data=await readDriveJson(response,expected,manual),rows=data[legacy?'items':'revisions'];
+      if(!Array.isArray(rows)||rows.some(r=>!r||typeof r.id!=='string'||!r.id||!Number.isFinite(Date.parse(r[legacy?'modifiedDate':'modifiedTime'])))||data.nextPageToken!==undefined&&typeof data.nextPageToken!=='string'){
+        const error=new Error('Google Drive returned an invalid saved-revision list. Local edits are queued safely.');error.operation='List saved revisions';throw error;
+      }
+      pinned.push(...rows.filter(r=>legacy?r.pinned:r.keepForever).map(r=>legacy?{id:r.id,keepForever:true,modifiedTime:r.modifiedDate}:r));page=data.nextPageToken||'';
       if(pinned.length>200)throw new Error('Too many protected workspace versions. Your local notes remain safe.');
+      if(page&&(seenPages.has(page)||seenPages.size>=200))throw new Error('Google Drive repeated or exceeded saved-revision pages. Local edits are queued safely.');
+      seenPages.add(page);
     }while(page);
     return pinned;
   }
@@ -782,7 +791,7 @@
     if(secondary&&!recoveryHistories.has(workspace.id))recoveryHistories.set(workspace.id,{id:workspace.id,revisions:new Map(),checked:0});
     const history=secondary?recoveryHistories.get(workspace.id):workspaceHistory,headId=workspace.headRevisionId;
     const before=localVersion;
-    const revisionList=listPinnedRevisions(workspace.id,expected,manual,history.revisionPageSize||100).then(pinned=>({pinned}),error=>({error}));
+    const revisionList=listPinnedRevisions(workspace.id,expected,manual,history.revisionPageSize||100,history.revisionReader||'v3').then(pinned=>({pinned}),error=>({error}));
     const headResult=await getWorkspaceHead(workspace,history,expected,manual);
     let headSaved=headResult.saved;
     // An immutable head can be saved and rendered immediately. Reconcile all
@@ -794,7 +803,15 @@
       if(lastWorkspaceUpload?.id===workspace.id&&lastWorkspaceUpload.revision===headId)lastWorkspaceUpload=null;
     }
     const {pinned,error}=await revisionList;
-    if(error){if(serverFailure(error))history.revisionPageSize=(history.revisionPageSize||100)>25?25:10;throw error;}
+    if(error){
+      if(serverFailure(error)){
+        history.revisionPageSize=(history.revisionPageSize||100)>25?25:10;
+        // Keep the normal exponential delay between attempts. Try a complete
+        // v3 projection, then Google's v2 equivalent; never skip history.
+        history.revisionReader=history.revisionReader==='v3-full'?'v2':history.revisionReader==='v2'?'v3':'v3-full';
+      }
+      throw error;
+    }
     ensureIdle(expected,manual);
     const headTime=Date.parse(workspace.modifiedTime);
     // Revision metadata can arrive after another device has uploaded. Do not
