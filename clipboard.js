@@ -15,9 +15,10 @@
   function plain(items){return items.length===1&&items[0].type==='text'?items[0].text:'WiNDS Notes selection';}
   const typing=target=>Boolean(target?.closest?.('input,textarea,select,[contenteditable="true"],[contenteditable=""]'));
   function close(){const open=!$('clipboardBackdrop').hidden;epoch++;pasteScope=null;$('clipboardBackdrop').hidden=true;$('clipboardText').value='';if(open){const target=pasteTrigger?.isConnected&&pasteTrigger.offsetParent!==null?pasteTrigger:$('moreOptionsBtn');if(target?.offsetParent!==null)target?.focus();}pasteTrigger=null;}
-  function clear(){memory=null;close();}
+  function clear(){memory=null;close();api?.changed?.();}
+  function hasCopy(account=api?.context().account){return Boolean(memory&&memory.account===account);}
   function store(items,scope){
-    const text=encode(items);memory={text,account:scope.account};return text;
+    const text=encode(items);memory={text,account:scope.account};api?.changed?.();return text;
   }
   function capture(){if(!api.enabled())throw Error('Open a notebook and finish the current interaction first.');const snapshot=api.capture();if(!snapshot)throw Error('Use Select to choose an object first.');return {...snapshot,text:store(snapshot.items||[snapshot.item],snapshot.scope)};}
   function same(scope){return api.matches(scope);}
@@ -135,6 +136,6 @@
       if(event.key==='Tab'){const controls=[...$('clipboardDialog').querySelectorAll('button,textarea')].filter(el=>!el.disabled),first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}
     };
   }
-  const exported=Object.freeze({init,copy,copyQuote,paste,clear,decode,encode,moveItems,MAX_BYTES,MAX_TEXT});
+  const exported=Object.freeze({init,copy,copyQuote,paste,hasCopy,clear,decode,encode,moveItems,MAX_BYTES,MAX_TEXT});
   if(typeof module!=='undefined'&&module.exports)module.exports=exported;global.WindsClipboard=exported;
 })(typeof window!=='undefined'?window:globalThis);

@@ -1862,7 +1862,11 @@
     const show=Boolean(!imageCropSession&&item&&['select','area'].includes(state.tool));
     const precision=show&&!group&&resizable(item);
     const math=precision&&item.type==='shape'&&CREATIVE.isMathShape(item.kind);
-    $('selectionActions').hidden=!show;
+    const copied=globalThis.WindsClipboard?.hasCopy?.(workspaceId);
+    $('selectionActions').hidden=!show&&(!copied||imageCropSession||$('editorView').hidden);
+    for(const id of ['copySelected','cutSelected','selectionMore'])$(id).hidden=!show;
+    $('pasteSelection').hidden=!show&&!copied;
+    $('pasteSelection').title=copied?'Paste copied selection on this page':'Paste from clipboard';
     $('clearAreaSelection').hidden=!show||!group;
     $('removeSelected').hidden=!show;
     $('selectionPrecision').hidden=!precision;
@@ -3255,12 +3259,15 @@
     remove.hidden=true;
     for(const element of [precision,clear,remove])element.setAttribute('data-command','');
     $('selectionMenuGroup').append(precision,clear,remove);
-    const follow=document.createElement('button');follow.id='followPageLink';follow.type='button';follow.hidden=true;follow.textContent='Open linked page';
-    const move=document.createElement('button'),copyTo=document.createElement('button');
-    move.id='moveSelectedPage';move.type=copyTo.type='button';move.textContent='Move to page…';
-    copyTo.id='copySelectedTo';copyTo.textContent='Copy to…';
-    move.onclick=()=>openSelectionTransfer(true);copyTo.onclick=()=>openSelectionTransfer(false);
-    $('selectionActions').replaceChildren($('graphControls'),$('vectorControls'),follow,$('copySelected'),$('cutSelected'),move,copyTo);
+    const follow=document.createElement('button');follow.id='followPageLink';follow.type='button';follow.hidden=true;
+    follow.innerHTML=icon('arrow');follow.title='Open linked page';follow.setAttribute('aria-label','Open linked page');
+    for(const [id,name,key] of [['copySelected','Copy','copy'],['cutSelected','Cut','cut']])$(id).innerHTML=icon(key)+`<span>${name}</span>`;
+    const paste=document.createElement('button'),more=document.createElement('button');
+    paste.id='pasteSelection';paste.type=more.type='button';paste.innerHTML=icon('clipboard')+'<span>Paste</span>';paste.setAttribute('aria-label','Paste on this page');
+    paste.onclick=()=>window.WindsClipboard.paste(window.WindsClipboard.hasCopy(workspaceId));
+    more.id='selectionMore';more.textContent='⋯';more.title='More selection actions';more.setAttribute('aria-label','More selection actions');more.setAttribute('aria-haspopup','dialog');
+    more.onclick=()=>openNotebookOptions({detail:0});
+    $('selectionActions').replaceChildren($('graphControls'),$('vectorControls'),follow,$('copySelected'),$('cutSelected'),paste,more);
   }
   function bind(){
     prepareToolbarActions();
@@ -3484,6 +3491,7 @@
     for(const type of ['gesturestart','gesturechange','gestureend'])$('pageScroller').addEventListener(type,e=>{if(e.cancelable)e.preventDefault();},{passive:false});
     ink.addEventListener('pointerdown',pointerDown);ink.addEventListener('pointermove',pointerMove);
     ink.addEventListener('pointerup',pointerUp);ink.addEventListener('pointercancel',pointerCancel);
+    initSelectionPageDrag(ink);
     for(const type of ['pointerdown','pointermove','pointerup','pointercancel','touchstart','touchmove','touchend'])
       window.addEventListener(type,recordInputEvent,{capture:true,passive:true});
     $('closePencilDiagnostics').onclick=()=>togglePencilDiagnostics(false);
@@ -3632,6 +3640,10 @@
       }else await interactionIdle();
       if(!clipboardMatches(gesture.scope))return;
       const p=page();
+      if(['select','areaMove'].includes(gesture.kind)&&gesture.pageDrop?.released&&gesture.dropMoved){
+        await interactionIdle();if(!clipboardMatches(gesture.scope))return;
+        if(dropSelectionOnPage(gesture))return;
+      }
       if(gesture.cancelledPreview){eraserPreview?.complete(gesture);eraserPreview?.invalidate();renderCanvas();return;}
       if(gesture.kind==='area'){
         if(!['area','select'].includes(state.tool))return;
@@ -3686,6 +3698,89 @@
 
   let clipboardPlacement=null;
   let selectionTransfer=null;
+  let selectionDropFrame=0,selectionDropGesture=null,selectionDropHighlight=null;
+  function selectionDropTarget(location){
+    const element=document.elementFromPoint(location.x,location.y);
+    if(!element||element.closest('.thumb-actions,.stack-page-delete,.stack-page-pdf-text,button:not(.stack-page-heading),dialog'))return null;
+    const thumb=element.closest('[data-thumbnail-page]'),card=element.closest('[data-stack-page]');
+    let book=notebook(),id=thumb?.dataset.thumbnailPage||card?.dataset.stackPage,body=thumb||card?.querySelector('.stack-page-body');
+    if(element.closest('#studyPdfSurface')){
+      const ref=globalThis.WindsStudy?.referencePage?.();
+      book=state.notebooks.find(b=>b.id===ref?.book);id=ref?.page;body=$('studyPdfSurface');
+    }
+    const target=book?.pages.find(p=>p.id===id);
+    if(!target||target===page()||!body)return null;
+    return {book,page:target,body,thumbnail:Boolean(thumb)};
+  }
+  function clearSelectionDrop(){
+    if(selectionDropFrame)cancelAnimationFrame(selectionDropFrame);selectionDropFrame=0;
+    selectionDropHighlight?.classList.remove('selection-drop-target');selectionDropHighlight=null;
+    const hint=$('selectionDropHint');if(hint)hint.hidden=true;
+  }
+  function selectionDropPreview(){
+    selectionDropFrame=0;const gesture=selectionDropGesture;
+    if(!gesture||state.drag!==gesture||state.pinch||!gesture.dropMoved||!clipboardMatches(gesture.scope)){clearSelectionDrop();return;}
+    const location=gesture.pageDrop,target=selectionDropTarget(location),hint=$('selectionDropHint');
+    if(selectionDropHighlight!==target?.body){selectionDropHighlight?.classList.remove('selection-drop-target');selectionDropHighlight=target?.body;selectionDropHighlight?.classList.add('selection-drop-target');}
+    const text=target?`${target.book===notebook()?'Move':'Copy'} to ${target.book===notebook()?'Page '+(target.book.pages.indexOf(target.page)+1):target.book.title}`:'Drag to another page';
+    if(hint.textContent!==text)hint.textContent=text;hint.hidden=false;
+    hint.style.transform=`translate3d(${Math.max(8,Math.min(innerWidth-190,location.x+16))}px,${Math.max(8,Math.min(innerHeight-52,location.y+18))}px,0)`;
+    for(const id of ['pageScroller','thumbList']){
+      const scroll=$(id),rect=scroll.getBoundingClientRect();
+      if(location.x<rect.left||location.x>rect.right||location.y<rect.top||location.y>rect.bottom)continue;
+      const margin=Math.min(64,rect.height/4),speed=location.y<rect.top+margin?-Math.min(16,(rect.top+margin-location.y)/3):location.y>rect.bottom-margin?Math.min(16,(location.y-rect.bottom+margin)/3):0;
+      if(speed){const before=scroll.scrollTop;scroll.scrollTop+=speed;if(scroll.scrollTop!==before)selectionDropFrame=requestAnimationFrame(selectionDropPreview);}
+    }
+  }
+  function initSelectionPageDrag(ink){
+    const hint=document.createElement('div');hint.id='selectionDropHint';hint.className='selection-drop-hint';hint.hidden=true;hint.setAttribute('role','status');document.body.append(hint);
+    // These listeners only sample coordinates. Target hit-testing and scrolling
+    // run in animation frames; object transfer runs in the deferred edit queue.
+    ink.addEventListener('pointerdown',event=>{
+      const gesture=state.drag;
+      if(gesture?.pointerId!==event.pointerId||!['select','areaMove'].includes(gesture.kind))return;
+      clearSelectionDrop();selectionDropGesture=gesture;gesture.dropStart={x:event.clientX,y:event.clientY};gesture.pageDrop={...gesture.dropStart,released:false};
+    },{passive:true});
+    for(const type of ['pointermove','pointerup'])ink.addEventListener(type,event=>{
+      const gesture=state.drag;
+      if(gesture!==selectionDropGesture||gesture?.pointerId!==event.pointerId||!gesture.dropStart)return;
+      gesture.pageDrop={x:event.clientX,y:event.clientY,released:type==='pointerup'};
+      if(Math.hypot(event.clientX-gesture.dropStart.x,event.clientY-gesture.dropStart.y)>=6)gesture.dropMoved=true;
+      if(type==='pointerup')clearSelectionDrop();
+      else if(gesture.dropMoved&&!selectionDropFrame)selectionDropFrame=requestAnimationFrame(selectionDropPreview);
+    },{capture:true,passive:true});
+    for(const type of ['pointercancel','lostpointercapture'])ink.addEventListener(type,event=>{
+      if(selectionDropGesture?.pointerId!==event.pointerId)return;
+      if(state.drag===selectionDropGesture&&state.drag?.pointerId===event.pointerId)state.drag.pageDrop=null;
+      clearSelectionDrop();
+    },{capture:true,passive:true});
+  }
+  function dropSelectionOnPage(gesture){
+    const drop=selectionDropTarget(gesture.pageDrop);
+    if(!drop){
+      const rect=$('inkCanvas').getBoundingClientRect(),{x,y}=gesture.pageDrop;
+      if(x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom)return false;
+      toast('Drop on a notebook page, page thumbnail or the side pane.');return true;
+    }
+    const originals=gesture.kind==='areaMove'?page().items.filter(item=>gesture.group.ids.has(item.id)):page().items.filter(item=>item.id===gesture.original.id);
+    if(!originals.length)return true;
+    const bounds=interactions.union(originals.map(clipboardBounds)),d=pageDimensions(drop.page),rect=drop.body.getBoundingClientRect();
+    const [x,y]=globalThis.WindsPdfText.turnPoint(Math.max(0,Math.min(1,(gesture.pageDrop.x-rect.left)/rect.width)),Math.max(0,Math.min(1,(gesture.pageDrop.y-rect.top)/rect.height)),(360-(drop.page.background?.turn||0))%360);
+    const grab=gesture.kind==='areaMove'?gesture.start:{x:gesture.startX,y:gesture.startY};
+    const position={x:x*d.width-(drop.thumbnail?bounds.w/2:grab.x-bounds.x),y:y*d.height-(drop.thumbnail?bounds.h/2:grab.y-bounds.y)};
+    const edit={move:drop.book===notebook(),scope:gesture.scope,source:page(),originals,items:clone(originals)};
+    const placed=performSelectionTransfer(edit,drop.book,drop.page,{position,deferred:true});
+    renderEditor();globalThis.WindsStudy?.refreshReference();toast(`${edit.move?'Moved':'Copied'} to ${drop.book.title} · Page ${drop.book.pages.indexOf(drop.page)+1}`);
+    const version=saveVersion;
+    const focus=()=>{
+      if(!clipboardMatches(gesture.scope)||saveVersion!==version)return;
+      if(state.pendingInteractions||inputBusy()){setTimeout(focus,80);return;}
+      navigateStudyPage(drop.book.id,drop.page.id);setTool('select');
+      if(placed.length>1)selectGroup(placed);else state.selected=drop.page.items.indexOf(placed[0]);renderCanvas();
+    };
+    if(drop.book===notebook())setTimeout(focus,0);
+    return true;
+  }
   function openSelectionTransfer(move){
     closeMenus();
     if(!clipboardEnabled())return;
@@ -3730,28 +3825,32 @@
     state.selected=-1;groupSelection=null;transferPageChanged(book,source);transferPageChanged(book,target);
     renderEditor();globalThis.WindsStudy?.refreshReference();return true;
   }
+  function performSelectionTransfer(edit,book,target,{position=null,deferred=false}={}){
+    if(!clipboardMatches(edit.scope)||page()!==edit.source||(deferred?inputBusy():!clipboardEnabled())||!target||edit.move&&(book!==notebook()||target===edit.source)||edit.originals.some((item,i)=>!edit.source.items.includes(item)||!globalThis.WindsWorkspaceModel.equal(item,edit.items[i])))throw Error('The selection or destination changed. Close this dialog and select it again.');
+    const dimensions=pageDimensions(target),bounds=interactions.union(edit.items.map(clipboardBounds));
+    const dx=Math.max(16,Math.min(position?.x??bounds.x,dimensions.width-bounds.w-16))-bounds.x,dy=Math.max(16,Math.min(position?.y??bounds.y,dimensions.height-bounds.h-16))-bounds.y;
+    let index=0;const placed=window.WindsClipboard.moveItems(edit.items,dx,dy,()=>edit.move?edit.items[index++].id:uid());
+    if(!edit.move)for(const item of placed)if(item.pageLink&&!item.pageLink.book)item.pageLink.book=edit.scope.book;
+    if(placed.some(item=>target.items.some(existing=>existing.id===item.id)))throw Error('An object with this ID already exists on the destination page.');
+    if(!edit.move&&window.WindsFile.serialize({...book,pages:book.pages.map(p=>p===target?{...p,items:[...p.items,...placed]}:p)}).length>window.WindsFile.MAX_FILE_BYTES)throw Error('The copied selection would take this notebook over 100 MB.');
+    if(!history.has(target.id))history.set(target.id,{undo:[],redo:[]});const h=history.get(target.id);
+    if(edit.move){
+      const sourceHistory=historyForPage(),action={kind:'transfer',account:workspaceId,book:book.id,source:edit.source.id,target:target.id,
+        originals:edit.originals.map((item,i)=>({item:clone(edit.items[i]),index:edit.source.items.indexOf(item)})).sort((a,b)=>a.index-b.index),
+        placed:placed.map((item,index)=>({item:clone(item),index:target.items.length+index}))};
+      for(const current of [sourceHistory,h]){current.undo.push(action);if(current.undo.length>70)current.undo.shift();current.redo=[];}
+      const ids=new Set(edit.originals.map(item=>item.id));edit.source.items=edit.source.items.filter(item=>!ids.has(item.id));
+      state.selected=-1;groupSelection=null;transferPageChanged(notebook(),edit.source);
+    }else{h.undo.push({kind:'snapshot',items:clone(target.items)});if(h.undo.length>70)h.undo.shift();h.redo=[];}
+    target.items.push(...placed);transferPageChanged(book,target);
+    if(!edit.move&&groupSelection&&clipboardMatches(groupSelection.scope))groupSelection.version=saveVersion;
+    return placed;
+  }
   function commitSelectionTransfer(){
     const edit=selectionTransfer;if(!edit)return;
     const book=state.notebooks.find(b=>b.id===$('transferSelectionBook').value),target=book?.pages.find(p=>p.id===$('transferSelectionPage').value);
     try{
-      if(!clipboardMatches(edit.scope)||page()!==edit.source||!clipboardEnabled()||!target||edit.move&&(book!==notebook()||target===edit.source)||edit.originals.some((item,i)=>!edit.source.items.includes(item)||!globalThis.WindsWorkspaceModel.equal(item,edit.items[i])))throw Error('The selection or destination changed. Close this dialog and select it again.');
-      const dimensions=pageDimensions(target),bounds=interactions.union(edit.items.map(clipboardBounds));
-      const dx=Math.max(16,Math.min(bounds.x,dimensions.width-bounds.w-16))-bounds.x,dy=Math.max(16,Math.min(bounds.y,dimensions.height-bounds.h-16))-bounds.y;
-      let index=0;const placed=window.WindsClipboard.moveItems(edit.items,dx,dy,()=>edit.move?edit.items[index++].id:uid());
-      if(!edit.move)for(const item of placed)if(item.pageLink&&!item.pageLink.book)item.pageLink.book=edit.scope.book;
-      if(placed.some(item=>target.items.some(existing=>existing.id===item.id)))throw Error('An object with this ID already exists on the destination page.');
-      if(!edit.move&&window.WindsFile.serialize({...book,pages:book.pages.map(p=>p===target?{...p,items:[...p.items,...placed]}:p)}).length>window.WindsFile.MAX_FILE_BYTES)throw Error('The copied selection would take this notebook over 100 MB.');
-      if(!history.has(target.id))history.set(target.id,{undo:[],redo:[]});const h=history.get(target.id);
-      if(edit.move){
-        const sourceHistory=historyForPage(),action={kind:'transfer',account:workspaceId,book:book.id,source:edit.source.id,target:target.id,
-          originals:edit.originals.map((item,i)=>({item:clone(edit.items[i]),index:edit.source.items.indexOf(item)})).sort((a,b)=>a.index-b.index),
-          placed:placed.map((item,index)=>({item:clone(item),index:target.items.length+index}))};
-        for(const current of [sourceHistory,h]){current.undo.push(action);if(current.undo.length>70)current.undo.shift();current.redo=[];}
-        const ids=new Set(edit.originals.map(item=>item.id));edit.source.items=edit.source.items.filter(item=>!ids.has(item.id));
-        state.selected=-1;groupSelection=null;transferPageChanged(notebook(),edit.source);
-      }else{h.undo.push({kind:'snapshot',items:clone(target.items)});if(h.undo.length>70)h.undo.shift();h.redo=[];}
-      target.items.push(...placed);transferPageChanged(book,target);
-      if(!edit.move&&groupSelection&&clipboardMatches(groupSelection.scope))groupSelection.version=saveVersion;
+      const placed=performSelectionTransfer(edit,book,target);
       const open=$('transferSelectionOpen').checked;$('transferSelectionDialog').close();selectionTransfer=null;
       globalThis.WindsPdfInk?.focusNotes();
       if(open){navigateStudyPage(book.id,target.id);setTool('select');if(placed.length>1)selectGroup(placed);else state.selected=target.items.indexOf(placed[0]);}
@@ -3818,6 +3917,7 @@
         const focused=target===document?document.activeElement:target;
         return focused?.closest?.('#studyPane')?window.WindsPdfStudy.captureQuote():null;
       },
+      changed:()=>{if(page()&&!$('editorView').hidden&&!inputBusy())updateSelectionActions();},
       insert:insertClipboardItems,toast});
   }
   function editableSelection(){return state.tool==='select'&&!activeGroup()?page()?.items[state.selected]:null;}
