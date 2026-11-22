@@ -13,12 +13,12 @@
 <link href="https://www.googleapis.com" rel="preconnect" crossorigin/>
 <link href="https://accounts.google.com" rel="preconnect"/>
 <!-- Appearance is applied before the stylesheets so dark mode never flashes. -->
-<script src="./theme.js?v=114"></script>
-<script src="./google-config.js?v=114"></script>
+<script src="./theme.js?v=115"></script>
+<script src="./google-config.js?v=115"></script>
 <link href="./assets/icon.svg" rel="icon" type="image/svg+xml"/>
 <link href="./assets/apple-touch-icon.png" rel="apple-touch-icon"/>
-<link href="./styles.css?v=114" rel="stylesheet"/>
-<link href="./dark.css?v=114" rel="stylesheet"/>
+<link href="./styles.css?v=115" rel="stylesheet"/>
+<link href="./dark.css?v=115" rel="stylesheet"/>
 <title>WiNDS Notes — Your ideas, beautifully kept.</title>
 </head>
 <body>
@@ -45,7 +45,7 @@
 <button aria-label="Back to notebooks" class="icon-button header-back" id="goLibrary" title="Back to notebooks"></button>
 <div class="notebook-title-wrap">
 <input aria-label="Notebook name" id="notebookTitle" maxlength="70" title="Rename notebook"/>
-<span class="save-status" id="saveStatus">Saved</span>
+<span class="save-status" id="saveStatus" role="status" aria-live="polite" aria-atomic="true" title="Saved on this device. Open Google Drive to check cloud synchronization.">Saved locally</span>
 </div>
 <span aria-hidden="true" class="header-divider book-divider"></span>
 <button aria-label="Open page thumbnails" aria-pressed="false" class="tool-button pages-toggle" id="togglePages" title="Open page thumbnails"></button>
@@ -102,7 +102,7 @@
 </div>
 <button aria-label="Add a page" class="icon-button add-page-top" id="addPageTop" title="Add a page"></button>
 <span aria-hidden="true" class="header-divider right-divider"></span>
-<button aria-expanded="false" aria-label="Notebook options" class="icon-button" id="moreOptionsBtn" aria-controls="moreMenu" aria-haspopup="dialog" title="Notebook options"></button>
+<button aria-expanded="false" aria-label="Notebook options" class="icon-button" id="moreOptionsBtn" aria-controls="moreMenu" aria-haspopup="dialog" aria-keyshortcuts="Control+k Meta+k" title="Notebook options · Find an action with ⌘ / Ctrl K"></button>
 <button aria-expanded="false" aria-label="Export PDF or image" class="btn btn-primary btn-export" id="exportBtn" aria-controls="exportMenu" title="Export PDF or image"><span id="exportIcon"></span><span>Export</span></button>
 </div>
 <span class="sr-only" id="pageBreadcrumb">Page 1 of 1</span>
@@ -174,6 +174,14 @@
       <button type="button" data-action="reference" data-command data-icon="pages" data-keywords="study side by side reference pdf figure">Study beside a PDF…</button>
       <button type="button" data-action="studyCards" data-command data-icon="paper" data-keywords="flashcards review due spaced repetition">Study cards…</button>
       <button type="button" data-action="present" data-command data-icon="pages" data-keywords="presentation projector laser reveal fullscreen">Present notebook…</button>
+    </section>
+    <section data-command-group>
+      <h3>Coloring &amp; art</h3>
+      <button type="button" data-action="artist" data-command data-icon="artist" data-keywords="brush pencil graphite ink paint watercolor materials">Artist Studio…</button>
+      <button type="button" data-action="mandalas" data-command data-icon="star" data-keywords="mandala coloring colour coloring pages animals cat relax">Mandala coloring pages…</button>
+      <button type="button" data-action="colorNumber" data-command data-icon="circle" data-keywords="color colour by number numbered dots circles hidden picture">Color by number…</button>
+      <button type="button" data-action="eyedropper" data-command data-icon="eyedropper" data-keywords="pick sample color colour eyedropper pipette">Pick color from page</button>
+      <button type="button" data-action="fill" data-command data-icon="diamond" data-keywords="bucket fill closed boundaries color colour">Fill closed areas</button>
     </section>
     <section data-command-group>
       <h3>Notebook</h3>
@@ -361,7 +369,7 @@
   </section>
 </div>
 <div class="pop-menu theme-menu" id="themeMenu" hidden="" role="menu" aria-label="Theme"><div class="menu-heading">THEME</div><button type="button" role="menuitemradio" data-theme-mode="system" aria-checked="true"><span class="theme-swatch theme-swatch-system" aria-hidden="true"></span>Match device</button><button type="button" role="menuitemradio" data-theme-mode="light" aria-checked="false"><span class="theme-swatch theme-swatch-light" aria-hidden="true"></span>Light</button><button type="button" role="menuitemradio" data-theme-mode="dark" aria-checked="false"><span class="theme-swatch theme-swatch-dark" aria-hidden="true"></span>Dark</button><p class="theme-menu-hint">Pages stay white, so your writing and exports look the same.</p></div>
-<dialog class="shortcuts-dialog" id="shortcutsDialog" aria-labelledby="shortcutsTitle"><header><h2 id="shortcutsTitle">Keyboard shortcuts</h2><button type="button" class="cloud-close" id="shortcutsClose" aria-label="Close keyboard shortcuts">×</button></header><p class="shortcuts-intro">For iPad with a keyboard, or a laptop.</p><dl class="shortcuts-list"><div><dt><kbd>P</kbd></dt><dd>Pen</dd></div><div><dt><kbd>H</kbd></dt><dd>Highlighter</dd></div><div><dt><kbd>E</kbd></dt><dd>Eraser</dd></div><div><dt><kbd>R</kbd></dt><dd>Shapes (last used)</dd></div><div><dt><kbd>T</kbd></dt><dd>Text</dd></div><div><dt><kbd>V</kbd></dt><dd>Select</dd></div><div><dt><kbd>L</kbd></dt><dd>Select handwriting area</dd></div><div><dt><kbd>S</kbd></dt><dd>Scroll pages</dd></div><div><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd></div><div><dt><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd></dt><dd>Redo</dd></div><div><dt><kbd>⌘</kbd> <kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>Copy, cut, paste</dd></div><div><dt><kbd>Delete</kbd></dt><dd>Delete selection</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close menus, clear selection</dd></div><div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div></dl></dialog>
+<dialog class="shortcuts-dialog" id="shortcutsDialog" aria-labelledby="shortcutsTitle"><header><h2 id="shortcutsTitle">Keyboard shortcuts</h2><button type="button" class="cloud-close" id="shortcutsClose" aria-label="Close keyboard shortcuts">×</button></header><p class="shortcuts-intro">For iPad with a keyboard, or a laptop.</p><dl class="shortcuts-list"><div><dt><kbd>⌘ / Ctrl</kbd> <kbd>K</kbd></dt><dd>Find a tool or action</dd></div><div><dt><kbd>I</kbd></dt><dd>Eyedropper</dd></div><div><dt><kbd>F</kbd></dt><dd>Fill closed areas</dd></div><div><dt><kbd>P</kbd></dt><dd>Pen</dd></div><div><dt><kbd>H</kbd></dt><dd>Highlighter</dd></div><div><dt><kbd>E</kbd></dt><dd>Eraser</dd></div><div><dt><kbd>R</kbd></dt><dd>Shapes (last used)</dd></div><div><dt><kbd>T</kbd></dt><dd>Text</dd></div><div><dt><kbd>V</kbd></dt><dd>Select</dd></div><div><dt><kbd>L</kbd></dt><dd>Select handwriting area</dd></div><div><dt><kbd>S</kbd></dt><dd>Scroll pages</dd></div><div><dt><kbd>⌘</kbd> <kbd>Z</kbd></dt><dd>Undo</dd></div><div><dt><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>Z</kbd></dt><dd>Redo</dd></div><div><dt><kbd>⌘</kbd> <kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd></dt><dd>Copy, cut, paste</dd></div><div><dt><kbd>Delete</kbd></dt><dd>Delete selection</dd></div><div><dt><kbd>Esc</kbd></dt><dd>Close menus, clear selection</dd></div><div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div></dl></dialog>
 <div class="cloud-backdrop" id="sharedAccessBackdrop" hidden><section class="cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="sharedAccessTitle"><button class="cloud-close" id="sharedAccessClose" aria-label="Close shared notebook access">×</button><h2 id="sharedAccessTitle">Open your shared notebook</h2><p id="sharedAccessMessage" class="cloud-description"></p><p id="sharedAccessStatus" class="cloud-message" role="status"></p><div class="cloud-actions"><a id="sharedAccessDrive" class="btn btn-outline" target="_blank" rel="noopener noreferrer">Check access in Google Drive</a><button id="sharedAccessAuthorize" class="btn btn-primary">Authorize this notebook</button><button id="sharedAccessCopy" class="btn btn-outline" hidden>Share a new independent copy</button><button id="sharedAccessRetry" class="btn btn-outline">Retry opening notebook</button></div></section></div>
 <div class="cloud-backdrop" id="cloudBackdrop" hidden>
   <section class="cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
@@ -562,34 +570,34 @@
   <div class="presentation-surface"><canvas id="presentationCanvas" aria-label="Presented notebook page"></canvas><span id="presentationLaser" class="presentation-laser" hidden></span></div>
   <div class="presentation-nav"><button id="presentStagePrev" class="btn btn-outline" type="button">Previous page</button><button id="presentStageReveal" class="btn btn-outline" type="button">Reveal next</button><button id="presentStageNext" class="btn btn-outline" type="button">Next page</button><button id="presentStageClose" class="btn btn-primary" type="button">Back to controls</button></div>
 </div>
-<script src="./mandala-art.js?v=114"></script>
-<script src="./color-number.js?v=114"></script>
-<script src="./svg-stickers.js?v=114"></script>
-<script src="./creative-tools.js?v=114"></script>
-<script src="./graph-tools.js?v=114"></script>
-<script src="./vector-tools.js?v=114"></script>
-<script src="./interaction-tools.js?v=114"></script>
-<script src="./selection-preview.js?v=114"></script>
-<script src="./eraser-preview.js?v=114"></script>
-<script src="./page-stack.js?v=114"></script>
-<script src="./workspace-model.js?v=114"></script>
-<script src="./text-tools.js?v=114"></script>
-<script src="./pdf-export.js?v=114"></script>
-<script src="./pdf-import.js?v=114"></script>
-<script src="./pdf-text.js?v=114"></script>
-<script src="./native-file.js?v=114"></script>
-<script src="./clipboard.js?v=114"></script>
-<script src="./shared-notebook-model.js?v=114"></script>
-<script src="./notebook-sharing.js?v=114"></script>
-<script src="./live-sync.js?v=114"></script>
+<script src="./mandala-art.js?v=115"></script>
+<script src="./color-number.js?v=115"></script>
+<script src="./svg-stickers.js?v=115"></script>
+<script src="./creative-tools.js?v=115"></script>
+<script src="./graph-tools.js?v=115"></script>
+<script src="./vector-tools.js?v=115"></script>
+<script src="./interaction-tools.js?v=115"></script>
+<script src="./selection-preview.js?v=115"></script>
+<script src="./eraser-preview.js?v=115"></script>
+<script src="./page-stack.js?v=115"></script>
+<script src="./workspace-model.js?v=115"></script>
+<script src="./text-tools.js?v=115"></script>
+<script src="./pdf-export.js?v=115"></script>
+<script src="./pdf-import.js?v=115"></script>
+<script src="./pdf-text.js?v=115"></script>
+<script src="./native-file.js?v=115"></script>
+<script src="./clipboard.js?v=115"></script>
+<script src="./shared-notebook-model.js?v=115"></script>
+<script src="./notebook-sharing.js?v=115"></script>
+<script src="./live-sync.js?v=115"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
-<script defer src="./cloud-drive.js?v=114"></script>
-<script defer src="./boundary-fill.js?v=114"></script>
-<script defer src="./mandala-tools.js?v=114"></script>
-<script defer src="./pdf-study.js?v=114"></script>
-<script defer src="./pdf-ink.js?v=114"></script>
-<script defer src="./study-tools.js?v=114"></script>
-<script defer src="./study-cards.js?v=114"></script>
-<script defer="" src="./app.js?v=114"></script>
+<script defer src="./cloud-drive.js?v=115"></script>
+<script defer src="./boundary-fill.js?v=115"></script>
+<script defer src="./mandala-tools.js?v=115"></script>
+<script defer src="./pdf-study.js?v=115"></script>
+<script defer src="./pdf-ink.js?v=115"></script>
+<script defer src="./study-tools.js?v=115"></script>
+<script defer src="./study-cards.js?v=115"></script>
+<script defer="" src="./app.js?v=115"></script>
 </body>
 </html>
