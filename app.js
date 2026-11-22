@@ -395,9 +395,10 @@
     // A writing burst has a single pending state; there are NO writes between letters.
     if($('saveStatus').textContent!=='Unsaved changes')statusText('Unsaved changes',true);
     clearTimeout(state.saveTimer);
-    state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);
+    state.saveTimer=setTimeout(()=>saveNow(),saveIdleDelay());
     if(changedPage&&state.tool==='eraser')queueEraserPreparation();
   }
+  function saveIdleDelay(){return window.WindsDrive?.automatic?.()?650:SAVE_IDLE_MS;}
   let saveTask=null,lastTimedEditAt=0;
   async function saveNow(force=false,fromDrive=false,remoteChanges=null){
     clearTimeout(state.saveTimer);
@@ -406,8 +407,10 @@
       // Explicit saves must finish before an account can close this database.
       await saveTask?.catch(()=>{});
     }
-    if(!force && (state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<SAVE_IDLE_MS-100)){
-      const remaining=Math.max(1000,SAVE_IDLE_MS-(Date.now()-lastInkAt));
+    const quiet=saveIdleDelay();
+    const active=state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen();
+    if(!force && (active||Date.now()-lastInkAt<quiet)){
+      const remaining=Math.max(active?quiet:100,quiet-(Date.now()-lastInkAt));
       state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
     }
     if(!dirtyAll && !dirtyBooks.size && !dirtyPages.size)return;
@@ -423,7 +426,7 @@
       saveTask=full?writeData({version:2,notebooks:state.notebooks}):writeChanged(bookIds,pageIds,remoteChanges?.removedBooks,remoteChanges?.removedPages);
       await saveTask;
       if(version===saveVersion)statusText('Saved');
-      else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),SAVE_IDLE_MS);}
+      else{statusText('Unsaved changes',true);clearTimeout(state.saveTimer);state.saveTimer=setTimeout(()=>saveNow(),saveIdleDelay());}
       globalThis.WindsStudy?.refreshReference?.();
       // Receiving a remote edit is not a new local edit. The merge reports
       // whether this device has additional content that needs uploading.
@@ -512,8 +515,9 @@
     return {format:'winds-notes-backup',version:2,exportedAt:now(),syncVersion:1,notebooks:state.notebooks,deleted:tombstones};
   }
   function cloudSyncDelay(){
-    if(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return CLOUD_IDLE_MS;
-    const remaining=CLOUD_IDLE_MS-(Date.now()-lastInkAt);
+    const quiet=globalThis.WindsDrive?.automatic?.()?650:CLOUD_IDLE_MS;
+    if(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return quiet;
+    const remaining=quiet-(Date.now()-lastInkAt);
     if(remaining>0)return remaining;
     return saving||dirtyAll||dirtyBooks.size||dirtyPages.size?1000:0;
   }
@@ -4358,7 +4362,7 @@
       getData:workspaceSnapshot,
       switchWorkspace,
       mergeWorkspace,
-      isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<CLOUD_IDLE_MS),
+      isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<saveIdleDelay()),
       isDrawingNow:()=>Boolean(state.drag||state.pinch),
       isEditing:()=>Boolean(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,

@@ -65,7 +65,7 @@
     return `p50 ${percentile(.5)} ms · p95 ${percentile(.95)} ms · ${samples.length} samples`;
   }
   let workspaceHistory={id:null,revisions:new Map(),checked:0};
-  let lastWorkspaceUpload=null;
+  let lastWorkspaceUpload=null,pendingWorkspaceUpload=null;
   const connected=()=>Boolean(token&&profile&&Date.now()<expires-30000);
   const safeText=s=>String(s||'').replace(/[\u0000-\u001F]/g,' ').slice(0,110);
   function currentLogoutStamp(sub){
@@ -135,7 +135,7 @@
   function nextSession(){
     generation++;clearTimeout(timer);clearTimeout(renewalTimer);
     restorePending=false;
-    workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=null;
+    workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=pendingWorkspaceUpload=null;
     syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null};
     timingSamples.clear();
     transientFailures=0;rateLimitedUntil=0;
@@ -375,7 +375,7 @@
   function isRateLimited(error){
     return error.status===429||error.status===403&&['rateLimitExceeded','userRateLimitExceeded'].includes(error.reason);
   }
-  async function driveRequest(url,options={},expected=generation,manual=false){
+  async function driveRequest(url,options={},expected=generation,manual=false,retainWriteResponse=false){
     ensureIdle(expected,manual);
     const headers=new Headers(options.headers||{});
     headers.set('Authorization',`Bearer ${token}`);
@@ -396,6 +396,7 @@
       if(deadline?.signal.aborted)throw driveTimeout();
       throw error;
     }finally{if(watchdog!==null)clearTimeout(watchdog);}
+    if(retainWriteResponse&&!reading&&response.ok){ensureSession(expected);return response;}
     ensureIdle(expected,manual);
     pollSignal?.throwIfAborted();
     if(pollSignal)pollResponseSignals.set(response,pollSignal);
@@ -866,7 +867,7 @@
       ],{type:`multipart/related; boundary=${boundary}`});
       result=await driveRequest(target+'?uploadType=multipart&fields='+fields,{
         method:oldId?'PATCH':'POST',headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body
-      },expected,manual);
+      },expected,manual,name===WORKSPACE_NAME);
     }else{
       const init=await driveRequest(target+'?uploadType=resumable&fields='+fields,{
         method:oldId?'PATCH':'POST',
@@ -875,11 +876,35 @@
       },expected,manual);
       const location=init.headers.get('Location');
       if(!location||!location.startsWith('https://www.googleapis.com/'))throw new Error('Drive did not provide an authorized upload URL.');
-      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':blob.type},body:blob},expected,manual);
+      result=await driveRequest(location,{method:'PUT',headers:{'Content-Type':blob.type},body:blob},expected,manual,name===WORKSPACE_NAME);
     }
-    return readDriveJson(result,expected,manual);
+    return name===WORKSPACE_NAME?result:readDriveJson(result,expected,manual);
+  }
+  async function finishWorkspaceUpload(expected,manual){
+    const pending=pendingWorkspaceUpload;if(!pending)return;
+    ensureIdle(expected,manual);
+    if(pending.expected!==expected)throw deferSync('The Google account changed while an upload completed.');
+    let created;
+    try{
+      // Keep the original acknowledgement if input resumes during this tiny
+      // metadata read. It must not force another full notebook download.
+      created=await readDriveJson(pending.response.clone(),expected,manual);
+      ensureIdle(expected,manual);
+      if(!created?.id)throw Error('Google Drive did not confirm the uploaded workspace.');
+    }catch(error){if(!error.syncDeferred)pendingWorkspaceUpload=null;throw error;}
+    pendingWorkspaceUpload=null;
+    recordTiming('driveUpload',pending.elapsed);
+    syncDetails.uploadSize={plain:pending.plain.size,sent:pending.sent};
+    activeId=created.id;
+    lastWorkspaceUpload=created.headRevisionId?{id:created.id,revision:created.headRevisionId,payload:pending.plain}:null;
+    remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
+    lastSync=Date.now();syncDetails.uploaded=lastSync;lastSyncedVersion=pending.version;
+    publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
+    if(manual){message(`Synced ${pending.count} notebook${pending.count===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
+    else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
   }
   async function syncWorkspace(expected,manual){
+    await finishWorkspaceUpload(expected,manual);
     // Re-read latest Drive state before writing so another device's newly
     // created notebooks are not inadvertently overwritten.
     await refreshFromDrive(expected,manual);
@@ -922,20 +947,13 @@
     if(versionAtStart!==localVersion){
       const error=new Error('More local edits were saved while preparing this upload.');error.syncDeferred=true;throw error;
     }
-    const created=await upload(WORKSPACE_NAME,payload,activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
-    ensureIdle(expected,manual);
-    recordTiming('driveUpload',Date.now()-uploadStarted);
-    syncDetails.uploadSize={plain:plain.size,sent:payload.size};
-    activeId=created.id;
-    // Cache exact uploaded bytes. Notes may have changed while Drive was
-    // saving, so the original in-memory snapshot is unsuitable here.
-    lastWorkspaceUpload=created.headRevisionId?{id:created.id,revision:created.headRevisionId,payload:plain}:null;
-    // The revision-based reader will verify this upload's head on the next poll.
-    remoteRevision=created.modifiedTime?`${created.id}:${created.modifiedTime}`:null;
-    lastSync=Date.now();syncDetails.uploaded=lastSync;lastSyncedVersion=versionAtStart;
-    publish('workspace-updated',{sub:profile.sub,revision:remoteRevision});
-    if(manual){message(`Synced ${count} notebook${count===1?'':'s'} to ${profile.email}'s Google Drive.`);bridge.toast('Your Google Drive workspace is up to date');}
-    else message(`Notebook changes synced automatically to ${profile.email}'s Google Drive.`);
+    const response=await upload(WORKSPACE_NAME,payload,activeId,{windsNotesWorkspace:'1',windsNotesVersion:'2'},expected,manual);
+    ensureSession(expected);
+    // A successful in-flight upload may finish while the Pencil is down.
+    // Retain only its response and the exact bytes prepared before the request;
+    // parse/confirm them at the next idle opportunity, in this account only.
+    pendingWorkspaceUpload={expected,response,version:versionAtStart,plain,sent:payload.size,count,elapsed:Date.now()-uploadStarted};
+    await finishWorkspaceUpload(expected,manual);
   }
   async function sync(manual=false){
     if(syncing){if(manual)queueAfterSync(()=>sync(true));return;}
@@ -1175,5 +1193,6 @@
     initSessionChannel();
     await restoreSession();
   }
-  global.WindsDrive=Object.freeze({init,open,onLocalSave,recordTiming});
+  function automatic(){return Boolean(auto&&profile&&!signingIn&&!remoteSignedOut&&!authorizationRequired&&global.navigator?.onLine!==false&&!document.hidden&&(connected()||SERVER_AUTH));}
+  global.WindsDrive=Object.freeze({init,open,onLocalSave,recordTiming,automatic});
 })(window);
