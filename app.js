@@ -408,9 +408,9 @@
       await saveTask?.catch(()=>{});
     }
     const quiet=saveIdleDelay();
-    const active=state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen();
-    if(!force && (active||Date.now()-lastInkAt<quiet)){
-      const remaining=Math.max(active?quiet:100,quiet-(Date.now()-lastInkAt));
+    const active=state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen(),scrolling=globalThis.WindsPageStack?.isScrolling?.();
+    if(!force && (active||scrolling||Date.now()-lastInkAt<quiet)){
+      const remaining=Math.max(active?quiet:scrolling?180:100,quiet-(Date.now()-lastInkAt));
       state.saveTimer=setTimeout(()=>saveNow(),remaining);return;
     }
     if(!dirtyAll && !dirtyBooks.size && !dirtyPages.size)return;
@@ -516,6 +516,7 @@
   }
   function cloudSyncDelay(){
     const quiet=globalThis.WindsDrive?.automatic?.()?650:CLOUD_IDLE_MS;
+    if(globalThis.WindsPageStack?.isScrolling?.())return 180;
     if(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return quiet;
     const remaining=quiet-(Date.now()-lastInkAt);
     if(remaining>0)return remaining;
@@ -854,7 +855,7 @@
     for(const [id,record] of thumbnailCards){record.canvas.width=record.canvas.height=1;thumbnailDirty.add(id);}
     thumbnailsDirty=true;
   }
-  function thumbnailBusy(){return inputBusy()||state.pendingInteractions||state.widthAdjustment||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<350;}
+  function thumbnailBusy(){return inputBusy()||state.pendingInteractions||state.widthAdjustment||globalThis.WindsPageStack?.isScrolling?.()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<350;}
   function queueThumbnailPreview(){
     if(thumbnailPaintTimer||!state.sidebarOpen||$('editorView').hidden)return;
     thumbnailPaintTimer=setTimeout(paintThumbnailPreview,40);
@@ -1062,12 +1063,18 @@
     const check=()=>{
       if(boundaryFillSession!==session||!clipboardMatches(session.scope)||saveVersion!==session.version||$('editorView').hidden)throw Error('The page changed. Choose Fill and try again.');
     };
-    const pause=async()=>{
-      await delay(0);check();
-      while(inputBusy()||state.pendingInteractions){await delay(80);check();}
+    const fillBusy=()=>Boolean(state.drag||state.pinch||state.editingText||session.pointers?.size||state.pendingInteractions||imageCropSession);
+    let yieldedAt=Date.now();
+    const pause=async(force=false)=>{
+      check();
+      if(force||fillBusy()||Date.now()-yieldedAt>=6){
+        await delay(0);check();
+        while(fillBusy()){await delay(16);check();}
+        yieldedAt=Date.now();
+      }
     };
     try{
-      await pause();
+      await pause(true);
       const target=page(),dimensions=pageDimensions(target);
       if(session.pickColor){
         const choice=session.pickColor;
@@ -1084,7 +1091,6 @@
       const ctx=surface.getContext('2d',{willReadFrequently:true});
       if(!ctx)throw Error('Not enough canvas memory. Close another notebook tab and try again.');
       // Editable paths retain their geometry and color after a fill.
-      let yieldedAt=Date.now();
       for(let i=target.items.length-1;i>=0;i--){
         // Yield for elapsed work, rather than adding a timer for every 32
         // tiny circles. Large coloring grids should not pay dozens of delays.
@@ -1101,10 +1107,10 @@
           if(region){
             const colors={...item.stickerColors};
             if((colors[region.index]||region.fill)!==session.color){
-              remember();
               if(region.fill===session.color)delete colors[region.index];else colors[region.index]=session.color;
-              if(Object.keys(colors).length)item.stickerColors=colors;else delete item.stickerColors;
-              scheduleSave();renderThumbs();renderCanvas();
+              editFillProperties(item,{stickerColors:Object.keys(colors).length?colors:undefined});
+              delete session.surfaceCache;
+              scheduleSave();renderThumbs();paintFillRegion(rotationPaintBounds(item));
             }
             toast('Sticker region colored');return;
           }
@@ -1114,32 +1120,43 @@
         if(local.x<Math.min(item.x,item.x+item.w)||local.x>Math.max(item.x,item.x+item.w)||local.y<Math.min(item.y,item.y+item.h)||local.y>Math.max(item.y,item.y+item.h))continue;
         CREATIVE.shapePath(ctx,item);
         if(ctx.isPointInPath(local.x,local.y)){
-          if(item.fillColor!==session.color||item.fillOpacity!==session.opacity){remember();item.fillColor=session.color;item.fillOpacity=session.opacity;scheduleSave();renderThumbs();}
-          renderCanvas();toast('Closed shape filled · Fill remains selected');return;
+          if(item.fillColor!==session.color||item.fillOpacity!==session.opacity){
+            editFillProperties(item,{fillColor:session.color,fillOpacity:session.opacity});delete session.surfaceCache;
+            scheduleSave();renderThumbs();paintFillRegion(rotationPaintBounds(item));
+          }
+          toast('Closed shape filled · Fill remains selected');return;
         }
       }
       // Notebook ruling and PDF backgrounds are not barriers. Color stays below ink.
-      surface.width=dimensions.width;surface.height=dimensions.height;
-      for(let i=0;i<target.items.length;i++){
-        if(i%16===0)await pause();
-        const item=target.items[i];if(item.boundaryFill)continue;
-        if(item.type==='image'){
-          let image=imageCache.get(item.src);
-          if(!image){image=new Image();image.src=item.src;imageCache.set(item.src,image);}
-          if(!image.complete||!image.naturalWidth)await image.decode();
+      let cache=session.surfaceCache;
+      if(!cache||cache.page!==target||cache.version!==saveVersion||cache.width!==dimensions.width||cache.height!==dimensions.height){
+        surface.width=dimensions.width;surface.height=dimensions.height;
+        for(let i=0;i<target.items.length;i++){
           await pause();
+          const item=target.items[i];if(item.boundaryFill)continue;
+          if(item.type==='image'){
+            let image=imageCache.get(item.src);
+            if(!image){image=new Image();image.src=item.src;imageCache.set(item.src,image);}
+            if(!image.complete||!image.naturalWidth)await image.decode();
+            await pause();
+          }
+          drawItem(ctx,item);
         }
-        drawItem(ctx,item);
+        await pause();
+        cache=session.surfaceCache={page:target,version:saveVersion,width:surface.width,height:surface.height,pixels:ctx.getImageData(0,0,surface.width,surface.height).data,regions:[]};
       }
-      await pause();
-      const area=await globalThis.WindsBoundaryFill.region(ctx.getImageData(0,0,surface.width,surface.height).data,surface.width,surface.height,point.x,point.y,pause);
+      const px=Math.floor(point.x),py=Math.floor(point.y);
+      if(px>=0&&py>=0&&px<cache.width&&py<cache.height&&cache.pixels[(py*cache.width+px)*4+3]>=12)throw Error('Tap inside the boundary, away from its line.');
+      let region=cache.regions.find(record=>{const a=record.area,x=px-a.x,y=py-a.y;return x>=0&&y>=0&&x<a.w&&y<a.h&&a.mask[y*a.w+x]===1;});
+      const area=region?.area||await globalThis.WindsBoundaryFill.region(cache.pixels,cache.width,cache.height,point.x,point.y,pause);
+      if(!region){region={area};cache.regions.unshift(region);while(cache.regions.length>8||cache.regions.reduce((n,r)=>n+r.area.mask.length,0)>2000000)cache.regions.pop();}
       const rgba=await globalThis.WindsBoundaryFill.colorize(area,session.color,session.opacity,pause);
       output=document.createElement('canvas');output.width=area.w;output.height=area.h;
       const layer=output.getContext('2d',{willReadFrequently:true});
       if(!layer)throw Error('Not enough canvas memory to fill this area.');
       // Recolor a previous fill of this exact region rather than stacking colors.
-      let previous=null;
-      for(const item of target.items){
+      let previous=target.items.find(item=>item.id===region.itemId&&item.src===region.src&&!item.rotation&&!item.crop&&!item.erasures?.length&&item.x===area.x&&item.y===area.y&&item.w===area.w&&item.h===area.h);
+      for(const item of previous?[]:target.items){
         if(!item.boundaryFill||item.rotation||item.crop||item.erasures?.length||item.x!==area.x||item.y!==area.y||item.w!==area.w||item.h!==area.h)continue;
         const image=new Image();image.src=item.src;await image.decode();await pause();
         layer.clearRect(0,0,area.w,area.h);layer.drawImage(image,0,0);
@@ -1148,16 +1165,17 @@
       const data=layer.createImageData(area.w,area.h);data.data.set(rgba);layer.putImageData(data,0,0);
       const src=output.toDataURL('image/png'),image=new Image();image.src=src;await image.decode();await pause();
       if(!previous||previous.src!==src){
-        remember();
-        if(previous){imageCache.delete(previous.src);previous.src=src;}
+        let changed;
+        if(previous){changed={...previous,src};rememberFillObject(previous,changed,target.items.indexOf(previous));imageCache.delete(previous.src);previous.src=src;}
         else{
           const item={id:uid(),type:'image',boundaryFill:true,x:area.x,y:area.y,w:area.w,h:area.h,src};
           const index=target.items.findIndex(item=>!item.boundaryFill);
-          target.items.splice(index<0?target.items.length:index,0,item);
+          const at=index<0?target.items.length:index;rememberFillObject(null,item,at);target.items.splice(at,0,item);changed=item;
         }
         imageCache.set(src,image);scheduleSave();renderThumbs();
+        cache.version=saveVersion;region.itemId=changed.id;region.src=src;paintFillRegion(rotationPaintBounds(changed));
       }
-      renderCanvas();toast('Closed area filled · tap another section or change color');
+      toast('Closed area filled · tap another section or change color');
     }catch(error){
       if(boundaryFillSession===session){
         if(saveVersion!==session.version)session.queue=[];
@@ -1549,6 +1567,31 @@
     h.undo.push(action);if(h.undo.length>70)h.undo.shift();h.redo=[];updateHistoryButtons();
   }
   function remember(){recordHistory({kind:'snapshot',items:clone(page().items)});}
+  function editFillProperties(item,patch){
+    const before={},after={};
+    for(const [key,value] of Object.entries(patch)){
+      if(Object.prototype.hasOwnProperty.call(item,key)&&item[key]!==undefined)before[key]=item[key];
+      if(value!==undefined)after[key]=value;
+    }
+    recordHistory({kind:'properties',id:item.id,before:clone(before),after:clone(after)});
+    for(const key of Object.keys(patch)){if(patch[key]===undefined)delete item[key];else item[key]=patch[key];}
+  }
+  function rememberFillObject(before,after,index){recordHistory({kind:'object',id:after.id,index,before:before?clone(before):null,after:clone(after)});}
+  function applyFillHistory(action,forward,p=page()){
+    const index=p.items.findIndex(item=>item.id===action.id),current=p.items[index],value=forward?action.after:action.before;
+    if(action.kind==='properties'){
+      if(!current)return null;
+      for(const key of new Set([...Object.keys(action.before),...Object.keys(action.after)])){
+        if(Object.prototype.hasOwnProperty.call(value,key))current[key]=clone(value[key]);else delete current[key];
+      }
+      return rotationPaintBounds(current);
+    }
+    const bounds=current?rotationPaintBounds(current):rotationPaintBounds(action.after);
+    if(!value){if(index>=0)p.items.splice(index,1);}
+    else if(index>=0)p.items[index]=clone(value);
+    else p.items.splice(Math.min(action.index,p.items.length),0,clone(value));
+    return bounds;
+  }
   function rememberAppend(item){recordHistory({kind:'append',item:clone(item)});window.WindsLive?.append(notebook()?.id,page()?.id,item);}
   function undo(){
     if(state.pendingInteractions){setTimeout(undo,100);return;}
@@ -1558,12 +1601,14 @@
     commitText();const h=historyForPage();if(!h?.undo.length)return;
     if(h.undo.at(-1).kind==='transfer'){applyTransferHistory(h.undo.at(-1),'undo');return;}
     const action=h.undo.pop();
-    if(action.kind==='append'){
+    let fillBounds=null;
+    if(action.kind==='properties'||action.kind==='object'){fillBounds=applyFillHistory(action,false);h.redo.push(action);}
+    else if(action.kind==='append'){
       const index=page().items.findIndex(i=>i.id===action.item.id);
       if(index>=0)page().items.splice(index,1);
       h.redo.push(action);
     }else{h.redo.push({kind:'snapshot',items:clone(page().items)});page().items=action.items;}
-    state.selected=-1;renderEditor();scheduleSave();
+    state.selected=-1;if(fillBounds){paintFillRegion(fillBounds);renderThumbs();updateHistoryButtons();}else renderEditor();scheduleSave();
   }
   function redo(){
     if(state.pendingInteractions){setTimeout(redo,100);return;}
@@ -1573,9 +1618,11 @@
     commitText();const h=historyForPage();if(!h?.redo.length)return;
     if(h.redo.at(-1).kind==='transfer'){applyTransferHistory(h.redo.at(-1),'redo');return;}
     const action=h.redo.pop();
-    if(action.kind==='append'){page().items.push(clone(action.item));h.undo.push(action);}
+    let fillBounds=null;
+    if(action.kind==='properties'||action.kind==='object'){fillBounds=applyFillHistory(action,true);h.undo.push(action);}
+    else if(action.kind==='append'){page().items.push(clone(action.item));h.undo.push(action);}
     else{h.undo.push({kind:'snapshot',items:clone(page().items)});page().items=action.items;}
-    state.selected=-1;renderEditor();scheduleSave();
+    state.selected=-1;if(fillBounds){paintFillRegion(fillBounds);renderThumbs();updateHistoryButtons();}else renderEditor();scheduleSave();
   }
   function updateHistoryButtons(){const h=window.WindsPdfInk?.historyState()||historyForPage();$('undoBtn').disabled=!h?.undo.length;$('redoBtn').disabled=!h?.redo.length;}
   function drawTemplate(ctx,kind,dimensions){
@@ -1694,9 +1741,9 @@
     const used=new Set(book.pages.flatMap(p=>p.background?[p.background.src,p.background.thumbnail]:[]));
     for(const key of pdfBackgroundCache.keys())if(!used.has(key))pdfBackgroundCache.delete(key);
   }
-  function drawPdfBackground(ctx,p){
+  function drawPdfBackground(ctx,p,full=false){
     const background=p.background;if(!background)return;
-    const small=ctx.canvas.width<=300,entry=pdfImage(small?background.thumbnail:background.src,small);
+    const small=!full&&ctx.canvas.width<=300,entry=pdfImage(small?background.thumbnail:background.src,small);
     const fallback=small?null:pdfImage(background.thumbnail,true),image=entry.ready?entry.img:fallback?.ready?fallback.img:null;
     if(image){const b=CREATIVE.pageBackgroundRect(background,pageDimensions(p));ctx.save();ctx.globalAlpha=1;ctx.drawImage(image,b.x,b.y,b.w,b.h);ctx.restore();}
   }
@@ -1800,6 +1847,7 @@
     ctx.restore();
   }
   function queueInk(){if(!inkRAF)inkRAF=requestAnimationFrame(()=>paintPendingInk());}
+  let renderedCanvasPage=null,fillPaintSurface=null;
   function renderCanvas(){
     eraserPreview?.beforeRender(state.drag?.kind==='erase'?state.drag:null);
     const p=page();if(!p)return;
@@ -1807,12 +1855,45 @@
     clearTimeout(inkComposeTimer);inkComposeTimer=0;bufferedPenInk=false;bufferedPenItems=[];
     const canvas=$('pageCanvas'),ctx=canvas.getContext('2d',{alpha:false});
     ctx.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,0,0);
-    drawPage(ctx,p,true,imageCropSession?.item);clearInk();
+    drawPage(ctx,p,true,imageCropSession?.item);renderedCanvasPage=p;clearInk();
     if(state.draft)queueInk();else drawSelection(inkContext());
     updateSelectionActions();
     globalThis.WindsStudy?.updatePresentation();
     if(state.widthAdjustment){state.widthAdjustment.renderer?.release();state.widthAdjustment.renderer=null;state.widthAdjustment.prepared=false;queueWidthPreview();}
     paintLiveLayer();window.WindsLive?.render();queueEraserPreparation();
+  }
+  function paintFillRegion(bounds){
+    if(!bounds||pageTurn||bufferedPenInk||state.draft||state.drag||state.pinch||state.selected>=0||groupSelection||imageCropSession){renderCanvas();return;}
+    const p=page();if(!p)return;
+    eraserPreview?.beforeRender(null);
+    const ctx=$('pageCanvas').getContext('2d',{alpha:false});
+    // Align the clip with backing pixels so successive fills cannot blend a
+    // partially cleared edge with neighboring outlines or number labels.
+    const right=Math.ceil((bounds.x+bounds.w)*RENDER_SCALE)/RENDER_SCALE,bottom=Math.ceil((bounds.y+bounds.h)*RENDER_SCALE)/RENDER_SCALE;
+    const x=Math.floor(bounds.x*RENDER_SCALE)/RENDER_SCALE,y=Math.floor(bounds.y*RENDER_SCALE)/RENDER_SCALE;
+    const items=p.items.map(item=>({item,box:rotationPaintBounds(item)})).filter(({box})=>box.x<=right&&box.x+box.w>=x&&box.y<=bottom&&box.y+box.h>=y);
+    // Draw nearby complete paths into a small scratch raster, then copy just
+    // the changed pixels. Cutting through a neighboring circle's outline with
+    // a canvas clip can change its antialiasing in software canvas renderers.
+    let left=x,top=y,edge=right,foot=bottom;
+    for(const {item,box} of items){
+      if(item.type==='image'||item.type==='shape'&&['rectangle','square'].includes(item.kind)&&item.strokeStyle==='none')continue;
+      left=Math.min(left,box.x);top=Math.min(top,box.y);edge=Math.max(edge,box.x+box.w);foot=Math.max(foot,box.y+box.h);
+    }
+    left=Math.max(0,Math.floor(left*RENDER_SCALE));top=Math.max(0,Math.floor(top*RENDER_SCALE));
+    edge=Math.min(W*RENDER_SCALE,Math.ceil(edge*RENDER_SCALE));foot=Math.min(H*RENDER_SCALE,Math.ceil(foot*RENDER_SCALE));
+    const surface=fillPaintSurface||(fillPaintSurface=document.createElement('canvas'));
+    surface.width=Math.max(1,edge-left);surface.height=Math.max(1,foot-top);
+    const paint=surface.getContext('2d',{alpha:false,willReadFrequently:ctx.getContextAttributes?.().willReadFrequently===true});
+    if(!paint){renderCanvas();return;}
+    paint.setTransform(RENDER_SCALE,0,0,RENDER_SCALE,-left,-top);
+    try{
+      drawTemplate(paint,p.background?'blank':p.template||'ruled',pageDimensions(p));drawPdfBackground(paint,p,true);
+      for(const {item} of items)drawItem(paint,item);
+      const bx=Math.max(0,x*RENDER_SCALE),by=Math.max(0,y*RENDER_SCALE),w=Math.min(W*RENDER_SCALE,right*RENDER_SCALE)-bx,h=Math.min(H*RENDER_SCALE,bottom*RENDER_SCALE)-by;
+      if(w>0&&h>0){ctx.save();try{ctx.resetTransform();ctx.drawImage(surface,bx-left,by-top,w,h,bx,by,w,h);}finally{ctx.restore();}}
+    }finally{surface.width=surface.height=1;}
+    clearInk();updateSelectionActions();globalThis.WindsStudy?.updatePresentation();paintLiveLayer();window.WindsLive?.render();queueEraserPreparation();
   }
   function commitInkToPage(item){
     const ctx=$('pageCanvas').getContext('2d');
@@ -3693,12 +3774,22 @@
     }).catch(error=>{const previewPainted=eraserPreview?.complete(gesture);if(previewPainted&&clipboardMatches(gesture.scope)){eraserPreview?.invalidate();try{renderCanvas();}catch{}}console.error('Deferred page edit:',error);toast(error.code==='CANVAS_MEMORY'?error.message:`Page edit failed: ${String(error.message||'Unknown drawing error').slice(0,150)}`);}).finally(()=>{eraserPreview?.complete(gesture);if(['select','resize'].includes(gesture.kind))endSelectionTransform(gesture);state.pendingInteractions--;queueInteractionOverlay();queueEraserPreparation();});
   }
   function initPageStack(){
-    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:viewDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,selectPdfText,
+    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||Boolean(boundaryFillSession?.pending)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:viewDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,selectPdfText,
       activate:(id,preserve)=>{const index=notebook()?.pages.findIndex(p=>p.id===id);if(index>=0){if(index!==state.pageIndex)switchPage(index,preserve);else if(!preserve)window.WindsPageStack.focus(id);}},
-      paint:async(canvas,p,scope)=>{
+      capture:(canvas,p)=>{
+        if(state.draft||state.drag||state.pinch||imageCropSession)return false;
+        const source=$('pageCanvas'),ink=$('inkCanvas'),d=pageDimensions(p);
+        if(renderedCanvasPage!==p||source.width!==d.width*RENDER_SCALE||source.height!==d.height*RENDER_SCALE)return false;
+        canvas.width=Math.min(840,source.width);canvas.height=Math.round(canvas.width*source.height/source.width);
+        const ctx=canvas.getContext('2d');ctx.drawImage(source,0,0,canvas.width,canvas.height);
+        if(bufferedPenInk&&state.selected<0&&!groupSelection)ctx.drawImage(ink,0,0,canvas.width,canvas.height);
+        return true;
+      },
+      paint:async(canvas,p,scope,current=()=>true)=>{
+        if(!current())return false;
         if(p.background)await pdfImage(p.background.src).promise;
-        for(const item of p.items){if(item.type!=='image')continue;let image=imageCache.get(item.src);if(!image){image=new Image();image.src=item.src;imageCache.set(item.src,image);}if(!image.complete)try{await image.decode();}catch{}}
-        await interactionIdle();if(!clipboardMatches(scope)||$('editorView').hidden)return;
+        for(const item of p.items){if(!current())return false;if(item.type!=='image')continue;let image=imageCache.get(item.src);if(!image){image=new Image();image.src=item.src;imageCache.set(item.src,image);}if(!image.complete)try{await image.decode();}catch{}}
+        await interactionIdle();if(!clipboardMatches(scope)||$('editorView').hidden||!current())return false;
         const d=viewDimensions(p);canvas.width=Math.round(Math.min(840,d.width));canvas.height=Math.round(canvas.width*d.height/d.width);drawPage(viewContext(canvas,p),p);
       }});
   }
@@ -4094,7 +4185,9 @@
       if(from.at(-1)?.kind==='transfer'){applyTransferHistory(from.at(-1),edit.kind);return;}
       const action=from.pop();
       if(!action)return;
-      if(action.kind==='append'){
+      if(action.kind==='properties'||action.kind==='object'){
+        applyFillHistory(action,edit.kind==='redo',p);to.push(action);
+      }else if(action.kind==='append'){
         if(edit.kind==='undo')p.items=p.items.filter(item=>item.id!==action.item.id);
         else p.items.push(clone(action.item));
         to.push(action);
@@ -4368,7 +4461,7 @@
       mergeWorkspace,
       isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<saveIdleDelay()),
       isDrawingNow:()=>Boolean(state.drag||state.pinch),
-      isEditing:()=>Boolean(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
+      isEditing:()=>Boolean(globalThis.WindsPageStack?.isScrolling?.()||state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
       sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id])&&!state.notebooks.some(n=>n.id===id),openNotebook,toast},

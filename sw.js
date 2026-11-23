@@ -1,8 +1,8 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline.
  * Every local script/style URL in index.html carries the release version
  * below. Change RELEASE and CACHE on every deploy. */
-const RELEASE='124';
-const CACHE='winds-notes-shell-v124-compact-drive-updates';
+const RELEASE='125';
+const CACHE='winds-notes-shell-v125-smooth-coloring';
 importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
 const VERSIONED=['theme.js','google-config.js','styles.css','dark.css','mandala-art.js','color-number.js','creative-tools.js','svg-stickers.js','graph-tools.js','vector-tools.js','interaction-tools.js',
   'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
