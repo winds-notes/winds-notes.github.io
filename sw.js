@@ -1,12 +1,12 @@
 /* Offline app shell: serve up-to-date files online, cache fallback offline.
  * Every local script/style URL in index.html carries the release version
  * below. Change RELEASE and CACHE on every deploy. */
-const RELEASE='125';
-const CACHE='winds-notes-shell-v125-smooth-coloring';
+const RELEASE='126';
+const CACHE='winds-notes-shell-v126-art-layers';
 importScripts('./vendor/pdfjs/assets.js','./mandala-art.js?v='+RELEASE);
 const VERSIONED=['theme.js','google-config.js','styles.css','dark.css','mandala-art.js','color-number.js','creative-tools.js','svg-stickers.js','graph-tools.js','vector-tools.js','interaction-tools.js',
   'selection-preview.js','eraser-preview.js','page-stack.js','workspace-model.js','text-tools.js','pdf-export.js','pdf-import.js',
-  'native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','drive-codec.js','cloud-drive.js','boundary-fill.js',
+  'art-layers.js','native-file.js','clipboard.js','shared-notebook-model.js','notebook-sharing.js','live-sync.js','drive-codec.js','cloud-drive.js','boundary-fill.js',
   'mandala-tools.js','pdf-text.js','pdf-study.js','pdf-ink.js','study-tools.js','study-cards.js','tutorial.js','app.js'].map(file=>'./'+file+'?v='+RELEASE);
 const ASSETS=['./','./index.html','./tutorial.html',...VERSIONED,'./privacy.html','./terms.html','./legal.css','./LICENSE',
   './manifest.webmanifest','./assets/icon.svg','./assets/apple-touch-icon.png'];

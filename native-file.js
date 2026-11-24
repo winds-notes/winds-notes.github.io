@@ -6,6 +6,7 @@
   'use strict';
   const FORMAT = 'winds-notes', VERSION = 1;
   const creative=global.WindsCreative||(typeof module!=='undefined'&&module.exports?require('./creative-tools.js'):null);
+  const art=global.WindsLayers||(typeof module!=='undefined'&&module.exports?require('./art-layers.js'):null);
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const COVERS = new Set(['purple','blue','peach','green','lilac','yellow']);
   const PAPERS = new Set(['ruled','grid','dots','blank']);
@@ -70,7 +71,7 @@
   }
   function normalizeItem(item){
     check(isObject(item) && ['stroke','shape','text','image','sticker','graph','vector'].includes(item.type),'Unsupported or damaged page object');
-    const base={id:makeId(),type:item.type,...erasureFields(item),...linkFields(item)};
+    const base={id:makeId(),type:item.type,...erasureFields(item),...linkFields(item),...(art?art.itemFields(item):{})};
     if(item.type==='stroke'){
       check(['pen','highlighter','artist'].includes(item.tool),'Invalid pen type');
       check(Array.isArray(item.points) && item.points.length>=1 && item.points.length<=200000,'Invalid pen points');
@@ -159,7 +160,8 @@
     const pages=n.pages.map(p=>{
       check(isObject(p) && Array.isArray(p.items) && p.items.length<=50000,'Invalid notebook page');
       totalItems+=p.items.length;check(totalItems<=150000,'Notebook contains too many objects');
-      return {id:makeId(),template:PAPERS.has(p.template)?p.template:'ruled',orientation:p.orientation==='landscape'?'landscape':'portrait',...pageBackground(p.background),items:p.items.map(normalizeItem)};
+      if(p.artLayers!=null&&!art)throw Error('Reload WiNDS Notes to open layered artwork.');
+      return {id:makeId(),template:PAPERS.has(p.template)?p.template:'ruled',orientation:p.orientation==='landscape'?'landscape':'portrait',...pageBackground(p.background),...(p.artLayers!=null?{artLayers:art.normalize(p.artLayers)}:{}),items:p.items.map(normalizeItem)};
     });
     return {id:makeId(),title:str(n.title,70).trim()||'Imported notebook',cover:COVERS.has(n.cover)?n.cover:'purple',createdAt:time(n.createdAt),updatedAt:new Date().toISOString(),pages};
   }

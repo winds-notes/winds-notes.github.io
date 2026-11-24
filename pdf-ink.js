@@ -6,6 +6,7 @@
   const touches=new Map(),pending=[];
   let pinch=null,pan=null,wheelDistance=0,pageChangedAt=0,wheelTimer=0,wheelLast=0;
   let scrollFrame=0,momentum=null,focusFrame=0;
+  let protectedRaster=null,protectedPage=null;
   const source=()=>reader.current();
   const current=()=>{
     const session=source(),page=session?.pages[session.index];
@@ -51,8 +52,13 @@
     const target=current();if(!target||api.busy())return;
     const base=context('studyPdfAnnotations',target);
     const geometry=dimensions(target);base.clearRect(0,0,geometry.width/2,geometry.height/2);
-    api.paint(base,target.page.items);
-    for(const job of pending)if(job.target.page===target.page&&job.item)api.paint(base,[job.item]);
+    api.paint(base,target.page.items,target.page);
+    for(const job of pending)if(job.target.page===target.page&&job.item)api.paint(base,[job.item],target.page);
+    const protectedItems=api.protectedItems?.(target.page)||[];protectedPage=null;
+    if(protectedItems.length){
+      protectedRaster=protectedRaster||document.createElement('canvas');protectedRaster.width=geometry.width;protectedRaster.height=geometry.height;
+      const protectedContext=protectedRaster.getContext('2d');if(protectedContext){protectedContext.setTransform(2,0,0,2,0,0);api.paint(protectedContext,protectedItems,target.page);protectedPage=target.page;}
+    }else if(protectedRaster)protectedRaster.width=protectedRaster.height=1;
     context('studyPdfInk',target);
     clear('studyPdfInk');
     if(gesture?.target.page===target.page)gesture.painted=0;
@@ -79,7 +85,16 @@
         const p=points[Math.max(0,i-1)],q=points[i];
         ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);
       }
-      ctx.stroke();ctx.restore();draft.painted=points.length;
+      ctx.stroke();ctx.restore();
+      if(protectedPage===target.page){
+        ctx.save();ctx.beginPath();const r=draft.radius;
+        for(let i=draft.painted;i<points.length;i++){
+          const a=points[Math.max(0,i-1)],b=points[i],angle=Math.atan2(b[1]-a[1],b[0]-a[0]),nx=-Math.sin(angle)*r,ny=Math.cos(angle)*r;
+          ctx.moveTo(a[0]+nx,a[1]+ny);ctx.lineTo(b[0]+nx,b[1]+ny);ctx.arc(b[0],b[1],r,angle+Math.PI/2,angle-Math.PI/2,true);ctx.lineTo(a[0]-nx,a[1]-ny);ctx.arc(a[0],a[1],r,angle-Math.PI/2,angle+Math.PI/2,true);ctx.closePath();
+        }
+        ctx.clip();ctx.drawImage(protectedRaster,0,0,dimensions(target).width/2,dimensions(target).height/2);ctx.restore();
+      }
+      draft.painted=points.length;
     }else{
       api.paintDraft(ctx,draft.item,draft.painted);
       draft.painted=draft.item.points?.length||0;
@@ -163,7 +178,8 @@
     event.preventDefault();try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
     if(mode==='pan'){startPan(event);return;}
     const target=current(),rect=$('studyPdfInk').getBoundingClientRect(),first=point(event,target,rect);
-    const item=mode==='eraser'?null:api.createItem(first);
+    if(mode!=='eraser'&&api.canDraw?.(target)===false){api.toast('The drawing layer is hidden or locked. Open this page to choose another layer.');return;}
+    const item=mode==='eraser'?null:api.createItem(first,target);
     if(mode!=='eraser'&&!item){api.toast('Use ↗ to open this page in the main editor for selection, text or fill.');return;}
     gesture={id:event.pointerId,pointerType:event.pointerType,target,rect,painted:0,start:first,
       ...(mode==='eraser'?{kind:'erase',radius:settings.eraserSize/2,inkOnly:settings.inkOnly,points:[first],originals:target.page.items,count:target.page.items.length+pending.length}:
@@ -211,6 +227,7 @@
   }
   function setPage(){
     finish();stopScroll();clearTimeout(wheelTimer);wheelDistance=0;touches.clear();pan=pinch=null;
+    protectedPage=null;if(protectedRaster)protectedRaster.width=protectedRaster.height=1;
     clear('studyPdfInk');clear('studyPdfAnnotations');refresh();
   }
   function close(){setPage();focusNotes();$('studyPdfAnnotations').width=$('studyPdfAnnotations').height=1;$('studyPdfInk').width=$('studyPdfInk').height=1;}

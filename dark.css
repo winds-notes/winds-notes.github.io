@@ -335,6 +335,24 @@ html[data-theme="dark"] .tutorial-lessons details{background:#1c1c1f}
 html[data-theme="dark"] .tutorial-lessons summary:hover{background:#1a162b}
 html[data-theme="dark"] .tutorial-lessons details[open] summary{background:#18152a}
 html[data-theme="dark"] .tutorial-lessons ol,html[data-theme="dark"] .tutorial-lessons ul,html[data-theme="dark"] .tutorial-lessons dl,html[data-theme="dark"] .tutorial-lessons p{color:#c2c4cb}
+html[data-theme="dark"] .art-layers-dialog{border:1px solid #363844;color:#ceced9;background:#1c1c1f}
+html[data-theme="dark"] .art-layers-dialog>header{background:#1c1c1f}
+html[data-theme="dark"] .art-layers-eyebrow{color:#9f95e4}
+html[data-theme="dark"] .art-layers-dialog p{color:#b8b9bf}
+html[data-theme="dark"] .art-layers-dialog .btn-outline{background:#151529;color:#c3c2ca;border-color:#373844}
+html[data-theme="dark"] .tracing-section{border-right:1px solid #353741}
+html[data-theme="dark"] .tracing-empty{border:1px dashed #3a3b47}
+html[data-theme="dark"] .tracing-empty{color:#b8b9bf}
+html[data-theme="dark"] .art-layers-dialog button:not(.btn){border:1px solid #373844;color:#c3c2ca;background:#151529}
+html[data-theme="dark"] .new-art-layer input,html[data-theme="dark"] .art-layer-heading input{border:1px solid #373844;background:#1c1c1f;color:#ceced9}
+html[data-theme="dark"] .art-layer-row{border:1px solid #373844;background:#1c1c1f}
+html[data-theme="dark"] .art-layer-row.is-active{background:#1a162a}
+html[data-theme="dark"] .art-layer-choose[aria-pressed="true"]{color:#9e93e6!important;background:#1d1930!important;border-color:#302955!important}
+html[data-theme="dark"] .art-layer-count{color:#9ea0b2}
+html[data-theme="dark"] .art-layer-remove{color:#c8abb2!important}
+@media(max-width:640px){
+html[data-theme="dark"] .tracing-section{border-bottom:1px solid #353741}
+}
 
 /* ---- hand-tuned dark surfaces ---- */
 html[data-theme="dark"]{color-scheme:dark;--ink:#e6e7f2;--muted:#9a9cb6;--pale:#1d1e29;--border:#2c2d3b}

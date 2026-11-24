@@ -29,7 +29,7 @@
     put(['order'],book.pages.map(p=>p.id));
     for(const page of book.pages){
       if(pageIds&&!pageIds.has(page.id))continue;
-      put(['page',page.id],{template:page.template||'ruled',orientation:page.orientation||'portrait',...(page.background?{background:page.background}:{})});
+      put(['page',page.id],{template:page.template||'ruled',orientation:page.orientation||'portrait',...(page.background?{background:page.background}:{}),...(page.artLayers?{artLayers:page.artLayers}:{})});
       put(['layers',page.id],page.items.map(i=>i.id));
       for(const item of page.items)put(['item',page.id,item.id],item);
     }

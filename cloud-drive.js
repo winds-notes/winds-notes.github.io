@@ -11,7 +11,7 @@
   const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-  const SYNC_RELEASE='125';
+  const SYNC_RELEASE='126';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;

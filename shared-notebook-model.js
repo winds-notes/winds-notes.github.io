@@ -13,7 +13,7 @@
     for(const key of ['title','cover','createdAt'])put(['book',key],book[key]);
     put(['order'],book.pages.map(page=>page.id));
     for(const page of book.pages){
-      put(['page',page.id],{template:page.template,orientation:page.orientation||'portrait',...(page.background?{background:page.background}:{})});
+      put(['page',page.id],{template:page.template,orientation:page.orientation||'portrait',...(page.background?{background:page.background}:{}),...(page.artLayers?{artLayers:page.artLayers}:{})});
       for(const item of page.items)put(['item',page.id,item.id],item);
     }
     return result;
