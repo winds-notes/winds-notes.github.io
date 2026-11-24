@@ -591,7 +591,7 @@
   }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     const account=workspaceId,receivedAt=Date.now();
-    if((globalThis.WindsLayers&&$('artLayersDialog')?.open)||state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsPageStack?.isScrolling?.()||(globalThis.WindsLayers&&$('artLayersDialog')?.open)||state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
     }
@@ -734,7 +734,7 @@
     renderLibrary();return copy.id;
   }
   async function putSharedNotebook(book,sharing,version,attach=false,manual=false){
-    if((globalThis.WindsLayers&&$('artLayersDialog')?.open)||version!==saveVersion||saving||state.widthAdjustment||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsPageStack?.isScrolling?.()||(globalThis.WindsLayers&&$('artLayersDialog')?.open)||version!==saveVersion||saving||state.widthAdjustment||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
       const error=Error('Local editing changed while sharing. Try again when idle.');error.syncDeferred=true;throw error;
     }
     if(!/^[\w-]{5,200}$/.test(sharing?.folderId||''))throw Error('Invalid shared notebook folder');
@@ -977,6 +977,7 @@
     toast(orientation==='landscape'?'Landscape page selected':'Portrait page selected');
   }
   function setTool(tool,{inkOnly=false,repaint=true}={}){
+    state.panMotion?.stop();
     state.followPageLinks=false;
     if(boundaryFillSession)cancelBoundaryFill();
     finishActiveStroke();composeInkNow();commitText();state.tool=tool;state.selected=-1;state.draft=null;
@@ -2363,6 +2364,14 @@
   function clampPoint(p){return{x:Math.max(0,Math.min(W,p.x)),y:Math.max(0,Math.min(H,p.y)),p:p.p};}
   function appendPoint(stroke,p){const arr=stroke.points,prev=arr[arr.length-1];if(!prev){arr.push([p.x,p.y,p.p]);return;}const d=Math.hypot(prev[0]-p.x,prev[1]-p.y);if(d>=.55){const pressure=Math.max(.12,Math.min(1,prev[2]*.58+p.p*.42));arr.push([p.x,p.y,pressure]);}else if(d>.03){prev[2]=prev[2]*.72+p.p*.28;}}
   let pinchRAF=0;
+  function startNotebookPan(event){
+    if(!globalThis.WindsScrollMotion)return;
+    state.panMotion=state.panMotion||globalThis.WindsScrollMotion.create({
+      element:()=>$('pageScroller'),scope:()=>({account:workspaceId,book:state.activeId}),
+      matches:scope=>scope?.account===workspaceId&&scope?.book===state.activeId&&!document.hidden&&!$('editorView').hidden&&!state.pinch&&state.drag?.kind!=='draw'
+    });
+    state.panMotion.begin(event);
+  }
   function queuePinchFrame(){
     if(pinchRAF)return;
     pinchRAF=requestAnimationFrame(()=>{
@@ -2379,11 +2388,14 @@
       scroller.scrollTop+=rect.top+rect.height*pinch.anchorY-center.y;
     });
   }
+  let pinchResolutionTimer=0;
   function endPinch(){
     if(pinchRAF){cancelAnimationFrame(pinchRAF);pinchRAF=0;}
     state.pinch=null;state.drag=null;
-    // Redraw vector strokes once, AFTER the gesture (never per finger move).
-    if(adjustInkResolution())renderCanvas();
+    // Keep backing-canvas work out of release and the one-finger handoff.
+    clearTimeout(pinchResolutionTimer);const scope=clipboardContext();
+    const finish=()=>{if(!clipboardMatches(scope))return;if(inputBusy()||state.panMotion?.active()||state.pendingInteractions){pinchResolutionTimer=setTimeout(finish,120);return;}if(adjustInkResolution())renderCanvas();};
+    pinchResolutionTimer=setTimeout(finish,180);
   }
   function adjustInkResolution(){
     const next=state.zoom>=1.6?2.75:2;
@@ -2457,6 +2469,8 @@
   function pointerDown(ev){
     if(!page()||state.editingText||state.drag?.kind==='rotate')return;
     if(ev.pointerType==='mouse' && ev.button!==0)return;
+    if(!state.drag&&!state.pinch||ev.pointerType==='pen')state.panMotion?.stop();
+    if(ev.pointerType==='mouse'&&state.drag?.kind==='pan'&&state.drag.pointerType==='mouse'){state.panMotion?.stop();state.drag=null;}
     if(ev.pointerType==='pen'){
       state.lastPenAt=Date.now();
       // A new Apple Pencil contact is definitive evidence that the preceding
@@ -2493,10 +2507,11 @@
         const distance=Math.max(12,Math.hypot(contacts[0].x-contacts[1].x,contacts[0].y-contacts[1].y));
         // Remove accidental finger ink as the second finger establishes zoom.
         if(state.drag?.pointerType==='touch'){
+          const rollback=state.drag.kind!=='pan';state.panMotion?.stop();
           if(state.drag.kind==='erase')eraserPreview?.complete(state.drag);
           state.drag=null;state.draft=null;
           $('pageShell').classList.remove('is-handdrawing');
-          renderCanvas();
+          if(rollback)renderCanvas();
         }
         state.pinch={distance,zoom:state.zoom,anchorX:(center.x-rect.left)/rect.width,anchorY:(center.y-rect.top)/rect.height};
         for(const id of state.pointers.keys())try{ev.currentTarget.setPointerCapture(id);}catch{}
@@ -2508,6 +2523,7 @@
       if(sincePencil<PALM_GUARD_MS&&state.tool!=='pan'){if(ev.cancelable)ev.preventDefault();return;}
       if(state.penOnly){
         state.drag={kind:'pan',pointerId:ev.pointerId,pointerType:'touch',lastX:ev.clientX,lastY:ev.clientY};
+        if(globalThis.WindsScrollMotion)startNotebookPan(ev);
         try{ev.currentTarget.setPointerCapture(ev.pointerId);}catch{}
         if(ev.cancelable)ev.preventDefault();return;
       }
@@ -2526,7 +2542,7 @@
     if(state.tool==='eraser'){
       state.drag={kind:'erase',pointerId:ev.pointerId,pointerType:ev.pointerType,rect,scope:clipboardContext(),originals:page().items.slice(),points:[],radius:state.eraserSize/2,inkOnly:state.eraserInkOnly};eraseAt(p.x,p.y);return;
     }
-    if(state.tool==='pan'){state.drag={kind:'pan',pointerId:ev.pointerId,pointerType:ev.pointerType,lastX:ev.clientX,lastY:ev.clientY};return;}
+    if(state.tool==='pan'){state.drag={kind:'pan',pointerId:ev.pointerId,pointerType:ev.pointerType,lastX:ev.clientX,lastY:ev.clientY};if(globalThis.WindsScrollMotion)startNotebookPan(ev);return;}
     const group=activeGroup();
     const insideGroup=group&&window.WindsInteractions.contains(group.bounds,{x:p.x,y:p.y,w:0,h:0},8);
     if(state.tool==='area'||(state.tool==='select'&&insideGroup)){
@@ -2590,11 +2606,12 @@
     }
     if(!state.drag||state.drag.pointerId!==ev.pointerId)return;
     if(ev.cancelable)ev.preventDefault();
-    const p=clampPoint(point(ev));
     if(state.drag.kind==='pan'){
+      if(state.panMotion){state.panMotion.move(ev);return;}
       const scroller=$('pageScroller');scroller.scrollLeft-=ev.clientX-state.drag.lastX;
       scroller.scrollTop-=ev.clientY-state.drag.lastY;state.drag.lastX=ev.clientX;state.drag.lastY=ev.clientY;return;
     }
+    const p=clampPoint(point(ev));
     if(['area','areaMove'].includes(state.drag.kind)){state.drag.end=p;state.drag.dx=p.x-state.drag.start.x;state.drag.dy=p.y-state.drag.start.y;queueInteractionOverlay();return;}
     if(state.drag.kind==='erase'){
       const events=ev.getCoalescedEvents?ev.getCoalescedEvents():[];
@@ -2613,8 +2630,14 @@
   }
   function finishPointer(ev,cancelled=false){
     state.pointers.delete(ev.pointerId);
-    if(state.pinch){if(state.pointers.size<2){endPinch();state.pointers.clear();}return;}
+    if(state.pinch){if(state.pointers.size<2){
+      endPinch();
+      const remaining=state.pointers.entries().next().value;
+      if(remaining){const [id,contact]=remaining;state.drag={kind:'pan',pointerId:id,pointerType:'touch',lastX:contact.x,lastY:contact.y};if(globalThis.WindsScrollMotion)startNotebookPan({pointerId:id,pointerType:'touch',clientX:contact.x,clientY:contact.y});}
+      else state.pointers.clear();
+    }return;}
     if(!state.drag||state.drag.pointerId!==ev.pointerId)return;
+    if(state.drag.kind==='pan'){state.panMotion?.end(ev,cancelled);state.drag=null;return;}
     if(['select','resize'].includes(state.drag.kind)&&state.drag.scope){
       const gesture=state.drag;
       if(!cancelled&&Number.isFinite(ev.clientX)&&Number.isFinite(ev.clientY))updateSelectionTransform(gesture,clampPoint(point(ev)));
@@ -2679,6 +2702,7 @@
     finishPointer(ev,true);
   }
   function finishActiveStroke(){
+    state.panMotion?.stop();
     if(imageCropSession)closeImageCrop();
     if(state.drag?.kind==='rotate')finishObjectRotation(state.drag.finished==='apply');
     else if(state.drag)finishPointer({pointerId:state.drag.pointerId},state.drag.kind==='draw');
@@ -3518,6 +3542,9 @@
     document.addEventListener('click',dismissOutsidePopup);
     document.addEventListener('focusin',dismissOutsidePopup);
     document.querySelectorAll('[data-tool]').forEach(btn=>{if(!['artist','eraser'].includes(btn.dataset.tool))btn.onclick=()=>setTool(btn.dataset.tool);});
+    $('pageScroller').addEventListener('wheel',()=>state.panMotion?.stop(),{passive:true});
+    document.addEventListener('pointerdown',event=>{if(event.target!==$('inkCanvas'))state.panMotion?.stop();if(event.target!==$('studyPdfInk'))globalThis.WindsPdfInk?.stopScrolling?.();},{capture:true,passive:true});
+    window.addEventListener('blur',()=>{if(state.drag?.kind==='pan'){state.drag=null;state.pointers.clear();}state.panMotion?.stop();});
     $('eraserBtn').onclick=event=>{event.stopPropagation();setTool('eraser');closeMenus();};
     $('eraserSettingsBtn').onclick=event=>{
       event.stopPropagation();
@@ -3809,7 +3836,7 @@
     }).catch(error=>{const previewPainted=eraserPreview?.complete(gesture);if(previewPainted&&clipboardMatches(gesture.scope)){eraserPreview?.invalidate();try{renderCanvas();}catch{}}console.error('Deferred page edit:',error);toast(error.code==='CANVAS_MEMORY'?error.message:`Page edit failed: ${String(error.message||'Unknown drawing error').slice(0,150)}`);}).finally(()=>{eraserPreview?.complete(gesture);if(['select','resize'].includes(gesture.kind))endSelectionTransform(gesture);state.pendingInteractions--;queueInteractionOverlay();queueEraserPreparation();});
   }
   function initPageStack(){
-    window.WindsPageStack.init({busy:()=>inputBusy()||Boolean(state.pendingInteractions)||Boolean(boundaryFillSession?.pending)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:viewDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,selectPdfText,
+    window.WindsPageStack.init({panActive:()=>Boolean(state.panMotion?.active()||globalThis.WindsPdfInk?.scrolling?.()),busy:()=>inputBusy()||Boolean(state.pendingInteractions)||Boolean(boundaryFillSession?.pending)||$('editorView').hidden||globalThis.WindsVector?.isEditing(),scope:clipboardContext,matches:clipboardMatches,dimensions:viewDimensions,availableWidth:availablePageWidth,book:notebook,active:()=>page()?.id,zoom:()=>state.zoom,remove:deletePage,selectPdfText,
       activate:(id,preserve)=>{const index=notebook()?.pages.findIndex(p=>p.id===id);if(index>=0){if(index!==state.pageIndex)switchPage(index,preserve);else if(!preserve)window.WindsPageStack.focus(id);}},
       capture:(canvas,p)=>{
         if(state.draft||state.drag||state.pinch||imageCropSession)return false;
@@ -4284,6 +4311,7 @@
         },
         resizeShape:updateShapeDraft,
         busy:()=>Boolean(inputBusy()||state.widthAdjustment||globalThis.WindsPDFImport?.isOpen()),
+        scrollBusy:()=>Boolean(state.drag||state.pinch||state.editingText||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
         pending:delta=>{state.pendingInteractions+=delta;},
         touch:()=>{lastInkAt=Date.now();},
         history:target=>history.get(target.page.id),

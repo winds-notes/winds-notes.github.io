@@ -6,6 +6,7 @@
   const touches=new Map(),pending=[];
   let pinch=null,pan=null,wheelDistance=0,pageChangedAt=0,wheelTimer=0,wheelLast=0;
   let scrollFrame=0,momentum=null,focusFrame=0;
+  let scrollMotion=null,lastScrollAt=0;
   let protectedRaster=null,protectedPage=null;
   const source=()=>reader.current();
   const current=()=>{
@@ -35,7 +36,7 @@
     $('studyPdfInk').style.cursor=api.settings().tool==='pan'?'grab':'crosshair';
     api.historyChanged();
   }
-  function focusNotes(){focused=false;queueFocus();}
+  function focusNotes(){stopScroll();touches.clear();pan=pinch=null;focused=false;queueFocus();}
   function queueFocus(){if(!focusFrame)focusFrame=requestAnimationFrame(()=>{focusFrame=0;api.historyChanged();});}
   function historyState(){
     if(!focused||!current())return null;
@@ -46,10 +47,10 @@
     if(!pending.length&&!gesture&&!processing){api.pending(1);pending.push({kind,target});schedule();queueFocus();}
     return true;
   }
-  function toolChanged(){if(!api)return;finish();stopScroll();reader.clearTools();buttons();}
+  function toolChanged(){if(!api)return;finish();stopScroll();touches.clear();pan=pinch=null;reader.clearTools();buttons();}
   function paint(){
     frame=0;
-    const target=current();if(!target||api.busy())return;
+    const target=current();if(!target||api.busy()||scrollMotion?.active()||touches.size)return;
     const base=context('studyPdfAnnotations',target);
     const geometry=dimensions(target);base.clearRect(0,0,geometry.width/2,geometry.height/2);
     api.paint(base,target.page.items,target.page);
@@ -67,7 +68,7 @@
   function refresh(){
     if(!frame)frame=requestAnimationFrame(()=>{
       frame=0;
-      if(gesture||api.busy()){schedule();return;}
+      if(gesture||api.busy()||scrollMotion?.active()||touches.size){schedule();return;}
       paint();
     });
   }
@@ -104,13 +105,13 @@
   function schedule(){clearTimeout(timer);timer=setTimeout(flush,150);}
   async function flush(){
     if(processing)return;
-    if(gesture||touches.size||api.busy()||Date.now()-lastInput<150){schedule();return;}
+    if(gesture||touches.size||scrollMotion?.active()||api.busy()||Date.now()-lastInput<150){schedule();return;}
     processing=true;
     try{
       while(pending.length){
-        if(gesture||api.busy())break;
+        if(gesture||scrollMotion?.active()||api.busy())break;
         const job=pending[0];
-        try{await api.commit(job,()=>!gesture&&!touches.size&&Date.now()-lastInput>=150);}
+        try{await api.commit(job,()=>!gesture&&!touches.size&&!scrollMotion?.active()&&Date.now()-lastInput>=150);}
         catch(error){api.toast(error.message||'The reference page edit could not be applied.');}
         finally{pending.shift();api.pending(-1);}
       }
@@ -124,13 +125,15 @@
     pending.push(draft);schedule();refresh();
   }
   function nextPage(direction){
-    const session=source();if(!session||gesture||Date.now()-pageChangedAt<350)return;
+    const session=source();if(!session||gesture||Date.now()-pageChangedAt<350)return false;
     const index=session.index+direction;
-    if(index<0||index>=session.pages.length)return;
+    if(index<0||index>=session.pages.length)return false;
     pageChangedAt=Date.now();wheelDistance=0;reader.setPage(index);
     if(direction<0)$('studyPdfScroll').scrollTop=$('studyPdfScroll').scrollHeight;
+    return true;
   }
   function stopScroll(){
+    scrollMotion?.stop();
     if(scrollFrame)cancelAnimationFrame(scrollFrame);
     scrollFrame=0;momentum=null;
   }
@@ -155,28 +158,39 @@
     }
   }
   function queueScroll(){if(!scrollFrame)scrollFrame=requestAnimationFrame(scrollTick);}
+  function ensureScrollMotion(){
+    if(!scrollMotion&&global.WindsScrollMotion)scrollMotion=global.WindsScrollMotion.create({
+      element:()=>$('studyPdfScroll'),scope:()=>current(),
+      matches:scope=>Boolean(scope&&current()?.page===scope.page&&!document.hidden&&!gesture&&!(api.scrollBusy?api.scrollBusy():api.busy())),
+      moved:()=>{lastScrollAt=Date.now();},
+      ended:({overflowY})=>Math.abs(overflowY)>70?nextPage(Math.sign(overflowY)):false
+    });
+    return scrollMotion;
+  }
   function startPan(event){
     stopScroll();
     touches.set(event.pointerId,{x:event.clientX,y:event.clientY});
     pan={x:event.clientX,y:event.clientY,pointerType:event.pointerType,dx:0,dy:0,vx:0,vy:0,time:performance.now(),overflow:0};
     if(touches.size===2){const [a,b]=[...touches.values()];pinch={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:source().zoom};}
+    else ensureScrollMotion()?.begin(event);
     try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
   }
   function down(event,recovered=false){
     if((event.button!==0&&!recovered)||!current())return;
     const settings=api.settings(),mode=settings.tool;
     if(event.pointerType==='touch'){
-      if(gesture?.pointerType==='pen'||Date.now()-lastInput<180)return;
+      if(gesture?.pointerType==='pen'||mode!=='pan'&&Date.now()-lastInput<180)return;
       if(settings.penOnly||mode==='pan'||touches.size){
         if(gesture?.pointerType==='touch')finish(true);
         startPan(event);return;
       }
     }
-    if(api.busy())return;
+    if(api.busy()&&(mode!=='pan'||api.scrollBusy?.()!==false))return;
     if(gesture){if(gesture.pointerType==='pen'&&event.pointerType==='pen')finish();else return;}
     stopScroll();focused=true;queueFocus();
     event.preventDefault();try{event.currentTarget.setPointerCapture(event.pointerId);}catch{}
     if(mode==='pan'){startPan(event);return;}
+    touches.clear();pan=pinch=null;
     const target=current(),rect=$('studyPdfInk').getBoundingClientRect(),first=point(event,target,rect);
     if(mode!=='eraser'&&api.canDraw?.(target)===false){api.toast('The drawing layer is hidden or locked. Open this page to choose another layer.');return;}
     const item=mode==='eraser'?null:api.createItem(first,target);
@@ -192,6 +206,7 @@
       if(pinch&&touches.size===2){
         const [a,b]=[...touches.values()];pinch.next=pinch.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.distance);
       }else if(pan){
+        if(scrollMotion){scrollMotion.move(event);pan.x=event.clientX;pan.y=event.clientY;return;}
         const dx=pan.x-event.clientX,dy=pan.y-event.clientY,now=performance.now(),elapsed=Math.max(8,now-pan.time);
         pan.dx+=dx;pan.dy+=dy;
         pan.vx=.35*pan.vx+.65*dx/elapsed;pan.vy=.35*pan.vy+.65*dy/elapsed;pan.time=now;
@@ -214,6 +229,12 @@
   function up(event,cancel=false){
     if(touches.has(event.pointerId)){
       const wasPinching=Boolean(pinch);
+      if(scrollMotion){
+        if(wasPinching)scrollMotion.stop();else scrollMotion.end(event,cancel);
+        touches.delete(event.pointerId);pinch=null;pan=null;
+        if(touches.size){const [id,contact]=touches.entries().next().value;startPan({pointerId:id,pointerType:'touch',clientX:contact.x,clientY:contact.y,currentTarget:event.currentTarget});}
+        return;
+      }
       if(scrollFrame){cancelAnimationFrame(scrollFrame);scrollTick(performance.now());}
       const released=pan,overflow=pan?.overflow||0;
       touches.delete(event.pointerId);pinch=null;pan=null;
@@ -230,7 +251,9 @@
     protectedPage=null;if(protectedRaster)protectedRaster.width=protectedRaster.height=1;
     clear('studyPdfInk');clear('studyPdfAnnotations');refresh();
   }
-  function close(){setPage();focusNotes();$('studyPdfAnnotations').width=$('studyPdfAnnotations').height=1;$('studyPdfInk').width=$('studyPdfInk').height=1;}
+  function close(){setPage();focusNotes();lastScrollAt=0;$('studyPdfAnnotations').width=$('studyPdfAnnotations').height=1;$('studyPdfInk').width=$('studyPdfInk').height=1;}
+  function scrolling(){return Boolean(touches.size||pan||pinch||scrollMotion?.active()||momentum||Date.now()-lastScrollAt<180);}
+  function stopScrolling(){stopScroll();touches.clear();pan=pinch=null;}
   function init(adapter,reference){
     api=adapter;reader=reference;
     const canvas=$('studyPdfInk');
@@ -240,8 +263,9 @@
     canvas.addEventListener('pointerdown',down);canvas.addEventListener('pointermove',move);
     canvas.addEventListener('pointerup',event=>up(event));
     canvas.addEventListener('pointercancel',event=>up(event,true));
-    canvas.addEventListener('lostpointercapture',event=>{if(gesture?.id===event.pointerId)finish(gesture.pointerType!=='pen');});
+    canvas.addEventListener('lostpointercapture',event=>{if(touches.has(event.pointerId))up(event,true);else if(gesture?.id===event.pointerId)finish(gesture.pointerType!=='pen');});
     $('pageShell').addEventListener('pointerdown',focusNotes,{capture:true,passive:true});
+    $('studyPdfScroll').addEventListener('scroll',()=>{lastScrollAt=Date.now();},{passive:true});
     $('studyPdfScroll').addEventListener('wheel',event=>{
       if(event.ctrlKey||gesture||Math.abs(event.deltaX)>Math.abs(event.deltaY))return;
       stopScroll();
@@ -252,7 +276,9 @@
       clearTimeout(wheelTimer);
       wheelTimer=setTimeout(()=>{if(Math.abs(wheelDistance)>90)nextPage(Math.sign(wheelDistance));wheelDistance=0;},180);
     },{passive:true});
-    global.addEventListener('blur',()=>{finish();stopScroll();touches.clear();pan=pinch=null;});
+    const leave=()=>{finish();stopScrolling();};
+    global.addEventListener('blur',leave);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)leave();});
   }
-  global.WindsPdfInk=Object.freeze({init,setPage,refresh,close,toolChanged,historyState,historyAction,focusNotes});
+  global.WindsPdfInk=Object.freeze({init,setPage,refresh,close,toolChanged,historyState,historyAction,focusNotes,scrolling,stopScrolling});
 })(window);

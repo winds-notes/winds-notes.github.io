@@ -5,7 +5,7 @@
   const $=id=>document.getElementById(id),cards=new Map();
   const retained=new Map(),versions=new Map(),SCROLL_IDLE=180;
   let pagesById=new Map();
-  function isScrolling(){return Date.now()-lastScrollAt<SCROLL_IDLE;}
+  function isScrolling(){return Boolean(api?.panActive?.()||Date.now()-lastScrollAt<SCROLL_IDLE);}
   function busy(){return api.busy()||isScrolling();}
   function markDirty(id){dirty.add(id);versions.set(id,(versions.get(id)||0)+1);}
   function retain(id){
@@ -49,12 +49,12 @@
       if(previous.get(page.id)!==page)markDirty(page.id);
       if(!card){card=document.createElement('section');card.className='notebook-stack-page';card.dataset.stackPage=page.id;
         const header=document.createElement('div');header.className='stack-page-header';
-        const button=document.createElement('button');button.className='stack-page-heading';button.type='button';button.onclick=()=>{if(!busy())api.activate(page.id,false);};
+        const button=document.createElement('button');button.className='stack-page-heading';button.type='button';button.onclick=()=>{if(!api.busy())api.activate(page.id,false);};
         const pdfText=document.createElement('button');pdfText.className='stack-page-pdf-text';pdfText.type='button';pdfText.textContent='Select PDF text';pdfText.onclick=()=>api.selectPdfText(page.id);
         const remove=document.createElement('button');remove.className='stack-page-delete';remove.type='button';remove.textContent='Delete';remove.onclick=()=>{if(!busy())api.remove(page.id);};
         header.append(button,pdfText,remove);
         const body=document.createElement('div');body.className='stack-page-body';const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.setAttribute('aria-hidden','true');body.append(canvas);card.append(header,body);cards.set(page.id,card);root.append(card);observer.observe(card);markDirty(page.id);layoutWidth=0;
-        body.onclick=event=>{if(event.target===canvas&&!busy())api.activate(page.id,true);};
+        body.onclick=event=>{if(event.target===canvas&&!api.busy())api.activate(page.id,true);};
       }
       const heading=card.querySelector('button'),current=page.id===api.active();
       heading.textContent=`Page ${index+1}`;
