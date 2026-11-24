@@ -198,11 +198,12 @@
     });
     return cleaned;
   }
-  function parse(text){
-    check(typeof text==='string' && text.length>0 && text.length<=MAX_FILE_BYTES,'File is empty or too large');
+  function parse(text,{workspace=false}={}){
+    check(typeof text==='string' && text.length>0 && (workspace||text.length<=MAX_FILE_BYTES),'File is empty or too large');
     let data;try{data=JSON.parse(text);}catch{throw new Error('File is not valid WiNDS Notes data');}
     check(isObject(data),'Unrecognized file');
     if(data.format===FORMAT){
+      check(text.length<=MAX_FILE_BYTES,'File is too large');
       check(data.version===VERSION,'Unsupported WiNDS Notes file version');
       return {notebooks:importNotebooks([data.notebook]),single:true};
     }

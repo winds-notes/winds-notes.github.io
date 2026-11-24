@@ -4561,8 +4561,7 @@
         paint:items=>{livePreviewItems=items;if(!livePreviewRAF)livePreviewRAF=requestAnimationFrame(paintLiveLayer);},clear:clearLiveLayer},
       importData:async text=>{
         const account=workspaceId;
-        if(text.length>window.WindsFile.MAX_FILE_BYTES)throw Error('Backup file is too large');
-        const parsed=window.WindsFile.parse(text);
+        const parsed=window.WindsFile.parse(text,{workspace:true});
         finishActiveStroke();commitText();
         state.notebooks.push(...parsed.notebooks);
         dirtyAll=true;saveVersion++;

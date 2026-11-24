@@ -11,7 +11,7 @@
   const SCOPE='openid email profile https://www.googleapis.com/auth/drive.file';
   const API='https://www.googleapis.com/drive/v3/files';
   const UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-  const SYNC_RELEASE='127';
+  const SYNC_RELEASE='128';
   const WORKSPACE_NAME='WiNDS Notes Workspace.json';
   const AUTO_DELAY_MS=0;
   const AUTO_RETRY_MS=45000;
@@ -19,6 +19,8 @@
   const DRIVE_RESPONSE_TIMEOUT_MS=15000;
   const FIRST_TRANSIENT_RETRY_MS=2000;
   const ACTIVE_RECHECK_MS=1000;
+  // Bound API metadata and shared/imported responses. The account-owned
+  // private library has no fixed total byte cap; it can span many notebooks.
   const MAX_BYTES=100*1024*1024;
   const MIN_COMPRESS_BYTES=256*1024;
   const SESSION_KEY='winds-drive-session-v1';
@@ -40,7 +42,7 @@
   let restorePending=false,restoreFailures=0;
   let pollReads=null;
   const pollResponseSignals=new WeakMap();
-  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null,failedStep:null};
+  let syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,librarySize:null,error:null,failedStep:null};
   let transientFailures=0,rateLimitedUntil=0;
   const timingSamples=new Map();
   const timingFields={
@@ -144,7 +146,7 @@
     workspaceHistory={id:null,revisions:new Map(),checked:0};lastWorkspaceUpload=pendingWorkspaceUpload=null;repairPending=false;
     driveBases.clear();driveWireInfo=new WeakMap();
     workspaceCandidates=[];workspaceDiscoveryAt=0;workspaceDiscoveryNeeded=true;reconciledWorkspaces.clear();recoveryHistories.clear();
-    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,error:null,failedStep:null};
+    syncDetails={checked:0,received:0,uploaded:0,elapsed:null,retrying:false,uploadSize:null,librarySize:null,error:null,failedStep:null};
     timingSamples.clear();
     transientFailures=0;rateLimitedUntil=0;
     global.WindsSharing?.cancel();
@@ -246,6 +248,7 @@
       cloudSyncState:!connected()?'Reconnect Google Drive':!auto?'Automatic sync paused':global.navigator?.onLine===false?'Offline':document.hidden?'Waiting for this tab to be visible':idleDelay()?'Waiting for writing or local saving':syncing?'Synchronizing':syncDetails.retrying?'Retry scheduled':'Ready · checking automatically',
       cloudLastChecked:time(syncDetails.checked),cloudLastReceived:time(syncDetails.received),cloudLastUploaded:time(syncDetails.uploaded),
       cloudWorkspaceUploadSize:!uploadSize?'No upload yet':uploadSize.sent===uploadSize.plain?size(uploadSize.sent):`${size(uploadSize.sent)} of ${size(uploadSize.plain)}`,
+      cloudLibrarySize:syncDetails.librarySize?`${size(syncDetails.librarySize.bytes)} · ${syncDetails.librarySize.notebooks} notebook${syncDetails.librarySize.notebooks===1?'':'s'}`:'Waiting for upload preparation',
       cloudCycleDuration:syncDetails.elapsed===null?'Waiting for a completed cycle':`${(syncDetails.elapsed/1000).toFixed(2)} seconds`};
     for(const [stage,id] of Object.entries(timingFields)){
       if(stage.startsWith('live')){
@@ -340,17 +343,18 @@
       return await Promise.race([read,deadline]);
     }finally{clearTimeout(timer);}
   }
-  async function readDriveText(response,expected,manual=false,workspace=false){
+  async function readDriveText(response,expected,manual=false,workspace=false,expanded=false){
     ensureIdle(expected,manual);
     const pollSignal=pollResponseSignals.get(response);
     pollSignal?.throwIfAborted();
-    if(Number(response.headers?.get('content-length')||0)>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
+    const limit=workspace?Infinity:MAX_BYTES;
+    if(Number(response.headers?.get('content-length')||0)>limit)throw Error('Google Drive data exceeds the 100 MB safety limit.');
     const reader=response.body?.getReader?.();
     if(!reader){
       const text=await readWithProgressTimeout(response.text()).catch(error=>{throw pollSignal?.reason||error;});
       ensureIdle(expected,manual);
       pollSignal?.throwIfAborted();
-      if(text.length>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
+      if(text.length>limit)throw Error('Google Drive data exceeds the 100 MB safety limit.');
       return text;
     }
     const decoder=new TextDecoder(),parts=[];
@@ -363,16 +367,17 @@
         if(chunk.done){finished=true;break;}
         // Valid JSON cannot start with the gzip magic byte. The decompressor
         // checks the rest of the header, checksum and compressed stream.
-        if(workspace&&bytes===0&&chunk.value[0]===0x1f)compressed=true;
+        if(workspace&&!expanded&&bytes===0&&chunk.value[0]===0x1f)compressed=true;
         bytes+=chunk.value.byteLength;
-        if(bytes>MAX_BYTES)throw Error('Google Drive data exceeds the 100 MB safety limit.');
+        if(bytes>limit)throw Error('Google Drive data exceeds the 100 MB safety limit.');
         parts.push(compressed?chunk.value:decoder.decode(chunk.value,{stream:true}));
       }
       if(compressed){
         if(typeof global.DecompressionStream!=='function'||typeof global.Response!=='function')throw Error('Use an updated browser to open this compressed Drive workspace.');
         const inflated=new Blob(parts).stream().pipeThrough(new global.DecompressionStream('gzip'));
-        // Apply the size and idle checks to the expanded bytes too.
-        return await readDriveText(new global.Response(inflated),expected,manual);
+        // Preserve the private-library policy through decompression, and
+        // continue checking input/account state between expanded chunks.
+        return await readDriveText(new global.Response(inflated),expected,manual,workspace,true);
       }
       parts.push(decoder.decode());
       return parts.join('');
@@ -752,7 +757,7 @@
       if(fullOnly&&wire.kind!=='full')throw new Error('A compact workspace base must be a complete protected snapshot.');
       let anchor;
       if(wire.kind==='delta'){
-        if(!Number.isSafeInteger(wire.logicalBytes)||wire.logicalBytes<=0||wire.logicalBytes>MAX_BYTES)throw new Error('The compact workspace exceeds the decoded size limit.');
+        if(!Number.isSafeInteger(wire.logicalBytes)||wire.logicalBytes<=0)throw new Error('Invalid compact workspace decoded size.');
         if(typeof wire.baseRevision!=='string'||!wire.baseRevision||wire.baseRevision.length>200||wire.baseRevision===revision)throw new Error('Invalid compact workspace base revision.');
         anchor=driveBases.get(fileId+':'+wire.baseRevision);
         if(!anchor){
@@ -996,7 +1001,6 @@
   async function upload(name,content,oldId,properties,expected=generation,manual=false){
     ensureIdle(expected,manual);
     const blob=content instanceof Blob?content:new Blob([content],{type:'application/json'});
-    if(blob.size>MAX_BYTES)throw new Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
     const metadata={name,mimeType:blob.type,appProperties:properties};
     const target=UPLOAD+(oldId?'/'+encodeURIComponent(oldId):'');
     const fields=name===WORKSPACE_NAME?'id,name,modifiedTime,headRevisionId&keepRevisionForever=true':'id,name,modifiedTime';
@@ -1135,7 +1139,7 @@
   async function prepareWorkspacePayload(snapshot,expected,manual){
     ensureIdle(expected,manual);
     const plain=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
-    if(plain.size>MAX_BYTES)throw Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
+    syncDetails.librarySize={bytes:plain.size,notebooks:snapshot.notebooks.length};updateSyncDetails();
     let sent=plain;
     if(compressUploads&&compressionAvailable&&plain.size>=MIN_COMPRESS_BYTES){
       try{
@@ -1179,7 +1183,7 @@
     }
     const uploadStarted=Date.now();
     let plain=new Blob([JSON.stringify(snapshot)],{type:'application/json'});
-    if(plain.size>MAX_BYTES)throw Error('Notebook storage is larger than 100 MB. Export individual .winds-notes files.');
+    syncDetails.librarySize={bytes:plain.size,notebooks:count};updateSyncDetails();
     const logicalBytes=plain.size,codec=global.WindsDriveCodec,history=workspaceHistory;
     if(codec&&activeId&&history.id===activeId){
       const revisionBases=[...history.revisionBases||[]].filter(([id])=>history.pinnedIds?.has(id));
@@ -1372,7 +1376,7 @@
     const expected=generation;syncing=true;manualBusy=true;updateUI();
     try{
       const response=await driveRequest(`${API}/${encodeURIComponent(id)}?alt=media`,{},expected,true);
-      const text=await readDriveText(response,expected,true);
+      const text=await readDriveText(response,expected,true,true);
       const count=await bridge.importData(text);
       ensureSession(expected);message(`Imported ${count} notebook(s) into ${profile.email}'s workspace.`);
       bridge.toast('Imported editable notebook copies from Google Drive');localVersion++;schedule();
