@@ -519,7 +519,7 @@
     const quiet=globalThis.WindsDrive?.automatic?.()?650:CLOUD_IDLE_MS;
     if(globalThis.WindsLayers&&$('artLayersDialog')?.open)return quiet;
     if(globalThis.WindsPageStack?.isScrolling?.())return 180;
-    if(state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return quiet;
+    if(state.widthAdjustment||state.colorAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen())return quiet;
     const remaining=quiet-(Date.now()-lastInkAt);
     if(remaining>0)return remaining;
     return saving||dirtyAll||dirtyBooks.size||dirtyPages.size?1000:0;
@@ -591,7 +591,7 @@
   }
   async function mergeWorkspace(snapshot,{manual=false,report=false}={}){
     const account=workspaceId,receivedAt=Date.now();
-    if(globalThis.WindsPageStack?.isScrolling?.()||(globalThis.WindsLayers&&$('artLayersDialog')?.open)||state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsPageStack?.isScrolling?.()||(globalThis.WindsLayers&&$('artLayersDialog')?.open)||state.widthAdjustment||state.colorAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||saving||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
       const error=new Error('Writing or local saving resumed. Cloud synchronization will retry when idle.');
       error.syncDeferred=true;throw error;
     }
@@ -734,7 +734,7 @@
     renderLibrary();return copy.id;
   }
   async function putSharedNotebook(book,sharing,version,attach=false,manual=false){
-    if(globalThis.WindsPageStack?.isScrolling?.()||(globalThis.WindsLayers&&$('artLayersDialog')?.open)||version!==saveVersion||saving||state.widthAdjustment||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
+    if(globalThis.WindsPageStack?.isScrolling?.()||(globalThis.WindsLayers&&$('artLayersDialog')?.open)||version!==saveVersion||saving||state.widthAdjustment||state.colorAdjustment||state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()||dirtyAll||dirtyBooks.size||dirtyPages.size||(!manual&&cloudSyncDelay())){
       const error=Error('Local editing changed while sharing. Try again when idle.');error.syncDeferred=true;throw error;
     }
     if(!/^[\w-]{5,200}$/.test(sharing?.folderId||''))throw Error('Invalid shared notebook folder');
@@ -864,7 +864,7 @@
     for(const [id,record] of thumbnailCards){record.canvas.width=record.canvas.height=1;thumbnailDirty.add(id);}
     thumbnailsDirty=true;
   }
-  function thumbnailBusy(){return inputBusy()||state.pendingInteractions||state.widthAdjustment||globalThis.WindsPageStack?.isScrolling?.()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<350;}
+  function thumbnailBusy(){return inputBusy()||state.pendingInteractions||state.widthAdjustment||state.colorAdjustment||globalThis.WindsPageStack?.isScrolling?.()||globalThis.WindsPDFImport?.isOpen()||Date.now()-lastInkAt<350;}
   function queueThumbnailPreview(){
     if(thumbnailPaintTimer||!state.sidebarOpen||$('editorView').hidden)return;
     thumbnailPaintTimer=setTimeout(paintThumbnailPreview,40);
@@ -1291,10 +1291,13 @@
     state.shapeFillEnabled=!!enabled;
     if(/^#[0-9a-f]{6}$/i.test(color))state.shapeFillColor=color;
     state.shapeFillOpacity=Math.max(.05,Math.min(1,Number(opacity)||1));
-    if(/^#[0-9a-f]{6}$/i.test(outlineColor))state.shapeOutlineColor=outlineColor;
+    if(/^#[0-9a-f]{6}$/i.test(outlineColor)){
+      if(outlineColor!==state.shapeOutlineColor){state.color=outlineColor;CREATIVE.prepareArtistColor(outlineColor,state.artistGrade);}
+      state.shapeOutlineColor=outlineColor;
+    }
     state.shapeOutlineSize=Math.max(.5,Math.min(32,Number(outlineSize)||3));
     if(CREATIVE.STROKE_STYLES.has(outlineStyle))state.shapeOutlineStyle=outlineStyle;
-    syncFillControls();
+    syncFillControls();syncColorControls();
   }
   function showFillMenu(e){
     e.stopPropagation();
@@ -1365,15 +1368,49 @@
     });
     sample($('artistActivePreview'),state.artistGrade,true);
   }
+  let selectedColorEdit=null,selectedColorTimer=0;
+  function colorPatch(item,color){
+    if(!item||!['stroke','shape','text','vector','graph'].includes(item.type))return null;
+    return item.type==='shape'&&item.strokeStyle==='none'&&item.fillColor?{fillColor:color}:{color};
+  }
+  function objectColor(item){return item?.type==='shape'&&item.strokeStyle==='none'&&item.fillColor?item.fillColor:item?.color;}
+  function colorSelection(){return ['select','area'].includes(state.tool)?selectionItems().filter(item=>colorPatch(item,state.color)):[];}
+  function queueSelectedColor(color,continuous=false){
+    const items=colorSelection();if(!items.length)return;
+    clearTimeout(selectedColorTimer);
+    const edit={color,items,page:page(),scope:clipboardContext()};selectedColorEdit=edit;state.colorAdjustment=edit;
+    const apply=()=>{
+      if(selectedColorEdit!==edit)return;
+      const current=colorSelection();
+      if(!clipboardMatches(edit.scope)||page()!==edit.page||$('editorView').hidden||current.length!==items.length||items.some((item,index)=>current[index]!==item)){
+        selectedColorEdit=null;state.colorAdjustment=null;syncColorControls();return;
+      }
+      if(inputBusy()||state.pendingInteractions||!clipboardEnabled()||globalThis.WindsPageStack?.isScrolling?.()){selectedColorTimer=setTimeout(apply,80);return;}
+      selectedColorEdit=null;state.colorAdjustment=null;
+      const changes=[];
+      for(const item of items){
+        const patch=colorPatch(item,color),before={},after={};
+        for(const [key,value] of Object.entries(patch))if(item[key]!==value){if(Object.hasOwn(item,key))before[key]=item[key];after[key]=value;}
+        if(Object.keys(after).length)changes.push({kind:'properties',id:item.id,before,after});
+      }
+      if(!changes.length){syncColorControls();return;}
+      const action=changes.length===1?changes[0]:{kind:'properties',changes};recordHistory(action);applyFillHistory(action,true,edit.page);
+      eraserPreview?.invalidate();scheduleSave();if(items.length>1)selectGroup(items);renderCanvas();renderThumbs();globalThis.WindsStudy?.refreshReference?.();
+    };
+    // Coalesce the native color picker's continuous input into one undoable edit.
+    selectedColorTimer=setTimeout(apply,continuous?64:0);
+  }
   function syncColorControls(){
-    const filling=Boolean(boundaryFillSession),c=filling?state.shapeFillColor:state.color;
+    const filling=Boolean(boundaryFillSession),selection=filling?[]:colorSelection(),selected=selection[0];
+    const pending=selectedColorEdit?.page===page()?selectedColorEdit:null;
+    const c=filling?state.shapeFillColor:pending?.color||objectColor(selected)||state.color;
     document.querySelectorAll('[data-color],[data-more-color]').forEach(button=>{
       const color=button.dataset.color||button.dataset.moreColor;
-      const selected=color?.toLowerCase()===c.toLowerCase();
-      button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));
-      button.setAttribute('aria-label',`Use ${filling?'fill':'ink'} color ${color}`);
+      const chosen=color?.toLowerCase()===c.toLowerCase();
+      button.classList.toggle('selected',chosen);button.setAttribute('aria-pressed',String(chosen));
+      button.setAttribute('aria-label',`Use ${filling?'fill':selected?'selected object':'ink'} color ${color}`);
     });
-    $('colorPalette').setAttribute('aria-label',filling?'Fill colors':'Ink colors');
+    $('colorPalette').setAttribute('aria-label',filling?'Fill colors':selected?'Selected object colors':'Ink colors');
     $('drawingSizeControl').hidden=filling||state.tool==='eraser';
     if(!filling&&state.tool!=='select'&&!CREATIVE.isShapeKind(state.tool))$('sizePreview').style.background=c;
     $('customColorInput').value=c;
@@ -1382,11 +1419,12 @@
     $('customColorInput').setAttribute('aria-label',filling?'Choose any fill color':'Choose any ink color');
     syncNumberColors(filling,c);
   }
-  function setColor(c){
+  function setColor(c,{continuous=false}={}){
     if(!/^#[0-9a-f]{6}$/i.test(c))return;
     if(boundaryFillSession?.pickColor?.fill===false){const tool=boundaryFillSession.pickColor.tool;cancelBoundaryFill();setTool(tool);}
     if(boundaryFillSession){setFillOptions({color:c});return;}
-    state.color=c;CREATIVE.prepareArtistColor(c,state.artistGrade);syncColorControls();
+    state.color=c;state.shapeOutlineColor=c;CREATIVE.prepareArtistColor(c,state.artistGrade);
+    queueSelectedColor(c,continuous);syncFillControls();syncColorControls();
   }
   function syncNumberColors(filling,color){
     const numbers=globalThis.WindsColorNumber;if(!numbers)return;
@@ -1593,6 +1631,13 @@
   function rememberFillObject(before,after,index){recordHistory({kind:'object',id:after.id,index,before:before?clone(before):null,after:clone(after)});}
   function applyFillHistory(action,forward,p=page()){
     globalThis.WindsLayers?.invalidate(p);
+    if(action.changes){
+      const bounds=action.changes.map(change=>applyFillHistory(change,forward,p)).filter(Boolean);
+      if(!bounds.length)return null;
+      let x=Infinity,y=Infinity,right=-Infinity,bottom=-Infinity;
+      for(const b of bounds){x=Math.min(x,b.x);y=Math.min(y,b.y);right=Math.max(right,b.x+b.w);bottom=Math.max(bottom,b.y+b.h);}
+      return {x,y,w:right-x,h:bottom-y};
+    }
     const index=p.items.findIndex(item=>item.id===action.id),current=p.items[index],value=forward?action.after:action.before;
     if(action.kind==='properties'){
       if(!current)return null;
@@ -1977,6 +2022,10 @@
   function updateSelectionActions(){
     syncToolbarWidth();
     const item=selectedDisplayItem(),group=activeGroup();
+    const colorItem=page()?.items[state.selected],colorValue=`${colorItem?.color||''}/${colorItem?.fillColor||''}`;
+    if(state.colorSelectionItem!==colorItem||state.colorSelectionGroup!==group||state.colorSelectionTool!==state.tool||state.colorSelectionValue!==colorValue){
+      state.colorSelectionItem=colorItem;state.colorSelectionGroup=group;state.colorSelectionTool=state.tool;state.colorSelectionValue=colorValue;syncColorControls();
+    }
     const show=Boolean(!imageCropSession&&item&&globalThis.WindsLayers?.editable(page(),item)!==false&&['select','area'].includes(state.tool));
     const precision=show&&!group&&resizable(item);
     const math=precision&&item.type==='shape'&&CREATIVE.isMathShape(item.kind);
@@ -3529,7 +3578,8 @@
     $('stickerSize').oninput=e=>{$('stickerSizeValue').textContent=e.target.value;};
     $('emojiGrid').onclick=e=>{const btn=e.target.closest('[data-sticker]');if(btn)addSticker(btn.dataset.sticker);};
     $('extendedColors').onclick=e=>{const btn=e.target.closest('[data-more-color]');if(btn){setColor(btn.dataset.moreColor);closeMenus();}};
-    $('customColorInput').oninput=e=>setColor(e.target.value);
+    $('customColorInput').oninput=e=>setColor(e.target.value,{continuous:true});
+    $('customColorInput').onchange=e=>setColor(e.target.value);
     $('customColorInput').onchange=()=>closeMenus();
     document.querySelectorAll('[data-export]').forEach(el=>el.onclick=()=>exportCurrent(el.dataset.export));
     document.querySelectorAll('[data-paper]').forEach(el=>el.onclick=()=>{if(!page()||page().background)return;page().template=el.dataset.paper;closeMenus();renderEditor();scheduleSave();toast('Paper template changed');});
@@ -4310,7 +4360,7 @@
           return null;
         },
         resizeShape:updateShapeDraft,
-        busy:()=>Boolean(inputBusy()||state.widthAdjustment||globalThis.WindsPDFImport?.isOpen()),
+        busy:()=>Boolean(inputBusy()||state.widthAdjustment||state.colorAdjustment||globalThis.WindsPDFImport?.isOpen()),
         scrollBusy:()=>Boolean(state.drag||state.pinch||state.editingText||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
         pending:delta=>{state.pendingInteractions+=delta;},
         touch:()=>{lastInkAt=Date.now();},
@@ -4551,7 +4601,7 @@
       mergeWorkspace,
       isWriting:()=>Boolean(state.drag||state.pinch||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||Date.now()-lastInkAt<saveIdleDelay()),
       isDrawingNow:()=>Boolean(state.drag||state.pinch),
-      isEditing:()=>Boolean($('artLayersDialog')?.open||globalThis.WindsPageStack?.isScrolling?.()||state.widthAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
+      isEditing:()=>Boolean($('artLayersDialog')?.open||globalThis.WindsPageStack?.isScrolling?.()||state.widthAdjustment||state.colorAdjustment||globalThis.WindsVector?.isEditing()||globalThis.WindsGraph?.isEditing()||globalThis.WindsMandala?.isOpen()||globalThis.WindsBoundaryFill?.isActive()||state.editingText||state.pendingInteractions||imageCropSession||globalThis.WindsText?.isOpen()||globalThis.WindsPDFImport?.isOpen()),
       isSaving:()=>saving,
       syncIdleDelay:cloudSyncDelay,
       sharing:{copyForSharing:copyNotebookForSharing,notebooks:()=>state.notebooks,activeId:()=>state.activeId,version:()=>saveVersion,putShared:putSharedNotebook,deleted:id=>Boolean(tombstones[id])&&!state.notebooks.some(n=>n.id===id),openNotebook,toast},

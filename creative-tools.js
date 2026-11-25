@@ -624,7 +624,7 @@
   }
   function artistPigment(item){
     const settings=pencilGrade(item.grade);
-    return settings.colorMode==='ink' && /^#[0-9a-fA-F]{6}$/.test(item.color||'')?item.color:settings.shade;
+    return /^#[0-9a-fA-F]{6}$/.test(item.color||'')?item.color:settings.shade;
   }
   function pencilWidth(item,pressure){
     const settings=pencilGrade(item.grade),p=clamp(Number.isFinite(pressure)?pressure:.68,.03,1);
@@ -742,7 +742,7 @@
   function prepareArtistColor(color,grade){
     if(!/^#[0-9a-fA-F]{6}$/.test(color||''))return;
     const materials=grade?[[artistGradeName(grade),pencilGrade(grade)]]:Object.entries(PENCIL_GRADES);
-    for(const [name,settings] of materials)if(settings.colorMode==='ink'&&settings.kind!=='ink')artistStamp(name,color);
+    for(const [name,settings] of materials)if(settings.kind!=='ink')artistStamp(name,color);
   }
   function artistPoint(item,p){return {x:p[0],y:p[1],p:pressureAt(p),r:pencilWidth(item,pressureAt(p))*.5};}
   function artistMidpoint(item,a,b){
